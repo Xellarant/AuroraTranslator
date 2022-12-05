@@ -11,13 +11,14 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.ComponentModel;
 using System.Xml.Linq;
+using _5eApiTranslator.ResponseObjects;
 
 namespace _5eApiTranslator
 {
     class Program
     {        
         static string apiBase = "https://www.dnd5eapi.co/api";
-        static string connectionString = "Data Source=(LocalDb)\\MSSQLLocalDB;Initial Catalog=5eHelper;Integrated Security=true";        
+        static string connectionString = "Data Source=(LocalDb)\\MSSQLLocalDB;Initial Catalog=5eHelper;Integrated Security=true";
 
         static async Task Main(string[] args)
         {            
@@ -332,12 +333,7 @@ namespace _5eApiTranslator
                     }
                 }
             }
-        }
-
-        private static void ImportAuroraFeat(AuroraElement feat)
-        {
-            //throw new NotImplementedException();
-        }
+        }        
 
         private static AuroraElement FillAuroraFeat(XElement featElement, string name, string source, string id)
         {
@@ -746,6 +742,11 @@ namespace _5eApiTranslator
                     sqlConnection.Close();
                 }
             }            
+        }
+
+        private static void ImportAuroraFeat(AuroraElement feat)
+        {
+            //throw new NotImplementedException();
         }
     }
 }
