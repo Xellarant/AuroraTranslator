@@ -146,154 +146,6 @@ namespace _5eApiTranslator
             }
         }
 
-        //private static void FillAuroraSpells()
-        //{
-        //    string auroraPath = @"C:\Users\Ralla\Documents\5e Character Builder\custom";
-        //    string[] files = Directory.GetFiles(auroraPath, "*.xml", SearchOption.AllDirectories);
-        //    AuroraSpell spell;
-
-        //    foreach (string file in files)
-        //    {
-        //        FileStream stream = File.OpenRead(file);
-        //        XDocument xml = XDocument.Load(stream);
-
-        //        foreach (var node in xml.DescendantNodes())
-        //        {
-        //            if (node is XElement element1
-        //                && element1.Name == "element")
-        //            {
-        //                //var element1 = element1;
-        //                var nameAttribute = element1.Attribute("name");
-        //                var typeAttribute = element1.Attribute("type");
-        //                var sourceAttribute = element1.Attribute("source");
-        //                var idAttribute = element1.Attribute("id");
-
-        //                if (typeAttribute?.Value.ToLower() == "spell")
-        //                {
-        //                    spell = new AuroraSpell();
-
-        //                    spell.name = nameAttribute?.Value;
-        //                    spell.source = sourceAttribute?.Value;
-        //                    spell.aurora_id = idAttribute?.Value;
-        //                    spell.index = spell.name.ToLower().Replace(" ", "-");
-
-        //                    foreach (var childElement in element1.Elements())
-        //                    {
-        //                        // fill compendium_display
-        //                        if (childElement.Name == "compendium")
-        //                        {
-        //                            spell.compendium_display = Convert.ToBoolean(childElement.Attribute("display").Value);
-        //                        }
-
-        //                        // fill supports (for now just going into classes)
-        //                        if (childElement.Name == "supports")
-        //                        {
-        //                            spell.classes = new();
-
-        //                            List<string> supports = childElement.Value.Split(",").Select(x => x.Trim()).ToList();
-
-        //                            foreach (var support in supports)
-        //                                spell.classes.Add(new BaseApiClass { name = support, index = support.ToLower().Replace(" ", "-") });
-        //                        }
-
-        //                        // fill descriptions
-        //                        if (childElement.Name == "description")
-        //                        {
-        //                            spell.desc = new();
-        //                            if (childElement.Value.Contains("At Higher Levels."))
-        //                            {
-        //                                spell.higher_level = new();
-
-        //                                spell.desc.Add(childElement.Value.Substring(0, childElement.Value.IndexOf("At Higher Levels.") - 1));
-        //                                spell.higher_level.Add(childElement.Value.Substring(childElement.Value.IndexOf("At Higher Levels.")));
-        //                            }
-        //                            else
-        //                            {
-        //                                spell.desc.Add(childElement.Value);
-        //                            }
-        //                        }
-
-        //                        // fill setters
-        //                        if (childElement.Name == "setters")
-        //                        {
-        //                            spell.setters = new();
-        //                            var settersType = typeof(AuroraSetters);
-        //                            var setterProps = settersType.GetProperties().ToList();
-
-        //                            foreach(var setter in ((XElement)childElement).Elements("set"))
-        //                            {
-        //                                string setterName = setter.Attribute("name").Value;
-
-        //                                PropertyInfo setterProp = setterProps.FirstOrDefault(x => x.Name == setterName);
-
-        //                                if (setterProp != null)
-        //                                {
-        //                                    string content = setter.Value;
-        //                                    TypeConverter typeConverter = TypeDescriptor.GetConverter(setterProp.PropertyType);
-                                            
-        //                                    if (setterProp.PropertyType.Equals(typeof(string)))
-        //                                    {
-        //                                        setterProp.SetValue(spell.setters, content);
-        //                                    }
-        //                                    else if (setterName == "keywords")
-        //                                    {
-        //                                        spell.setters.keywords = new();
-        //                                        spell.setters.keywords.AddRange(setter.Value.Split(",").ToList());
-        //                                    }
-        //                                    else
-        //                                    {
-        //                                        setterProp.SetValue(spell.setters, typeConverter.ConvertFromString(content));
-        //                                    }
-        //                                }
-        //                            }
-        //                        }
-
-        //                        // fill FROM setters.
-        //                        if (spell.setters != null)
-        //                        {
-        //                            spell.url = spell.url ?? spell.setters.sourceUrl;
-
-        //                            if (spell.setters.level != 0)
-        //                            {
-        //                                spell.level = spell.setters.level;
-        //                            }
-
-        //                            spell.school = new BaseApiClass { index = spell.setters.school.ToLower() };
-        //                            spell.casting_time = spell.setters.time;
-        //                            spell.duration = spell.setters.duration;
-        //                            spell.range = spell.setters.range;
-
-        //                            if (spell.components == null)
-        //                                spell.components = new();
-
-        //                            if (spell.setters.hasVerbalComponent)
-        //                            {
-        //                                spell.components.Add("V");
-        //                            }
-        //                            if (spell.setters.hasSomaticComponent)
-        //                            {
-        //                                spell.components.Add("S");
-        //                            }
-        //                            if (spell.setters.hasMaterialComponent)
-        //                            {
-        //                                spell.components.Add("M");
-        //                            }
-
-        //                            spell.material = spell.setters.materialComponent;
-        //                            spell.concentration = spell.setters.isConcentration;
-        //                            spell.ritual = spell.setters.isRitual;
-        //                            spell.attack_type = spell.desc.Contains("melee spell attack") && spell.attack_type != null ? "melee" : null;
-        //                            spell.attack_type = spell.desc.Contains("ranged spell attack") && spell.attack_type != null ? "ranged" : null;
-
-        //                            //ImportAuroraSpell(spell);
-        //                        }                                
-        //                    }
-        //                }
-        //            }
-        //        }                                
-        //    }
-        //}
-
         private static void GrabAuroraElements()
         {
             string auroraPath = @"C:\Users\Ralla\Documents\5e Character Builder\custom";
@@ -747,6 +599,65 @@ namespace _5eApiTranslator
         private static void ImportAuroraFeat(AuroraElement feat)
         {
             //throw new NotImplementedException();
+
+            using (SqlConnection sqlConnection = new SqlConnection(connectionString))
+            {
+                using (SqlCommand sqlCommand = new SqlCommand("sp_Feats_Import", sqlConnection))
+                {
+                    sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
+
+                    sqlCommand.Parameters.AddWithValue("@feat_index", feat.index);
+                    sqlCommand.Parameters.AddWithValue("@feat_name", feat.name);
+                    sqlCommand.Parameters.AddWithValue("@feat_desc", feat.description);
+                    sqlCommand.Parameters.AddWithValue("@featTypeId", null); // TODO: insert logic to determine feat type category
+                    sqlCommand.Parameters.AddWithValue("@feat_source", feat.source);
+                    sqlCommand.Parameters.AddWithValue("@feat_aurora_id", feat.id);
+                    sqlCommand.Parameters.AddWithValue("@feat_requirements", feat.requirements?.Count > 1 ? string.Join("; ", feat.requirements) : feat.requirements[0]);
+                    sqlCommand.Parameters.AddWithValue("@feat_supports", feat.supports?.Count > 1 ? string.Join("; ", feat.supports) : feat.supports[0]);
+                    sqlCommand.Parameters.AddWithValue(
+                        "@feat_rules", feat.rules != null ? 
+                            JsonSerializer.Serialize(feat.rules, new JsonSerializerOptions { IncludeFields = true }) 
+                            : null);
+
+                    foreach (SqlParameter parameter in sqlCommand.Parameters)
+                    {
+                        if (parameter.Value == null)
+                            parameter.Value = DBNull.Value;
+                    }
+
+                    sqlConnection.Open();
+                    sqlCommand.ExecuteNonQuery();
+                    sqlConnection.Close();
+                }
+
+                //TODO: finish working out below code.
+
+                //List<string> feat_Supports = new List<string>();
+                //// Rules feat_Rules = new Rules();
+
+                //if (feat.supports != null)
+                //    feat_Supports.AddRange(feat.supports);
+
+                //if (feat.rules != null)
+                //{
+                //    // feat_Rules = feat.rules;
+                //    /*
+                //     * TODO: will need to deal with Grants, Selects, and Stats.
+                //     */
+                //}                    
+
+                //using (SqlCommand sqlCommand = new SqlCommand("sp_Feats_Rules_Import", sqlConnection))
+                //{
+                //    sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
+
+                //    sqlCommand.Parameters.AddWithValue("@feat_index", feat.index);
+                //    //sqlCommand.Parameters.AddWithValue("@tvpFeats", feat_Classes?.ToDataTable());
+
+                //    sqlConnection.Open();
+                //    sqlCommand.ExecuteNonQuery();
+                //    sqlConnection.Close();
+                //}
+            }
         }
     }
 }
