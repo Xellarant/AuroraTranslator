@@ -612,8 +612,14 @@ namespace _5eApiTranslator
                     sqlCommand.Parameters.AddWithValue("@featTypeId", null); // TODO: insert logic to determine feat type category
                     sqlCommand.Parameters.AddWithValue("@feat_source", feat.source);
                     sqlCommand.Parameters.AddWithValue("@feat_aurora_id", feat.id);
-                    sqlCommand.Parameters.AddWithValue("@feat_requirements", feat.requirements?.Count > 1 ? string.Join("; ", feat.requirements) : feat.requirements[0]);
-                    sqlCommand.Parameters.AddWithValue("@feat_supports", feat.supports?.Count > 1 ? string.Join("; ", feat.supports) : feat.supports[0]);
+                    if (feat.requirements?.Count > 0)
+                    {
+                        sqlCommand.Parameters.AddWithValue("@feat_requirements", feat.requirements?.Count > 1 ? string.Join("; ", feat.requirements) : feat.requirements[0]);
+                    }
+                    if (feat.supports?.Count > 0)
+                    {
+                        sqlCommand.Parameters.AddWithValue("@feat_supports", feat.supports?.Count > 1 ? string.Join("; ", feat.supports) : feat.supports[0]);
+                    }
                     sqlCommand.Parameters.AddWithValue(
                         "@feat_rules", feat.rules != null ? 
                             JsonSerializer.Serialize(feat.rules, new JsonSerializerOptions { IncludeFields = true }) 
