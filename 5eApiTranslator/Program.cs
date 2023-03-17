@@ -614,7 +614,7 @@ namespace _5eApiTranslator
                     sqlCommand.Parameters.AddWithValue("@feat_aurora_id", feat.id);
                     if (feat.requirements?.Count > 0)
                     {
-                        sqlCommand.Parameters.AddWithValue("@feat_requirements", feat.requirements?.Count > 1 ? string.Join("; ", feat.requirements) : feat.requirements[0]);
+                        sqlCommand.Parameters.AddWithValue("@feat_requirements", feat.requirements?.Count > 1 ? string.Join(", ", feat.requirements) : feat.requirements[0]);
                     }
                     if (feat.supports?.Count > 0)
                     {
