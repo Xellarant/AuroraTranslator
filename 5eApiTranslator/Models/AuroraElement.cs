@@ -32,6 +32,7 @@ namespace _5eApiTranslator.Models
         public string id { get; set; }
         public string prerequisite { get; set; } 
         public List<string> requirements { get; set; }
+        public AuroraSetters setters { get; set; }
         public Rules rules { get; set; }
     }
 

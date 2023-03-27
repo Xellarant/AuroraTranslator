@@ -149,16 +149,45 @@ namespace _5eApiTranslator
         private static void GrabAuroraElements()
         {
             string auroraPath = @"C:\Users\Ralla\Documents\5e Character Builder\custom";
-            string[] files = Directory.GetFiles(auroraPath, "*.xml", SearchOption.AllDirectories);            
+            string[] files = Directory.GetFiles(auroraPath, "*.xml", SearchOption.AllDirectories);
+
+            List<AuroraFileInfo> auroraFiles = new();
+
+            List<string> types = new();
 
             foreach (string file in files)
             {
                 FileStream stream = File.OpenRead(file);
-                XDocument xml = XDocument.Load(stream);
+                XDocument xml = XDocument.Load(stream);                
 
                 foreach (var node in xml.DescendantNodes())
                 {
-                    if (node is XElement element1
+                    if (node is XElement element
+                        && element.Name == "info")
+                    {
+                        var fileName = element.Element("name")?.Value;
+                        var fileDesc = element.Element("description")?.Value;
+                        var fileAuthor = new Author();
+                        fileAuthor.name = element.Element("author")?.Value;
+                        fileAuthor.url = element.Element("author")?.Attribute("url")?.Value;
+                        FileVersion fileVersion = new();
+                        fileVersion.versionString = element.Element("update")?.Attribute("version")?.Value;
+                        fileVersion.fileName = element.Element("update")?.Element("file")?.Attribute("name")?.Value;
+                        fileVersion.fileUrl = element.Element("update")?.Element("file")?.Attribute("url")?.Value;
+
+                        if (!auroraFiles.Where(x => x.FileVersion.fileName == fileVersion.fileName).Any())
+                        {
+                            auroraFiles.Add(new AuroraFileInfo
+                            {
+                                Name = fileName,
+                                Description = fileDesc,
+                                Author = fileAuthor,
+                                FileVersion = fileVersion
+                            });
+                        }
+                    }
+
+                    else if (node is XElement element1
                         && element1.Name == "element")
                     {
                         //var element1 = element1;
@@ -175,17 +204,120 @@ namespace _5eApiTranslator
                                 ImportAuroraSpell(spell);
                         }
 
-                        if (typeAttribute?.Value.ToLower() == "feat")
+                        else if (typeAttribute?.Value.ToLower() == "feat")
                         {
                             AuroraElement feat = FillAuroraFeat((XElement)node, nameAttribute.Value, sourceAttribute.Value, idAttribute.Value);
 
                             if (feat != null)
                                 ImportAuroraFeat(feat);
                         }
+
+                        else if (typeAttribute?.Value.ToLower() == "magic item")
+                        {
+                            AuroraElement auroraElement = FillAuroraElement((XElement)node, nameAttribute.Value, sourceAttribute.Value, idAttribute.Value);
+
+                            if (auroraElement != null)
+                                ImportMagicItem(auroraElement);
+                        }
                     }
-                }
+                    else if (node is XElement element2)
+                    {
+                        try
+                        {
+                            var nameAttribute = element2.Attribute("name");
+                            var typeAttribute = element2.Attribute("type");
+                            var sourceAttribute = element2.Attribute("source");
+                            var idAttribute = element2.Attribute("id");
+                            var AuroraElement = FillAuroraElement((XElement)node, nameAttribute?.Value, sourceAttribute?.Value, idAttribute?.Value);
+
+                            if (typeAttribute?.Value.ToLower() == "magic item")
+                            {
+                                Console.WriteLine("Hey! I found one!");
+                            }
+                        }
+                        catch (Exception ex) 
+                        {
+                            // SOMETHING WENT WRONG!!!
+                            Console.Error.WriteLine(ex.Message); // oh well.
+                        }
+
+                        if (!types.Contains((node as XElement)?.Name.ToString()))
+                            types.Add((node as XElement)?.Name.ToString());
+                    }
+                }                
             }
-        }        
+            Console.WriteLine($"Number of types detected: {types.Count}");
+        }
+
+        private static void ImportMagicItem(AuroraElement mitem)
+        {
+            //throw new NotImplementedException();
+
+            using (SqlConnection sqlConnection = new SqlConnection(connectionString))
+            {
+                using (SqlCommand sqlCommand = new SqlCommand("sp_MItems_Import", sqlConnection))
+                {
+                    sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
+
+                    sqlCommand.Parameters.AddWithValue("@mitem_index", mitem.index);
+                    sqlCommand.Parameters.AddWithValue("@mitem_name", mitem.name);
+                    sqlCommand.Parameters.AddWithValue("@mitem_desc", mitem.description);
+                    sqlCommand.Parameters.AddWithValue("@mitemTypeId", null); // TODO: insert logic to determine mitem type category
+                    sqlCommand.Parameters.AddWithValue("@mitem_source", mitem.source);
+                    sqlCommand.Parameters.AddWithValue("@mitem_aurora_id", mitem.id);
+                    if (mitem.requirements?.Count > 0)
+                    {
+                        sqlCommand.Parameters.AddWithValue("@mitem_requirements", mitem.requirements?.Count > 1 ? string.Join(", ", mitem.requirements) : mitem.requirements[0]);
+                    }
+                    if (mitem.supports?.Count > 0)
+                    {
+                        sqlCommand.Parameters.AddWithValue("@mitem_supports", mitem.supports?.Count > 1 ? string.Join("; ", mitem.supports) : mitem.supports[0]);
+                    }
+                    sqlCommand.Parameters.AddWithValue(
+                        "@mitem_rules", mitem.rules != null ?
+                            JsonSerializer.Serialize(mitem.rules, new JsonSerializerOptions { IncludeFields = true })
+                            : null);
+
+                    foreach (SqlParameter parameter in sqlCommand.Parameters)
+                    {
+                        if (parameter.Value == null)
+                            parameter.Value = DBNull.Value;
+                    }
+
+                    sqlConnection.Open();
+                    sqlCommand.ExecuteNonQuery();
+                    sqlConnection.Close();
+                }
+
+                //    //TODO: finish working out below code.
+
+                //    //List<string> mitem_Supports = new List<string>();
+                //    //// Rules mitem_Rules = new Rules();
+
+                //    //if (mitem.supports != null)
+                //    //    mitem_Supports.AddRange(mitem.supports);
+
+                //    //if (mitem.rules != null)
+                //    //{
+                //    //    // mitem_Rules = mitem.rules;
+                //    //    /*
+                //    //     * TODO: will need to deal with Grants, Selects, and Stats.
+                //    //     */
+                //    //}                    
+
+                //    //using (SqlCommand sqlCommand = new SqlCommand("sp_mitems_Rules_Import", sqlConnection))
+                //    //{
+                //    //    sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
+
+                //    //    sqlCommand.Parameters.AddWithValue("@mitem_index", mitem.index);
+                //    //    //sqlCommand.Parameters.AddWithValue("@tvpmitems", mitem_Classes?.ToDataTable());
+
+                //    //    sqlConnection.Open();
+                //    //    sqlCommand.ExecuteNonQuery();
+                //    //    sqlConnection.Close();
+                //    //}
+            }
+        }
 
         private static AuroraElement FillAuroraFeat(XElement featElement, string name, string source, string id)
         {
@@ -528,6 +660,252 @@ namespace _5eApiTranslator
             }
 
             return spell;
+        }
+
+        private static AuroraElement FillAuroraElement(XElement element, string name, string source, string id)
+        {
+            var auroraElement = new AuroraElement();
+
+            auroraElement.name = name;
+            auroraElement.type = "auroraElement";
+            auroraElement.source = source;
+            auroraElement.id = id;
+            auroraElement.index = auroraElement.name?.ToLower()?.Replace(" ", "-");
+
+            foreach (var childElement in element.Elements())
+            {
+                // fill compendium_display
+                if (childElement.Name == "compendium")
+                {
+                    auroraElement.compendium.display = Convert.ToBoolean(childElement.Attribute("display")?.Value ?? "true");
+                }
+
+                // fill supports (for now just going into classes)
+                if (childElement.Name == "supports")
+                {
+                    auroraElement.supports = new();
+
+                    List<string> supports = childElement.Value.Split(",").
+                        Select(x => x.ToLower().Replace(" ", "-").Trim()).ToList();
+
+                    auroraElement.supports.AddRange(supports);
+                }
+
+                // Fill requirements...
+                // TODO: figure out what to do with requirements (how to store/retrieve?)
+                if (childElement.Name == "requirements")
+                {
+                    auroraElement.requirements = new();
+
+                    List<string> requirements = childElement.Value.Split(",").
+                        Select(x => x.Trim()).ToList();
+
+                    if (auroraElement.supports == null)
+                        auroraElement.supports = new();
+
+                    auroraElement.supports.AddRange(requirements);
+                }
+
+                // fill descriptions
+                if (childElement.Name == "description")
+                {
+                    auroraElement.description = childElement.Value;
+
+                    //if (childElement.Value.Contains("At Higher Levels."))
+                    //{
+                    //    auroraElement.higher_level = new();
+
+                    //    auroraElement.desc.Add(childElement.Value.Substring(0, childElement.Value.IndexOf("At Higher Levels.") - 1));
+                    //    auroraElement.higher_level.Add(childElement.Value.Substring(childElement.Value.IndexOf("At Higher Levels.")));
+                    //}
+                    //else
+                    //{
+                    //    auroraElement.desc.Add(childElement.Value);
+                    //}
+                }
+
+                if (childElement.Name == "sheet")
+                {
+                    auroraElement.sheet = new();
+
+                    if (childElement.Attribute("display") != null)
+                    {
+                        auroraElement.sheet.display = Convert.ToBoolean(childElement.Attribute("display")?.Value);
+                    }
+                    auroraElement.sheet.alt = childElement.Attribute("alt")?.Value;
+                    auroraElement.sheet.action = childElement.Attribute("action")?.Value;
+                    auroraElement.sheet.usage = childElement.Attribute("usage")?.Value;
+
+                    if (childElement.Elements("description")?.Any() == true)
+                    {
+                        auroraElement.sheet.description = new();
+                    }
+
+                    foreach (var desc in childElement.Elements("description"))
+                    {
+                        auroraElement.sheet.description.Add(
+                            new Description
+                            {
+                                level = desc.Attribute("level")?.Value != null ?
+                                    Convert.ToInt32(desc.Attribute("level")?.Value)
+                                    : null,
+                                text = desc.Value
+                            });
+                    }
+                }
+
+                // fill setters
+                if (childElement.Name == "setters")
+                {
+                    auroraElement.setters = new();
+                    FillSetters(auroraElement.setters, childElement);
+                }
+
+                if (childElement.Name == "spellcasting")
+                {
+                    // used if this element is a spellcasting class or archetype.
+
+                    auroraElement.spellcasting = new();
+                    auroraElement.spellcasting.name = childElement.Attribute("name")?.Value;
+                    auroraElement.spellcasting.ability = childElement.Attribute("ability")?.Value;
+                    
+                    string[] separators = new string[] { ", ", "," };
+                    auroraElement.spellcasting.list = new List<string>();
+                    
+                    if (childElement.Element("list") != null)
+                    {
+                        auroraElement.spellcasting.list
+                            .AddRange(childElement.Element("list")?.Value
+                                .Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                    }
+                    
+                    try
+                    {
+                        auroraElement.spellcasting.extend = bool.Parse(childElement.Attribute("extend")?.Value);
+                    }
+                    catch (Exception ex)
+                    {
+                        // if it doesn't work... just complain and move on.
+                        Console.Error.WriteLine(ex.Message);
+                    }
+
+                    auroraElement.spellcasting.extendList =
+                        new List<string>(childElement.Element("extend").Value.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                }
+
+                if (childElement.Name == "multiclass")
+                {
+                    // used for class-type elements.
+                    // used to describe what's required to multiclass from or into this class.
+
+                    auroraElement.multiclass = new();
+                    auroraElement.id = childElement.Attribute("id")?.Value;
+                    auroraElement.multiclass.prerequisite = childElement.Element("prerequisite")?.Value;
+
+                    if (childElement.Element("requirements") != null)
+                    {
+                        auroraElement.multiclass.requirements = new List<string>();
+                        string[] separators = new string[] { ", ", "," };
+                        auroraElement.multiclass.requirements
+                            .AddRange(childElement.Element("requirements")?.Value.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                    }
+
+                    XElement mcSetters = childElement.Element("setters");
+                    if (mcSetters != null)
+                    {
+                        auroraElement.multiclass.setters = new();
+                        FillSetters(auroraElement.multiclass.setters, mcSetters);
+                    }
+
+                    XElement mcRules = childElement.Element("rules");
+                    if (mcRules != null)
+                    {
+                        auroraElement.multiclass.rules = new();
+                        FillRules(auroraElement.multiclass.rules, mcRules);
+                    }
+
+                }
+
+                if (childElement.Name == "rules")
+                {
+                    FillRules(auroraElement.rules, childElement);
+                }
+            }
+
+            return auroraElement;
+        }
+
+        private static void FillRules(Rules rules, XElement parentElement)
+        {
+            rules = new()
+            {
+                grants = new(),
+                selects = new()
+            };
+
+            foreach (var grant in parentElement.Elements("grant"))
+            {
+                rules.grants.Add(new Grant
+                {
+                    type = grant.Attribute("type")?.Value,
+                    id = grant.Attribute("id")?.Value,
+                    name = grant.Attribute("name")?.Value,
+                    level = grant.Attribute("level")?.Value != null ?
+                            Convert.ToInt32(grant.Attribute("level")?.Value) :
+                            null,
+                    requirements = grant.Attribute("requirements")?.Value.Split(",")
+                        .Select(x => x.Trim()).ToList()
+                });
+            }
+
+            foreach (var select in parentElement.Elements("select"))
+            {
+                rules.selects.Add(new Select
+                {
+                    type = select.Attribute("type")?.Value,
+                    name = select.Attribute("name")?.Value,
+                    supports = select.Attribute("supports")?.Value
+                        .Split(",").Select(x => x.Trim()).ToList(),
+                    level = select.Attribute("level")?.Value != null ?
+                        Convert.ToInt32(select.Attribute("level")?.Value) :
+                        null,
+                    requirements = select.Attribute("requirements")?.Value
+                        .Split(",").Select(x => x.Trim()).ToList(),
+                });
+            }
+        }
+
+        private static void FillSetters(AuroraSetters setters, XElement parentElement)
+        {
+            var settersType = typeof(AuroraSetters);
+            var setterProps = settersType.GetProperties().ToList();
+
+            foreach (var setter in parentElement.Elements("set"))
+            {
+                string setterName = setter.Attribute("name").Value;
+
+                PropertyInfo setterProp = setterProps.FirstOrDefault(x => x.Name == setterName);
+
+                if (setterProp != null)
+                {
+                    string content = setter.Value;
+                    TypeConverter typeConverter = TypeDescriptor.GetConverter(setterProp.PropertyType);
+
+                    if (setterProp.PropertyType.Equals(typeof(string)))
+                    {
+                        setterProp.SetValue(setters, content);
+                    }
+                    else if (setterName == "keywords")
+                    {
+                        setters.keywords = new();
+                        setters.keywords.AddRange(setter.Value.Split(",").ToList());
+                    }
+                    else
+                    {
+                        setterProp.SetValue(setters, typeConverter.ConvertFromString(content));
+                    }
+                }
+            }
         }
 
         private static void ImportAuroraSpell(AuroraSpell spell)

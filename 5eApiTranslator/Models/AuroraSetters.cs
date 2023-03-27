@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace _5eApiTranslator.Models
 {
-    class AuroraSetters
+    public class AuroraSetters
     {
         public string sourceUrl { get; set; }
         public List<string> keywords { get; set; }
