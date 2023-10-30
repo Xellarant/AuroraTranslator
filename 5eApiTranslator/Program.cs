@@ -152,6 +152,8 @@ namespace _5eApiTranslator
             string[] files = Directory.GetFiles(auroraPath, "*.xml", SearchOption.AllDirectories);
 
             List<AuroraFileInfo> auroraFiles = new();
+            List<AuroraSpell> spellsFound = new();
+            List<AuroraElement> elementsFound = new();
 
             List<string> types = new();
 
@@ -201,7 +203,10 @@ namespace _5eApiTranslator
                             AuroraSpell spell = FillAuroraSpell((XElement)node, nameAttribute.Value, sourceAttribute.Value, idAttribute.Value);
                             
                             if (spell != null)
+                            {
                                 ImportAuroraSpell(spell);
+                                spellsFound.Add(spell);
+                            }                                
                         }
 
                         else if (typeAttribute?.Value.ToLower() == "feat")
@@ -209,15 +214,22 @@ namespace _5eApiTranslator
                             AuroraElement feat = FillAuroraFeat((XElement)node, nameAttribute.Value, sourceAttribute.Value, idAttribute.Value);
 
                             if (feat != null)
+                            {
                                 ImportAuroraFeat(feat);
+                                elementsFound.Add(feat);
+                            }                                
                         }
 
                         else if (typeAttribute?.Value.ToLower() == "magic item")
                         {
-                            AuroraElement auroraElement = FillAuroraElement((XElement)node, nameAttribute.Value, sourceAttribute.Value, idAttribute.Value);
+                            AuroraElement auroraElement = FillAuroraElement((XElement)node, nameAttribute.Value, sourceAttribute.Value, 
+                                idAttribute.Value, typeAttribute.Value);
 
                             if (auroraElement != null)
+                            {
                                 ImportMagicItem(auroraElement);
+                                elementsFound.Add(auroraElement);
+                            }                                
                         }
                     }
                     else if (node is XElement element2)
@@ -247,6 +259,15 @@ namespace _5eApiTranslator
                 }                
             }
             Console.WriteLine($"Number of types detected: {types.Count}");
+
+            // spells found?
+            Console.WriteLine($"Number of spells checked/filled: {spellsFound.Count}");
+
+            // feats found?
+            Console.WriteLine($"Number of feats checked/filled: {elementsFound.Where(x => x.type.ToLower() == "feat").Count()}");
+
+            // magic items found?
+            Console.WriteLine($"Number of magic items checked/filled: {elementsFound.Where(x => x.type.ToLower() == "magic item").Count()}");
         }
 
         private static void ImportMagicItem(AuroraElement mitem)
@@ -662,12 +683,12 @@ namespace _5eApiTranslator
             return spell;
         }
 
-        private static AuroraElement FillAuroraElement(XElement element, string name, string source, string id)
+        private static AuroraElement FillAuroraElement(XElement element, string name, string source, string id, string type = null)
         {
             var auroraElement = new AuroraElement();
 
             auroraElement.name = name;
-            auroraElement.type = "auroraElement";
+            auroraElement.type = type ?? "auroraElement";
             auroraElement.source = source;
             auroraElement.id = id;
             auroraElement.index = auroraElement.name?.ToLower()?.Replace(" ", "-");
