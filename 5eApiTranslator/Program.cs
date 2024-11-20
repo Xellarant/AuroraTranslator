@@ -18,7 +18,7 @@ namespace _5eApiTranslator
     class Program
     {        
         static string apiBase = "https://www.dnd5eapi.co/api";
-        static string connectionString = "Data Source=(LocalDb)\\MSSQLLocalDB;Initial Catalog=5eHelper;Integrated Security=true";
+        static string connectionString = "Data Source=(LocalDb)\\MSSQLLocalDB;Initial Catalog=5eHelper;User ID=5eHelper_Admin;pwd=5eHelper_Admin";
 
         static async Task Main(string[] args)
         {            
@@ -130,7 +130,7 @@ namespace _5eApiTranslator
                         spell_Classes.AddRange(spell.classes);
                         spell_Classes.AddRange(spell.subclasses);
 
-                        using (SqlCommand sqlCommand = new SqlCommand("sp_Spell_Classes_Import", sqlConnection))
+                        using (SqlCommand sqlCommand = new SqlCommand("sp_Spells_Classes_Import", sqlConnection))
                         {
                             sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
 
@@ -981,7 +981,7 @@ namespace _5eApiTranslator
                 if (spell.subclasses != null)
                     spell_Classes.AddRange(spell.subclasses);
 
-                using (SqlCommand sqlCommand = new SqlCommand("sp_Spell_Classes_Import", sqlConnection))
+                using (SqlCommand sqlCommand = new SqlCommand("sp_Spells_Classes_Import", sqlConnection))
                 {
                     sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
 
