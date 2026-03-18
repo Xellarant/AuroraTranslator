@@ -157,6 +157,13 @@ namespace _5eApiTranslator
 
             List<string> types = new();
 
+            var elementImporters = new Dictionary<string, Action<AuroraElement>>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "feat",       ImportAuroraFeat },
+                { "magic item", ImportMagicItem  },
+                // add new element types here
+            };
+
             foreach (string file in files)
             {
                 FileStream stream = File.OpenRead(file);
@@ -201,35 +208,24 @@ namespace _5eApiTranslator
                         if (typeAttribute?.Value.ToLower() == "spell")
                         {
                             AuroraSpell spell = FillAuroraSpell((XElement)node, nameAttribute.Value, sourceAttribute.Value, idAttribute.Value);
-                            
+
                             if (spell != null)
                             {
                                 ImportAuroraSpell(spell);
                                 spellsFound.Add(spell);
-                            }                                
+                            }
                         }
 
-                        else if (typeAttribute?.Value.ToLower() == "feat")
+                        else if (typeAttribute?.Value != null && elementImporters.TryGetValue(typeAttribute.Value, out var import))
                         {
-                            AuroraElement feat = FillAuroraFeat((XElement)node, nameAttribute.Value, sourceAttribute.Value, idAttribute.Value);
-
-                            if (feat != null)
-                            {
-                                ImportAuroraFeat(feat);
-                                elementsFound.Add(feat);
-                            }                                
-                        }
-
-                        else if (typeAttribute?.Value.ToLower() == "magic item")
-                        {
-                            AuroraElement auroraElement = FillAuroraElement((XElement)node, nameAttribute.Value, sourceAttribute.Value, 
+                            AuroraElement el = FillAuroraElement((XElement)node, nameAttribute.Value, sourceAttribute.Value,
                                 idAttribute.Value, typeAttribute.Value);
 
-                            if (auroraElement != null)
+                            if (el != null)
                             {
-                                ImportMagicItem(auroraElement);
-                                elementsFound.Add(auroraElement);
-                            }                                
+                                import(el);
+                                elementsFound.Add(el);
+                            }
                         }
                     }
                     else if (node is XElement element2)
@@ -338,226 +334,6 @@ namespace _5eApiTranslator
                 //    //    sqlConnection.Close();
                 //    //}
             }
-        }
-
-        private static AuroraElement FillAuroraFeat(XElement featElement, string name, string source, string id)
-        {
-            var feat = new AuroraElement();
-
-            feat.name = name;
-            feat.type = "Feat";
-            feat.source = source;
-            feat.id = id;
-            feat.index = feat.name.ToLower().Replace(" ", "-");
-
-            foreach (var childElement in featElement.Elements())
-            {
-                // fill compendium_display
-                if (childElement.Name == "compendium")
-                {
-                    feat.compendium.display = Convert.ToBoolean(childElement.Attribute("display")?.Value ?? "true");
-                }
-
-                // fill supports (for now just going into classes)
-                if (childElement.Name == "supports")
-                {
-                    feat.supports = new();
-
-                    List<string> supports = childElement.Value.Split(",").
-                        Select(x => x.ToLower().Replace(" ", "-").Trim()).ToList();
-
-                    feat.supports.AddRange(supports);
-                }
-
-                // Fill requirements...
-                // TODO: figure out what to do with requirements (how to store/retrieve?)
-                if (childElement.Name == "requirements")
-                {
-                    feat.requirements = new();
-
-                    List<string> requirements = childElement.Value.Split(",").
-                        Select(x => x.Trim()).ToList();
-
-                    if (feat.supports == null)
-                        feat.supports = new();
-
-                    feat.supports.AddRange(requirements);
-                }
-
-                // fill descriptions
-                if (childElement.Name == "description")
-                {
-                    feat.description = childElement.Value;
-
-                    //if (childElement.Value.Contains("At Higher Levels."))
-                    //{
-                    //    feat.higher_level = new();
-
-                    //    feat.desc.Add(childElement.Value.Substring(0, childElement.Value.IndexOf("At Higher Levels.") - 1));
-                    //    feat.higher_level.Add(childElement.Value.Substring(childElement.Value.IndexOf("At Higher Levels.")));
-                    //}
-                    //else
-                    //{
-                    //    feat.desc.Add(childElement.Value);
-                    //}
-                }
-
-                if (childElement.Name == "sheet")
-                {
-                    feat.sheet = new();
-
-                    if (childElement.Attribute("display") != null)
-                    {
-                        feat.sheet.display = Convert.ToBoolean(childElement.Attribute("display")?.Value);
-                    }                    
-                    feat.sheet.alt = childElement.Attribute("alt")?.Value;
-                    feat.sheet.action = childElement.Attribute("action")?.Value;
-                    feat.sheet.usage = childElement.Attribute("usage")?.Value;
-
-                    if (childElement.Elements("description")?.Any() == true)
-                    {
-                        feat.sheet.description = new();
-                    }
-
-                    foreach (var desc in childElement.Elements("description"))
-                    {
-                        feat.sheet.description.Add(
-                            new Description
-                            {
-                                level = desc.Attribute("level")?.Value != null ?
-                                    Convert.ToInt32(desc.Attribute("level")?.Value)
-                                    : null,
-                                text = desc.Value
-                            });
-                    }
-                }
-
-                // fill setters
-                if (childElement.Name == "setters")
-                {
-                    feat.setters = new();
-                    var settersType = typeof(AuroraSetters);
-                    var setterProps = settersType.GetProperties().ToList();
-
-                    foreach (var setter in ((XElement)childElement).Elements("set"))
-                    {
-                        string setterName = setter.Attribute("name").Value;
-
-                        PropertyInfo setterProp = setterProps.FirstOrDefault(x => x.Name == setterName);
-
-                        if (setterProp != null)
-                        {
-                            string content = setter.Value;
-                            TypeConverter typeConverter = TypeDescriptor.GetConverter(setterProp.PropertyType);
-
-                            if (setterProp.PropertyType.Equals(typeof(string)))
-                            {
-                                setterProp.SetValue(feat.setters, content);
-                            }
-                            else if (setterName == "keywords")
-                            {
-                                feat.setters.keywords = new();
-                                feat.setters.keywords.AddRange(setter.Value.Split(",").ToList());
-                            }
-                            else
-                            {
-                                setterProp.SetValue(feat.setters, typeConverter.ConvertFromString(content));
-                            }
-                        }
-                    }
-                }
-
-                // fill FROM setters.
-                if (feat.setters != null)
-                {
-                    // do i do... ANYTHING here?
-
-                    //feat.url = feat.url ?? feat.setters.sourceUrl;
-
-                    //if (feat.setters.level != 0)
-                    //{
-                    //    feat.level = feat.setters.level;
-                    //}
-
-                    //feat.school = new BaseApiClass { index = feat.setters.school.ToLower() };
-                    //feat.casting_time = feat.setters.time;
-                    //feat.duration = feat.setters.duration;
-                    //feat.range = feat.setters.range;
-
-                    //if (feat.components == null)
-                    //    feat.components = new();
-
-                    //if (feat.setters.hasVerbalComponent)
-                    //{
-                    //    feat.components.Add("V");
-                    //}
-                    //if (feat.setters.hasSomaticComponent)
-                    //{
-                    //    feat.components.Add("S");
-                    //}
-                    //if (feat.setters.hasMaterialComponent)
-                    //{
-                    //    feat.components.Add("M");
-                    //}
-
-                    //feat.material = feat.setters.materialComponent;
-                    //feat.concentration = feat.setters.isConcentration;
-                    //feat.ritual = feat.setters.isRitual;
-                    //feat.attack_type = feat.desc.Contains("melee spell attack") && feat.attack_type != null ? "melee" : null;
-                    //feat.attack_type = feat.desc.Contains("ranged spell attack") && feat.attack_type != null ? "ranged" : null;
-
-                }
-
-                if (childElement.Name == "spellcasting")
-                {
-                    // skip this for now. Feats don't have this.
-                }
-
-                if (childElement.Name == "multiclass")
-                {
-                    // skip this for now. Feats don't have this.
-                }
-
-                if (childElement.Name == "rules")
-                {
-                    feat.rules = new();
-                    feat.rules.grants = new();
-                    feat.rules.selects = new();
-
-                    foreach (var grant in childElement.Elements("grant"))
-                    {
-                        feat.rules.grants.Add(new Grant
-                        {
-                            type = grant.Attribute("type")?.Value,
-                            id = grant.Attribute("id")?.Value,
-                            name = grant.Attribute("name")?.Value,
-                            level = grant.Attribute("level")?.Value != null ?
-                                    Convert.ToInt32(grant.Attribute("level")?.Value) :
-                                    null,
-                            requirements = grant.Attribute("requirements")?.Value.Split(",")
-                                .Select(x => x.Trim()).ToList()
-                        });
-                    }
-
-                    foreach (var select in childElement.Elements("select"))
-                    {
-                        feat.rules.selects.Add(new Select
-                        {
-                            type = select.Attribute("type")?.Value,
-                            name = select.Attribute("name")?.Value,
-                            supports = select.Attribute("supports")?.Value
-                                .Split(",").Select(x => x.Trim()).ToList(),
-                            level = select.Attribute("level")?.Value != null ?
-                                Convert.ToInt32(select.Attribute("level")?.Value) :
-                                null,
-                            requirements = select.Attribute("requirements")?.Value
-                                .Split(",").Select(x => x.Trim()).ToList(),
-                        });
-                    }
-                }
-            }
-
-            return feat;
         }
 
         private static AuroraSpell FillAuroraSpell(XElement spellElement, string name, string source, string id)
@@ -721,10 +497,7 @@ namespace _5eApiTranslator
                     List<string> requirements = childElement.Value.Split(",").
                         Select(x => x.Trim()).ToList();
 
-                    if (auroraElement.supports == null)
-                        auroraElement.supports = new();
-
-                    auroraElement.supports.AddRange(requirements);
+                    auroraElement.requirements.AddRange(requirements);
                 }
 
                 // fill descriptions
@@ -841,24 +614,23 @@ namespace _5eApiTranslator
                     XElement mcRules = childElement.Element("rules");
                     if (mcRules != null)
                     {
-                        auroraElement.multiclass.rules = new();
-                        FillRules(auroraElement.multiclass.rules, mcRules);
+                        auroraElement.multiclass.rules = FillRules(mcRules);
                     }
 
                 }
 
                 if (childElement.Name == "rules")
                 {
-                    FillRules(auroraElement.rules, childElement);
+                    auroraElement.rules = FillRules(childElement);
                 }
             }
 
             return auroraElement;
         }
 
-        private static void FillRules(Rules rules, XElement parentElement)
+        private static Rules FillRules(XElement parentElement)
         {
-            rules = new()
+            var rules = new Rules
             {
                 grants = new(),
                 selects = new()
@@ -894,6 +666,8 @@ namespace _5eApiTranslator
                         .Split(",").Select(x => x.Trim()).ToList(),
                 });
             }
+
+            return rules;
         }
 
         private static void FillSetters(AuroraSetters setters, XElement parentElement)
