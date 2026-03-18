@@ -159,9 +159,43 @@ namespace _5eApiTranslator
 
             var elementImporters = new Dictionary<string, Action<AuroraElement>>(StringComparer.OrdinalIgnoreCase)
             {
-                { "feat",       ImportAuroraFeat },
-                { "magic item", ImportMagicItem  },
-                // add new element types here
+                // already implemented
+                { "feat",                       ImportAuroraFeat  },
+                { "magic item",                 ImportMagicItem   },
+
+                // own table/procedure
+                { "class",                      ImportClass       },
+                { "archetype",                  ImportArchetype   },
+                { "race",                       ImportRace        },
+                { "sub race",                   ImportSubRace     },
+                { "background",                 ImportBackground  },
+                { "language",                   ImportLanguage    },
+                { "proficiency",                ImportProficiency },
+
+                // shared sp_Features_Import
+                { "class feature",              ImportFeature     },
+                { "archetype feature",          ImportFeature     },
+                { "racial trait",               ImportFeature     },
+                { "background feature",         ImportFeature     },
+                { "feat feature",               ImportFeature     },
+                { "ability score improvement",  ImportFeature     },
+
+                // shared sp_Items_Import
+                { "item",                       ImportItem        },
+                { "weapon",                     ImportItem        },
+                { "armor",                      ImportItem        },
+                { "ammunition",                 ImportItem        },
+                { "mount",                      ImportItem        },
+                { "vehicle",                    ImportItem        },
+
+                // lower priority
+                { "companion",                  ImportCompanion   },
+                { "companion action",           ImportCompanion   },
+                { "companion trait",            ImportCompanion   },
+                { "deity",                      ImportDeity       },
+                { "option",                     ImportOption      },
+                { "list",                       ImportList        },
+                // "support" intentionally omitted — Aurora meta-type, no user-facing data
             };
 
             foreach (string file in files)
@@ -837,6 +871,120 @@ namespace _5eApiTranslator
                 //    sqlConnection.Close();
                 //}
             }
+        }
+
+        // sp_Classes_Import
+        // Key params: index, name, source, aurora_id, hit_die (setters.hd),
+        //             spellcasting (ability, list), multiclass (prerequisite, requirements)
+        //             rules serialized as JSON (level-gated grants/selects)
+        private static void ImportClass(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Archetypes_Import
+        // Key params: index, name, source, aurora_id, parent_class (from supports),
+        //             spellcasting (ability, list, extend), rules serialized as JSON
+        private static void ImportArchetype(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Races_Import
+        // Key params: index, name, source, aurora_id,
+        //             names_male / names_female / names_clan (setters), names_format (setters)
+        //             rules serialized as JSON
+        private static void ImportRace(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_SubRaces_Import
+        // Key params: index, name, source, aurora_id, parent_race (from supports),
+        //             rules serialized as JSON
+        private static void ImportSubRace(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Backgrounds_Import
+        // Key params: index, name, source, aurora_id, description,
+        //             rules serialized as JSON (grants for proficiencies/languages/equipment)
+        private static void ImportBackground(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Languages_Import
+        // Key params: index, name, source, aurora_id,
+        //             speakers (setters), script (setters), is_exotic (setters)
+        private static void ImportLanguage(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Proficiencies_Import
+        // Key params: index, name, source, aurora_id, type (from supports — e.g. skill, weapon, armor, tool)
+        private static void ImportProficiency(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Features_Import
+        // Shared by: Class Feature, Archetype Feature, Racial Trait,
+        //            Background Feature, Feat Feature, Ability Score Improvement
+        // Key params: index, name, source, aurora_id, feature_type (el.type),
+        //             parent_id (from supports), level (from sheet or rules),
+        //             description, sheet info (alt, action, usage),
+        //             rules serialized as JSON
+        private static void ImportFeature(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Items_Import
+        // Shared by: Item, Weapon, Armor, Ammunition, Mount, Vehicle
+        // Key params: index, name, source, aurora_id, item_type (el.type),
+        //             description, cost (setters), weight (setters),
+        //             -- weapon-specific: damage die, damage type, properties (from supports)
+        //             -- armor-specific: ac formula, stealth disadvantage (setters)
+        //             -- mount/vehicle: speed, capacity (setters)
+        private static void ImportItem(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Companions_Import
+        // Shared by: Companion, Companion Action, Companion Trait
+        // Key params: index, name, source, aurora_id, companion_type (el.type),
+        //             description, sheet info — full stat block TBD
+        private static void ImportCompanion(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Deities_Import
+        // Key params: index, name, source, aurora_id, description,
+        //             alignment, domains, symbol (likely all setters)
+        private static void ImportDeity(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Options_Import
+        // Key params: index, name, source, aurora_id, description,
+        //             rules serialized as JSON (modifies character creation)
+        private static void ImportOption(AuroraElement el)
+        {
+            throw new NotImplementedException();
+        }
+
+        // sp_Lists_Import
+        // Key params: index, name, source, aurora_id, list_type (from supports),
+        //             entries serialized as JSON (personality traits, ideals, bonds, flaws)
+        private static void ImportList(AuroraElement el)
+        {
+            throw new NotImplementedException();
         }
     }
 }
