@@ -1,7 +1,7 @@
 ﻿using _5eApiTranslator.Models;
 using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -12,6 +12,7 @@ using System.Xml;
 using System.ComponentModel;
 using System.Xml.Linq;
 using _5eApiTranslator.ResponseObjects;
+using Microsoft.Data.Sqlite;
 
 namespace _5eApiTranslator
 {
@@ -19,10 +20,33 @@ namespace _5eApiTranslator
     {        
         static string apiBase = "https://www.dnd5eapi.co/api";
         static string connectionString = "Data Source=(LocalDb)\\MSSQLLocalDB;Initial Catalog=5eHelper;User ID=5eHelper_Admin;pwd=5eHelper_Admin";
+        static string projectRootPath = ResolveProjectRootPath();
+        static string defaultAuroraPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "5e Character Builder",
+            "custom");
+        static string defaultSqlitePath = Path.Combine(
+            projectRootPath,
+            "Data",
+            "aurora-character-loading-poc.sqlite");
+        static string sqliteSchemaPath = Path.Combine(
+            projectRootPath,
+            "Data",
+            "sqlite-character-loading-poc.sql");
 
         static async Task Main(string[] args)
-        {            
-            Console.WriteLine("Hello World!");
+        {
+            if (args.Length > 0
+                && string.Equals(args[0], "sqlite-import", StringComparison.OrdinalIgnoreCase))
+            {
+                string auroraPath = args.Length > 1 ? args[1] : defaultAuroraPath;
+                string sqlitePath = args.Length > 2 ? args[2] : defaultSqlitePath;
+
+                ImportAuroraToSqlite(auroraPath, sqlitePath);
+                return;
+            }
+
+            Console.WriteLine("Pass `sqlite-import [auroraPath] [sqlitePath]` to import Aurora XML into the SQLite proof of concept schema.");
 
             //await FillClasses();
             //Console.WriteLine("Classes Imported.");
@@ -33,7 +57,32 @@ namespace _5eApiTranslator
             //FillAuroraSpells();
             //Console.WriteLine("Aurora Spells Imported.");
 
-            GrabAuroraElements();
+        }
+
+        private static string ResolveProjectRootPath()
+        {
+            string[] startingPaths = new[]
+            {
+                Directory.GetCurrentDirectory(),
+                AppContext.BaseDirectory
+            };
+
+            foreach (string startingPath in startingPaths.Where(x => !string.IsNullOrWhiteSpace(x)))
+            {
+                DirectoryInfo directory = new DirectoryInfo(startingPath);
+
+                while (directory != null)
+                {
+                    if (File.Exists(Path.Combine(directory.FullName, "5eDataGenerator.csproj")))
+                    {
+                        return directory.FullName;
+                    }
+
+                    directory = directory.Parent;
+                }
+            }
+
+            throw new DirectoryNotFoundException("Could not locate the project root containing 5eDataGenerator.csproj.");
         }
 
         private static async Task FillClasses()
@@ -144,6 +193,84 @@ namespace _5eApiTranslator
                     }                    
                 }
             }
+        }
+
+        private static void ImportAuroraToSqlite(string auroraPath, string sqlitePath)
+        {
+            if (!Directory.Exists(auroraPath))
+            {
+                throw new DirectoryNotFoundException($"Aurora path was not found: {auroraPath}");
+            }
+
+            if (!File.Exists(sqliteSchemaPath))
+            {
+                throw new FileNotFoundException("The SQLite schema file was not found.", sqliteSchemaPath);
+            }
+
+            AuroraImportCatalog catalog = BuildAuroraImportCatalog(auroraPath);
+            AuroraSqlitePocImporter.Import(catalog, sqliteSchemaPath, sqlitePath);
+
+            Console.WriteLine($"Imported {catalog.Elements.Count} Aurora elements and {catalog.Spells.Count} Aurora spells into {sqlitePath}.");
+        }
+
+        private static AuroraImportCatalog BuildAuroraImportCatalog(string auroraPath)
+        {
+            string[] files = Directory
+                .GetFiles(auroraPath, "*.xml", SearchOption.AllDirectories)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            AuroraImportCatalog catalog = new();
+
+            foreach (string file in files)
+            {
+                string relativePath = Path.GetRelativePath(auroraPath, file);
+                XDocument xml = XDocument.Load(file);
+                var info = xml.Root?.Element("info");
+
+                catalog.Files.Add(new AuroraFileInfo
+                {
+                    RelativePath = relativePath,
+                    Name = info?.Element("name")?.Value ?? Path.GetFileNameWithoutExtension(file),
+                    Description = info?.Element("description")?.Value,
+                    Author = new Author
+                    {
+                        name = info?.Element("author")?.Value,
+                        url = info?.Element("author")?.Attribute("url")?.Value
+                    },
+                    FileVersion = new FileVersion
+                    {
+                        versionString = info?.Element("update")?.Attribute("version")?.Value,
+                        fileName = info?.Element("update")?.Element("file")?.Attribute("name")?.Value,
+                        fileUrl = info?.Element("update")?.Element("file")?.Attribute("url")?.Value
+                    }
+                });
+
+                foreach (var element in xml.Root?.Elements("element") ?? Enumerable.Empty<XElement>())
+                {
+                    string name = element.Attribute("name")?.Value;
+                    string source = element.Attribute("source")?.Value;
+                    string id = element.Attribute("id")?.Value;
+                    string type = element.Attribute("type")?.Value;
+
+                    if (string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(id))
+                        continue;
+
+                    if (string.Equals(type, "spell", StringComparison.OrdinalIgnoreCase))
+                    {
+                        AuroraSpell spell = FillAuroraSpell(element, name, source, id);
+                        spell.source_file_path = relativePath;
+                        catalog.Spells.Add(spell);
+                    }
+                    else
+                    {
+                        AuroraElement auroraElement = FillAuroraElement(element, name, source, id, type);
+                        auroraElement.source_file_path = relativePath;
+                        catalog.Elements.Add(auroraElement);
+                    }
+                }
+            }
+
+            return catalog;
         }
 
         private static void GrabAuroraElements()
@@ -377,14 +504,14 @@ namespace _5eApiTranslator
             spell.name = name;
             spell.source = source;
             spell.aurora_id = id;
-            spell.index = spell.name.ToLower().Replace(" ", "-");
+            spell.index = BuildSlug(spell.name);
 
             foreach (var childElement in spellElement.Elements())
             {
                 // fill compendium_display
                 if (childElement.Name == "compendium")
                 {
-                    spell.compendium_display = Convert.ToBoolean(childElement.Attribute("display").Value);
+                    spell.compendium_display = Convert.ToBoolean(childElement.Attribute("display")?.Value ?? "true");
                 }
 
                 // fill supports (for now just going into classes)
@@ -392,9 +519,9 @@ namespace _5eApiTranslator
                 {
                     spell.classes = new();
 
-                    List<string> supports = childElement.Value.Split(",").Select(x => x.Trim()).ToList();
+                    AuroraTextCollection supports = ParseAuroraTextCollection(childElement.Value);
 
-                    foreach (var support in supports)
+                    foreach (var support in supports ?? Enumerable.Empty<string>())
                         spell.classes.Add(new BaseApiClass { name = support, index = support.ToLower().Replace(" ", "-") });
                 }
 
@@ -419,75 +546,58 @@ namespace _5eApiTranslator
                 if (childElement.Name == "setters")
                 {
                     spell.setters = new();
-                    var settersType = typeof(AuroraSetters);
-                    var setterProps = settersType.GetProperties().ToList();
-
-                    foreach (var setter in ((XElement)childElement).Elements("set"))
-                    {
-                        string setterName = setter.Attribute("name").Value;
-
-                        PropertyInfo setterProp = setterProps.FirstOrDefault(x => x.Name == setterName);
-
-                        if (setterProp != null)
-                        {
-                            string content = setter.Value;
-                            TypeConverter typeConverter = TypeDescriptor.GetConverter(setterProp.PropertyType);
-
-                            if (setterProp.PropertyType.Equals(typeof(string)))
-                            {
-                                setterProp.SetValue(spell.setters, content);
-                            }
-                            else if (setterName == "keywords")
-                            {
-                                spell.setters.keywords = new();
-                                spell.setters.keywords.AddRange(setter.Value.Split(",").ToList());
-                            }
-                            else
-                            {
-                                setterProp.SetValue(spell.setters, typeConverter.ConvertFromString(content));
-                            }
-                        }
-                    }
+                    FillSetters(spell.setters, childElement);
                 }
+            }
 
-                // fill FROM setters.
-                if (spell.setters != null)
+            if (spell.setters != null)
+            {
+                spell.url = spell.url ?? spell.setters.sourceUrl;
+
+                if (spell.setters.level != 0)
                 {
-                    spell.url = spell.url ?? spell.setters.sourceUrl;
-
-                    if (spell.setters.level != 0)
-                    {
-                        spell.level = spell.setters.level;
-                    }
-
-                    spell.school = new BaseApiClass { index = spell.setters.school.ToLower() };
-                    spell.casting_time = spell.setters.time;
-                    spell.duration = spell.setters.duration;
-                    spell.range = spell.setters.range;
-
-                    if (spell.components == null)
-                        spell.components = new();
-
-                    if (spell.setters.hasVerbalComponent)
-                    {
-                        spell.components.Add("V");
-                    }
-                    if (spell.setters.hasSomaticComponent)
-                    {
-                        spell.components.Add("S");
-                    }
-                    if (spell.setters.hasMaterialComponent)
-                    {
-                        spell.components.Add("M");
-                    }
-
-                    spell.material = spell.setters.materialComponent;
-                    spell.concentration = spell.setters.isConcentration;
-                    spell.ritual = spell.setters.isRitual;
-                    spell.attack_type = spell.desc.Contains("melee spell attack") && spell.attack_type != null ? "melee" : null;
-                    spell.attack_type = spell.desc.Contains("ranged spell attack") && spell.attack_type != null ? "ranged" : null;
-                    
+                    spell.level = spell.setters.level;
                 }
+
+                if (!string.IsNullOrWhiteSpace(spell.setters.school))
+                {
+                    spell.school = new BaseApiClass { index = spell.setters.school.ToLower() };
+                }
+
+                spell.casting_time = spell.setters.time;
+                spell.duration = spell.setters.duration;
+                spell.range = spell.setters.range;
+
+                if (spell.components == null)
+                    spell.components = new();
+
+                if (spell.setters.hasVerbalComponent)
+                {
+                    spell.components.Add("V");
+                }
+                if (spell.setters.hasSomaticComponent)
+                {
+                    spell.components.Add("S");
+                }
+                if (spell.setters.hasMaterialComponent)
+                {
+                    spell.components.Add("M");
+                }
+
+                spell.material = spell.setters.materialComponent;
+                spell.concentration = spell.setters.isConcentration;
+                spell.ritual = spell.setters.isRitual;
+            }
+
+            string spellDescription = string.Join(" ", spell.desc ?? new List<string>()).ToLowerInvariant();
+
+            if (spellDescription.Contains("melee spell attack"))
+            {
+                spell.attack_type = "melee";
+            }
+            else if (spellDescription.Contains("ranged spell attack"))
+            {
+                spell.attack_type = "ranged";
             }
 
             return spell;
@@ -501,7 +611,7 @@ namespace _5eApiTranslator
             auroraElement.type = type ?? "auroraElement";
             auroraElement.source = source;
             auroraElement.id = id;
-            auroraElement.index = auroraElement.name?.ToLower()?.Replace(" ", "-");
+            auroraElement.index = BuildSlug(auroraElement.name);
 
             foreach (var childElement in element.Elements())
             {
@@ -514,24 +624,19 @@ namespace _5eApiTranslator
                 // fill supports (for now just going into classes)
                 if (childElement.Name == "supports")
                 {
-                    auroraElement.supports = new();
-
-                    List<string> supports = childElement.Value.Split(",").
-                        Select(x => x.ToLower().Replace(" ", "-").Trim()).ToList();
-
-                    auroraElement.supports.AddRange(supports);
+                    auroraElement.supports = ParseAuroraTextCollection(childElement.Value);
                 }
 
                 // Fill requirements...
                 // TODO: figure out what to do with requirements (how to store/retrieve?)
                 if (childElement.Name == "requirements")
                 {
-                    auroraElement.requirements = new();
+                    auroraElement.requirements = ParseAuroraTextCollection(childElement.Value);
+                }
 
-                    List<string> requirements = childElement.Value.Split(",").
-                        Select(x => x.Trim()).ToList();
-
-                    auroraElement.requirements.AddRange(requirements);
+                if (childElement.Name == "prerequisite")
+                {
+                    auroraElement.prerequisite = childElement.Value;
                 }
 
                 // fill descriptions
@@ -596,29 +701,20 @@ namespace _5eApiTranslator
                     auroraElement.spellcasting = new();
                     auroraElement.spellcasting.name = childElement.Attribute("name")?.Value;
                     auroraElement.spellcasting.ability = childElement.Attribute("ability")?.Value;
-                    
-                    string[] separators = new string[] { ", ", "," };
-                    auroraElement.spellcasting.list = new List<string>();
+                    auroraElement.spellcasting.prepare = ParseNullableBoolean(childElement.Attribute("prepare")?.Value);
+                    auroraElement.spellcasting.allowReplace = ParseNullableBoolean(childElement.Attribute("allowReplace")?.Value);
                     
                     if (childElement.Element("list") != null)
                     {
-                        auroraElement.spellcasting.list
-                            .AddRange(childElement.Element("list")?.Value
-                                .Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                        auroraElement.spellcasting.list = ParseAuroraTextCollection(childElement.Element("list")?.Value);
                     }
                     
-                    try
-                    {
-                        auroraElement.spellcasting.extend = bool.Parse(childElement.Attribute("extend")?.Value);
-                    }
-                    catch (Exception ex)
-                    {
-                        // if it doesn't work... just complain and move on.
-                        Console.Error.WriteLine(ex.Message);
-                    }
+                    auroraElement.spellcasting.extend = ParseNullableBoolean(childElement.Attribute("extend")?.Value) ?? false;
 
-                    auroraElement.spellcasting.extendList =
-                        new List<string>(childElement.Element("extend").Value.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                    if (childElement.Element("extend") != null)
+                    {
+                        auroraElement.spellcasting.extendList = ParseAuroraTextCollection(childElement.Element("extend")?.Value);
+                    }
                 }
 
                 if (childElement.Name == "multiclass")
@@ -627,15 +723,12 @@ namespace _5eApiTranslator
                     // used to describe what's required to multiclass from or into this class.
 
                     auroraElement.multiclass = new();
-                    auroraElement.id = childElement.Attribute("id")?.Value;
+                    auroraElement.multiclass.id = childElement.Attribute("id")?.Value;
                     auroraElement.multiclass.prerequisite = childElement.Element("prerequisite")?.Value;
 
                     if (childElement.Element("requirements") != null)
                     {
-                        auroraElement.multiclass.requirements = new List<string>();
-                        string[] separators = new string[] { ", ", "," };
-                        auroraElement.multiclass.requirements
-                            .AddRange(childElement.Element("requirements")?.Value.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                        auroraElement.multiclass.requirements = ParseAuroraTextCollection(childElement.Element("requirements")?.Value);
                     }
 
                     XElement mcSetters = childElement.Element("setters");
@@ -667,7 +760,8 @@ namespace _5eApiTranslator
             var rules = new Rules
             {
                 grants = new(),
-                selects = new()
+                selects = new(),
+                stats = new()
             };
 
             foreach (var grant in parentElement.Elements("grant"))
@@ -680,8 +774,7 @@ namespace _5eApiTranslator
                     level = grant.Attribute("level")?.Value != null ?
                             Convert.ToInt32(grant.Attribute("level")?.Value) :
                             null,
-                    requirements = grant.Attribute("requirements")?.Value.Split(",")
-                        .Select(x => x.Trim()).ToList()
+                    requirements = ParseAuroraTextCollection(grant.Attribute("requirements")?.Value)
                 });
             }
 
@@ -691,13 +784,34 @@ namespace _5eApiTranslator
                 {
                     type = select.Attribute("type")?.Value,
                     name = select.Attribute("name")?.Value,
-                    supports = select.Attribute("supports")?.Value
-                        .Split(",").Select(x => x.Trim()).ToList(),
+                    supports = ParseAuroraTextCollection(select.Attribute("supports")?.Value),
                     level = select.Attribute("level")?.Value != null ?
                         Convert.ToInt32(select.Attribute("level")?.Value) :
                         null,
-                    requirements = select.Attribute("requirements")?.Value
-                        .Split(",").Select(x => x.Trim()).ToList(),
+                    requirements = ParseAuroraTextCollection(select.Attribute("requirements")?.Value),
+                    number = select.Attribute("number")?.Value != null ?
+                        Convert.ToInt32(select.Attribute("number")?.Value) :
+                        1,
+                    defaultChoice = select.Attribute("default")?.Value,
+                    optional = ParseNullableBoolean(select.Attribute("optional")?.Value) ?? false,
+                    spellcasting = select.Attribute("spellcasting")?.Value
+                });
+            }
+
+            foreach (var stat in parentElement.Elements("stat"))
+            {
+                rules.stats.Add(new Stat
+                {
+                    name = stat.Attribute("name")?.Value,
+                    value = stat.Attribute("value")?.Value,
+                    bonus = stat.Attribute("bonus")?.Value,
+                    equipped = ParseAuroraTextCollection(stat.Attribute("equipped")?.Value),
+                    level = stat.Attribute("level")?.Value != null ?
+                        Convert.ToInt32(stat.Attribute("level")?.Value) :
+                        null,
+                    requirements = ParseAuroraTextCollection(stat.Attribute("requirements")?.Value),
+                    inline = ParseNullableBoolean(stat.Attribute("inline")?.Value) ?? false,
+                    alt = stat.Attribute("alt")?.Value
                 });
             }
 
@@ -711,30 +825,176 @@ namespace _5eApiTranslator
 
             foreach (var setter in parentElement.Elements("set"))
             {
-                string setterName = setter.Attribute("name").Value;
+                string setterName = setter.Attribute("name")?.Value;
 
-                PropertyInfo setterProp = setterProps.FirstOrDefault(x => x.Name == setterName);
+                if (string.IsNullOrWhiteSpace(setterName))
+                    continue;
+
+                var setterEntry = new AuroraSetterEntry
+                {
+                    name = setterName,
+                    value = setter.Value
+                };
+
+                foreach (var attribute in setter.Attributes().Where(x => x.Name.LocalName != "name"))
+                {
+                    setterEntry.attributes[attribute.Name.LocalName] = attribute.Value;
+                }
+
+                setters.entries.Add(setterEntry);
+
+                if (string.Equals(setterName, "keywords", StringComparison.OrdinalIgnoreCase))
+                {
+                    setters.keywords = SplitTopLevel(setter.Value, ',');
+                    continue;
+                }
+
+                if (string.Equals(setterName, "names", StringComparison.OrdinalIgnoreCase))
+                {
+                    setters.names ??= new List<Names>();
+                    setters.names.Add(new Names
+                    {
+                        type = setterEntry.GetAttribute("type"),
+                        names = SplitTopLevel(setter.Value, ',')
+                    });
+                    continue;
+                }
+
+                if (string.Equals(setterName, "multiclass proficiencies", StringComparison.OrdinalIgnoreCase))
+                {
+                    setters.multiclass_proficiencies = SplitTopLevel(setter.Value, ',');
+                    continue;
+                }
+
+                string normalizedSetterName = NormalizeSetterPropertyName(setterName);
+                PropertyInfo setterProp = setterProps.FirstOrDefault(
+                    x => string.Equals(x.Name, normalizedSetterName, StringComparison.OrdinalIgnoreCase));
 
                 if (setterProp != null)
                 {
                     string content = setter.Value;
-                    TypeConverter typeConverter = TypeDescriptor.GetConverter(setterProp.PropertyType);
 
                     if (setterProp.PropertyType.Equals(typeof(string)))
                     {
                         setterProp.SetValue(setters, content);
                     }
-                    else if (setterName == "keywords")
+                    else if (!string.IsNullOrWhiteSpace(content))
                     {
-                        setters.keywords = new();
-                        setters.keywords.AddRange(setter.Value.Split(",").ToList());
-                    }
-                    else
-                    {
-                        setterProp.SetValue(setters, typeConverter.ConvertFromString(content));
+                        TypeConverter typeConverter = TypeDescriptor.GetConverter(setterProp.PropertyType);
+
+                        try
+                        {
+                            setterProp.SetValue(setters, typeConverter.ConvertFromString(content));
+                        }
+                        catch
+                        {
+                            // Keep the raw setter entry even when a typed projection does not parse cleanly.
+                        }
                     }
                 }
             }
+        }
+
+        private static AuroraTextCollection ParseAuroraTextCollection(string rawText)
+        {
+            if (string.IsNullOrWhiteSpace(rawText))
+                return null;
+
+            var collection = new AuroraTextCollection
+            {
+                raw = rawText.Trim()
+            };
+
+            collection.AddRange(SplitTopLevel(rawText, ','));
+
+            return collection;
+        }
+
+        private static List<string> SplitTopLevel(string input, char separator)
+        {
+            var values = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(input))
+                return values;
+
+            int parenthesesDepth = 0;
+            int bracketsDepth = 0;
+            int bracesDepth = 0;
+            var current = new System.Text.StringBuilder();
+
+            foreach (char ch in input)
+            {
+                switch (ch)
+                {
+                    case '(':
+                        parenthesesDepth++;
+                        break;
+                    case ')':
+                        parenthesesDepth = Math.Max(0, parenthesesDepth - 1);
+                        break;
+                    case '[':
+                        bracketsDepth++;
+                        break;
+                    case ']':
+                        bracketsDepth = Math.Max(0, bracketsDepth - 1);
+                        break;
+                    case '{':
+                        bracesDepth++;
+                        break;
+                    case '}':
+                        bracesDepth = Math.Max(0, bracesDepth - 1);
+                        break;
+                }
+
+                if (ch == separator
+                    && parenthesesDepth == 0
+                    && bracketsDepth == 0
+                    && bracesDepth == 0)
+                {
+                    string candidate = current.ToString().Trim();
+
+                    if (!string.IsNullOrWhiteSpace(candidate))
+                    {
+                        values.Add(candidate);
+                    }
+
+                    current.Clear();
+                    continue;
+                }
+
+                current.Append(ch);
+            }
+
+            string finalCandidate = current.ToString().Trim();
+
+            if (!string.IsNullOrWhiteSpace(finalCandidate))
+            {
+                values.Add(finalCandidate);
+            }
+
+            return values;
+        }
+
+        private static bool? ParseNullableBoolean(string value)
+        {
+            if (bool.TryParse(value, out bool parsed))
+            {
+                return parsed;
+            }
+
+            return null;
+        }
+
+        private static string NormalizeSetterPropertyName(string setterName)
+        {
+            return setterName
+                .Replace("-", "_")
+                .Replace(" ", "_");
+        }
+
+        private static string BuildSlug(string value)
+        {
+            return value?.Trim().ToLower().Replace(" ", "-");
         }
 
         private static void ImportAuroraSpell(AuroraSpell spell)
