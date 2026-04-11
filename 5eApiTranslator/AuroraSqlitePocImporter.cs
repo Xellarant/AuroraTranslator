@@ -1000,7 +1000,10 @@ WHERE support_kind = 'unclassified'
       'artisan tools',
       'gaming set',
       'vehicle (land)',
-      'vehicle (water)'
+      'vehicle (water)',
+      'class',
+      'race',
+      'spell attack'
   );");
 
             ExecuteSql(connection, transaction, @"
@@ -1030,6 +1033,26 @@ WHERE support_kind = 'unclassified'
 UPDATE support_tags
 SET support_kind = 'bounded-option-set'
 WHERE support_kind = 'unclassified'
+  AND
+  (
+      normalized_text = 'starting'
+      OR normalized_text LIKE '% discipline'
+      OR normalized_text LIKE '% specialization'
+      OR normalized_text LIKE 'variant %'
+      OR normalized_text LIKE '% variant'
+      OR normalized_text LIKE '% companion'
+      OR normalized_text LIKE '% companions'
+      OR normalized_text LIKE '% spirit'
+      OR normalized_text LIKE 'spirit bonded %'
+      OR normalized_text LIKE 'undead servant %'
+      OR normalized_text LIKE 'ua artificer %'
+      OR normalized_text LIKE 'ua2020% %'
+  );");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE support_tags
+SET support_kind = 'bounded-option-set'
+WHERE support_kind = 'unclassified'
   AND EXISTS
   (
       SELECT 1
@@ -1046,6 +1069,17 @@ WHERE support_kind = 'unclassified'
       SELECT 1
       FROM element_support_links AS esl
       WHERE esl.support_tag_id = support_tags.support_tag_id
+  );");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE support_tags
+SET support_kind = 'bounded-option-set'
+WHERE support_kind = 'unclassified'
+  AND EXISTS
+  (
+      SELECT 1
+      FROM select_support_links AS ssl
+      WHERE ssl.support_tag_id = support_tags.support_tag_id
   );");
         }
 
