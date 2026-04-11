@@ -948,6 +948,23 @@ WHERE support_text LIKE '$(%';");
 
             ExecuteSql(connection, transaction, @"
 UPDATE support_tags
+SET support_kind = 'dynamic-expression'
+WHERE support_kind = 'unclassified'
+  AND
+  (
+      support_text LIKE '%||%'
+      OR support_text LIKE '%&&%'
+      OR support_text LIKE '!(%'
+      OR support_text LIKE '!%'
+      OR support_text LIKE '%,%'
+      OR support_text LIKE '(%'
+      OR support_text GLOB '[0-9]'
+      OR support_text GLOB '[0-9][0-9]'
+      OR support_text GLOB 'ID_*|*'
+  );");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE support_tags
 SET support_kind = 'direct-parent'
 WHERE EXISTS
 (
@@ -984,6 +1001,29 @@ WHERE support_kind = 'unclassified'
       'gaming set',
       'vehicle (land)',
       'vehicle (water)'
+  );");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE support_tags
+SET support_kind = 'bounded-option-set'
+WHERE support_kind = 'unclassified'
+  AND normalized_text IN
+  (
+      'abjuration',
+      'conjuration',
+      'divination',
+      'enchantment',
+      'evocation',
+      'illusion',
+      'necromancy',
+      'transmutation',
+      'ritual',
+      'companion',
+      'familiar',
+      'background variant',
+      'custom race language',
+      'psionic disciplines',
+      'sub-feature'
   );");
 
             ExecuteSql(connection, transaction, @"
