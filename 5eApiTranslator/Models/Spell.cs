@@ -18,21 +18,21 @@ namespace _5eApiTranslator.Models
         {
             get
             {
-                return components.Contains("V");
+                return components?.Contains("V") == true;
             }
         }
         public bool hasSomatic
         {
             get
             {
-                return components.Contains("S");
+                return components?.Contains("S") == true;
             }
         }
         public bool hasMaterial 
         {
             get
             {
-                return components.Contains("M");
+                return components?.Contains("M") == true;
             }
         }
         public string material { get; set; }

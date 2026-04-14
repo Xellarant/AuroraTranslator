@@ -14,11 +14,13 @@ namespace _5eApiTranslator.Models
         public string source { get; set; }
         public string id { get; set; }
         public string index { get; set; }
+        public string source_file_path { get; set; }
 
         // properties from child elements that might exist
         public Compendium compendium { get; set; } = new Compendium();
-        public List<string> supports { get; set; } // list of stuff it supports
-        public List<string> requirements { get; set; }
+        public AuroraTextCollection supports { get; set; }
+        public AuroraTextCollection requirements { get; set; }
+        public string prerequisite { get; set; }
         public string description { get; set; }
         public AuroraSheet sheet { get; set; }
         public AuroraSetters setters { get; set; }
@@ -31,7 +33,7 @@ namespace _5eApiTranslator.Models
     {
         public string id { get; set; }
         public string prerequisite { get; set; } 
-        public List<string> requirements { get; set; }
+        public AuroraTextCollection requirements { get; set; }
         public AuroraSetters setters { get; set; }
         public Rules rules { get; set; }
     }
@@ -48,22 +50,24 @@ namespace _5eApiTranslator.Models
         public string name { get; set; }
         public string value { get; set; }
         public string bonus { get; set; }
-        public List<string> equipped { get; set; }
+        public AuroraTextCollection equipped { get; set; }
         public int? level { get; set; }
-        public List<string> requirements { get; set; }
+        public AuroraTextCollection requirements { get; set; }
         public bool inline { get; set; }
+        public string alt { get; set; }
     }
 
     public class Select
     {
         public string type { get; set; }
         public string name { get; set; }
-        public List<string> supports { get; set; }
+        public AuroraTextCollection supports { get; set; }
         public int? level { get; set; }
-        public List<string> requirements { get; set; }
+        public AuroraTextCollection requirements { get; set; }
         public int number { get; set; } // how many selections
         public string defaultChoice { get; set; } // selected by default
         public bool optional { get; set; }
+        public string spellcasting { get; set; }
     }
 
     public class Grant
@@ -72,16 +76,18 @@ namespace _5eApiTranslator.Models
         public string id { get; set; }
         public string name { get; set; }
         public int? level { get; set; }
-        public List<string> requirements { get; set; }
+        public AuroraTextCollection requirements { get; set; }
     }
 
     public class Spellcasting
     {
         public string name { get; set; } // name of spellcasting class/archetype.
         public string ability { get; set; } // what ability score?
-        public List<string> list { get; set; } // which spellcasting lists?
+        public AuroraTextCollection list { get; set; } // which spellcasting lists?
         public bool extend { get; set; } // are we extending an existing list?
-        public List<string> extendList { get; set; } // other lists we're potentially including
+        public AuroraTextCollection extendList { get; set; } // other lists we're potentially including
+        public bool? prepare { get; set; }
+        public bool? allowReplace { get; set; }
     }
 
     public class Compendium
