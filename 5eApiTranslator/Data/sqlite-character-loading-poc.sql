@@ -146,6 +146,23 @@ CREATE TABLE classes
     short_text TEXT
 );
 
+CREATE TABLE source_elements
+(
+    element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
+    abbreviation_text TEXT,
+    source_url TEXT,
+    image_url TEXT,
+    errata_url TEXT,
+    author_name TEXT,
+    author_abbreviation TEXT,
+    author_url TEXT,
+    is_official INTEGER CHECK (is_official IN (0, 1)),
+    is_core INTEGER CHECK (is_core IN (0, 1)),
+    is_supplement INTEGER CHECK (is_supplement IN (0, 1)),
+    is_third_party INTEGER CHECK (is_third_party IN (0, 1)),
+    release_text TEXT
+);
+
 CREATE TABLE class_multiclass
 (
     class_element_id INTEGER PRIMARY KEY REFERENCES classes(element_id) ON DELETE CASCADE,
@@ -405,6 +422,7 @@ CREATE INDEX ix_stats_name_level ON stats(stat_name, stat_level);
 
 -- Seed the highest-value element types for character and feature loading.
 INSERT INTO element_types (type_name, loader_family) VALUES ('Spell', 'spell');
+INSERT INTO element_types (type_name, loader_family) VALUES ('Source', 'source');
 INSERT INTO element_types (type_name, loader_family) VALUES ('Class', 'class');
 INSERT INTO element_types (type_name, loader_family) VALUES ('Archetype', 'archetype');
 INSERT INTO element_types (type_name, loader_family) VALUES ('Class Feature', 'feature');
@@ -709,6 +727,7 @@ LEFT JOIN element_texts AS summary
    AND summary.ordinal = 1
 WHERE et.type_name IN
 (
+    'Source',
     'Class',
     'Archetype',
     'Race',

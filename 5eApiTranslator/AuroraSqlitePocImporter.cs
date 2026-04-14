@@ -394,6 +394,31 @@ VALUES
 
         private static void InsertSubtypeRecord(SqliteConnection connection, SqliteTransaction transaction, long elementId, AuroraElement element)
         {
+            if (string.Equals(element.type, "Source", StringComparison.OrdinalIgnoreCase))
+            {
+                var authorSetter = element.setters?.FindEntry("author");
+
+                ExecuteInsert(connection, transaction,
+                    @"INSERT INTO source_elements
+(element_id, abbreviation_text, source_url, image_url, errata_url, author_name, author_abbreviation, author_url, is_official, is_core, is_supplement, is_third_party, release_text)
+VALUES
+($element_id, $abbreviation_text, $source_url, $image_url, $errata_url, $author_name, $author_abbreviation, $author_url, $is_official, $is_core, $is_supplement, $is_third_party, $release_text);",
+                    ("$element_id", elementId),
+                    ("$abbreviation_text", (object)element.setters?.GetValue("abbreviation") ?? DBNull.Value),
+                    ("$source_url", (object)element.setters?.GetValue("url") ?? DBNull.Value),
+                    ("$image_url", (object)element.setters?.GetValue("image") ?? DBNull.Value),
+                    ("$errata_url", (object)element.setters?.GetValue("errata") ?? DBNull.Value),
+                    ("$author_name", (object)authorSetter?.value ?? DBNull.Value),
+                    ("$author_abbreviation", (object)authorSetter?.GetAttribute("abbreviation") ?? DBNull.Value),
+                    ("$author_url", (object)authorSetter?.GetAttribute("url") ?? DBNull.Value),
+                    ("$is_official", element.setters?.GetBoolean("official").HasValue == true ? (element.setters.GetBoolean("official").Value ? 1 : 0) : DBNull.Value),
+                    ("$is_core", element.setters?.GetBoolean("core").HasValue == true ? (element.setters.GetBoolean("core").Value ? 1 : 0) : DBNull.Value),
+                    ("$is_supplement", element.setters?.GetBoolean("supplement").HasValue == true ? (element.setters.GetBoolean("supplement").Value ? 1 : 0) : DBNull.Value),
+                    ("$is_third_party", element.setters?.GetBoolean("third-party").HasValue == true ? (element.setters.GetBoolean("third-party").Value ? 1 : 0) : DBNull.Value),
+                    ("$release_text", (object)element.setters?.GetValue("release") ?? DBNull.Value));
+                return;
+            }
+
             if (string.Equals(element.type, "Class", StringComparison.OrdinalIgnoreCase))
             {
                 ExecuteInsert(connection, transaction,
@@ -1128,6 +1153,7 @@ WHERE support_kind = 'unclassified'
         {
             return elementType?.ToLowerInvariant() switch
             {
+                "source" => 5,
                 "race" => 10,
                 "sub race" => 20,
                 "class" => 30,

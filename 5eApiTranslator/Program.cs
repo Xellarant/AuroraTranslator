@@ -36,6 +36,19 @@ namespace _5eApiTranslator
 
         static async Task Main(string[] args)
         {
+            try
+            {
+                await RunAsync(args);
+            }
+            catch (Exception ex)
+            {
+                WriteError(ex, args);
+                Environment.ExitCode = 1;
+            }
+        }
+
+        private static async Task RunAsync(string[] args)
+        {
             if (args.Length > 0
                 && string.Equals(args[0], "sqlite-import", StringComparison.OrdinalIgnoreCase))
             {
@@ -57,6 +70,26 @@ namespace _5eApiTranslator
             //FillAuroraSpells();
             //Console.WriteLine("Aurora Spells Imported.");
 
+        }
+
+        private static void WriteError(Exception exception, string[] args)
+        {
+            Console.Error.WriteLine("The operation failed.");
+            Console.Error.WriteLine(exception.Message);
+
+            for (Exception inner = exception.InnerException; inner != null; inner = inner.InnerException)
+            {
+                Console.Error.WriteLine(inner.Message);
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "sqlite-import", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: sqlite-import [auroraPath] [sqlitePath]");
+                Console.Error.WriteLine($"Default Aurora path: {defaultAuroraPath}");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
         }
 
         private static string ResolveProjectRootPath()
