@@ -9,46 +9,57 @@ BEGIN TRANSACTION;
 --
 -- Deliberate tradeoffs for the PoC:
 -- - Descriptions are stored as text blobs instead of a normalized content DOM.
--- - Requirement/support expressions are stored as raw text instead of an AST.
+-- - Requirement/support expressions are preserved as raw text and a lightweight AST,
+--   but are not yet evaluated by the importer itself.
 -- - Lower-priority element families such as companions, deities, and lists
 --   are intentionally deferred.
 --
 -- The next phase can normalize description markup and expression trees
 -- without replacing the core element/rule shape defined here.
 
-CREATE TABLE source_books
+-- Tracks MD5 hashes of external import files (SRD JSON, etc.) for incremental updates.
+CREATE TABLE IF NOT EXISTS import_state
+(
+    key         TEXT NOT NULL PRIMARY KEY,
+    file_hash   TEXT NOT NULL,
+    imported_utc TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS source_books
 (
     source_book_id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE source_files
+CREATE TABLE IF NOT EXISTS source_files
 (
-    source_file_id INTEGER PRIMARY KEY,
-    relative_path TEXT NOT NULL UNIQUE,
-    package_name TEXT,
+    source_file_id  INTEGER PRIMARY KEY,
+    relative_path   TEXT NOT NULL UNIQUE,
+    package_name    TEXT,
     package_description TEXT,
-    version_text TEXT,
+    version_text    TEXT,
     update_file_name TEXT,
-    update_url TEXT,
-    author_name TEXT,
-    author_url TEXT
+    update_url      TEXT,
+    author_name     TEXT,
+    author_url      TEXT,
+    -- MD5 of file contents; used to skip unchanged files on re-import.
+    file_hash       TEXT
 );
 
-CREATE TABLE element_types
+CREATE TABLE IF NOT EXISTS element_types
 (
     element_type_id INTEGER PRIMARY KEY,
     type_name TEXT NOT NULL UNIQUE,
     loader_family TEXT NOT NULL
 );
 
-CREATE TABLE elements
+CREATE TABLE IF NOT EXISTS elements
 (
     element_id INTEGER PRIMARY KEY,
     aurora_id TEXT NOT NULL,
     element_type_id INTEGER NOT NULL REFERENCES element_types(element_type_id),
     source_book_id INTEGER REFERENCES source_books(source_book_id),
-    source_file_id INTEGER REFERENCES source_files(source_file_id),
+    source_file_id INTEGER REFERENCES source_files(source_file_id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     slug TEXT NOT NULL,
     compendium_display INTEGER NOT NULL DEFAULT 1 CHECK (compendium_display IN (0, 1)),
@@ -56,12 +67,12 @@ CREATE TABLE elements
     created_utc TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX ix_elements_type_name ON elements(element_type_id, name);
-CREATE INDEX ix_elements_source_name ON elements(source_book_id, name);
-CREATE INDEX ix_elements_slug ON elements(slug);
-CREATE INDEX ix_elements_aurora_id ON elements(aurora_id);
+CREATE INDEX IF NOT EXISTS ix_elements_type_name ON elements(element_type_id, name);
+CREATE INDEX IF NOT EXISTS ix_elements_source_name ON elements(source_book_id, name);
+CREATE INDEX IF NOT EXISTS ix_elements_slug ON elements(slug);
+CREATE INDEX IF NOT EXISTS ix_elements_aurora_id ON elements(aurora_id);
 
-CREATE TABLE element_texts
+CREATE TABLE IF NOT EXISTS element_texts
 (
     element_text_id INTEGER PRIMARY KEY,
     element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
@@ -72,6 +83,7 @@ CREATE TABLE element_texts
             'description',
             'sheet',
             'prerequisite',
+            'prerequisites',
             'multiclass-prerequisite',
             'summary'
         )
@@ -85,9 +97,41 @@ CREATE TABLE element_texts
     body TEXT NOT NULL
 );
 
-CREATE INDEX ix_element_texts_kind ON element_texts(element_id, text_kind, ordinal);
+CREATE INDEX IF NOT EXISTS ix_element_texts_kind ON element_texts(element_id, text_kind, ordinal);
 
-CREATE TABLE element_supports
+CREATE TABLE IF NOT EXISTS element_text_markup
+(
+    element_text_id INTEGER PRIMARY KEY REFERENCES element_texts(element_text_id) ON DELETE CASCADE,
+    content_format TEXT NOT NULL DEFAULT 'aurora-xml' CHECK (content_format IN ('aurora-xml')),
+    raw_xml TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS element_blocks
+(
+    element_block_id INTEGER PRIMARY KEY,
+    element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    block_name TEXT NOT NULL,
+    body_text TEXT,
+    raw_xml TEXT NOT NULL,
+    UNIQUE (element_id, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS ix_element_blocks_name ON element_blocks(block_name, element_id);
+
+CREATE TABLE IF NOT EXISTS element_block_attributes
+(
+    element_block_id INTEGER NOT NULL REFERENCES element_blocks(element_block_id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    attribute_name TEXT NOT NULL,
+    attribute_value TEXT,
+    PRIMARY KEY (element_block_id, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS ix_element_block_attributes_name
+    ON element_block_attributes(attribute_name, element_block_id);
+
+CREATE TABLE IF NOT EXISTS element_supports
 (
     element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
@@ -95,9 +139,9 @@ CREATE TABLE element_supports
     PRIMARY KEY (element_id, ordinal)
 );
 
-CREATE INDEX ix_element_supports_text ON element_supports(support_text);
+CREATE INDEX IF NOT EXISTS ix_element_supports_text ON element_supports(support_text);
 
-CREATE TABLE element_requirements
+CREATE TABLE IF NOT EXISTS element_requirements
 (
     element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
@@ -105,7 +149,47 @@ CREATE TABLE element_requirements
     PRIMARY KEY (element_id, ordinal)
 );
 
-CREATE TABLE support_tags
+CREATE TABLE IF NOT EXISTS expressions
+(
+    expression_id INTEGER PRIMARY KEY,
+    raw_text TEXT NOT NULL UNIQUE,
+    normalized_text TEXT NOT NULL,
+    parse_status TEXT NOT NULL CHECK (parse_status IN ('parsed', 'failed')),
+    error_text TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ix_expressions_normalized ON expressions(normalized_text, parse_status);
+
+CREATE TABLE IF NOT EXISTS expression_nodes
+(
+    expression_node_id INTEGER PRIMARY KEY,
+    expression_id INTEGER NOT NULL REFERENCES expressions(expression_id) ON DELETE CASCADE,
+    parent_node_id INTEGER REFERENCES expression_nodes(expression_node_id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    node_kind TEXT NOT NULL CHECK (node_kind IN ('and', 'or', 'not', 'value')),
+    value_type TEXT,
+    value_text TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ix_expression_nodes_expression ON expression_nodes(expression_id, parent_node_id, ordinal);
+CREATE INDEX IF NOT EXISTS ix_expression_nodes_value ON expression_nodes(value_type, value_text);
+
+CREATE TABLE IF NOT EXISTS expression_usages
+(
+    expression_usage_id INTEGER PRIMARY KEY,
+    expression_id INTEGER NOT NULL REFERENCES expressions(expression_id) ON DELETE CASCADE,
+    owner_kind TEXT NOT NULL,
+    owner_id INTEGER NOT NULL,
+    field_name TEXT NOT NULL,
+    ordinal INTEGER NOT NULL DEFAULT 1,
+    source_text TEXT NOT NULL,
+    UNIQUE (owner_kind, owner_id, field_name, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS ix_expression_usages_expression ON expression_usages(expression_id, owner_kind, field_name);
+CREATE INDEX IF NOT EXISTS ix_expression_usages_owner ON expression_usages(owner_kind, owner_id, field_name);
+
+CREATE TABLE IF NOT EXISTS support_tags
 (
     support_tag_id INTEGER PRIMARY KEY,
     support_text TEXT NOT NULL UNIQUE,
@@ -123,30 +207,30 @@ CREATE TABLE support_tags
     )
 );
 
-CREATE INDEX ix_support_tags_normalized ON support_tags(normalized_text);
+CREATE INDEX IF NOT EXISTS ix_support_tags_normalized ON support_tags(normalized_text);
 
-CREATE TABLE element_support_links
+CREATE TABLE IF NOT EXISTS element_support_links
 (
     element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
     support_tag_id INTEGER NOT NULL REFERENCES support_tags(support_tag_id),
-    linked_element_id INTEGER REFERENCES elements(element_id),
+    linked_element_id INTEGER REFERENCES elements(element_id) ON DELETE SET NULL,
     resolution_kind TEXT NOT NULL,
     is_primary_parent INTEGER NOT NULL DEFAULT 0 CHECK (is_primary_parent IN (0, 1)),
     PRIMARY KEY (element_id, ordinal)
 );
 
-CREATE INDEX ix_element_support_links_tag ON element_support_links(support_tag_id, element_id);
-CREATE INDEX ix_element_support_links_target ON element_support_links(linked_element_id, is_primary_parent);
+CREATE INDEX IF NOT EXISTS ix_element_support_links_tag ON element_support_links(support_tag_id, element_id);
+CREATE INDEX IF NOT EXISTS ix_element_support_links_target ON element_support_links(linked_element_id, is_primary_parent);
 
-CREATE TABLE classes
+CREATE TABLE IF NOT EXISTS classes
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
     hit_die TEXT,
     short_text TEXT
 );
 
-CREATE TABLE source_elements
+CREATE TABLE IF NOT EXISTS source_elements
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
     abbreviation_text TEXT,
@@ -163,7 +247,7 @@ CREATE TABLE source_elements
     release_text TEXT
 );
 
-CREATE TABLE class_multiclass
+CREATE TABLE IF NOT EXISTS class_multiclass
 (
     class_element_id INTEGER PRIMARY KEY REFERENCES classes(element_id) ON DELETE CASCADE,
     multiclass_aurora_id TEXT,
@@ -172,7 +256,7 @@ CREATE TABLE class_multiclass
     proficiencies_text TEXT
 );
 
-CREATE TABLE spellcasting_profiles
+CREATE TABLE IF NOT EXISTS spellcasting_profiles
 (
     spellcasting_profile_id INTEGER PRIMARY KEY,
     owner_element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
@@ -187,20 +271,20 @@ CREATE TABLE spellcasting_profiles
     UNIQUE (owner_element_id, owner_kind)
 );
 
-CREATE TABLE archetypes
+CREATE TABLE IF NOT EXISTS archetypes
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
-    parent_class_element_id INTEGER REFERENCES classes(element_id),
+    parent_class_element_id INTEGER REFERENCES classes(element_id) ON DELETE SET NULL,
     parent_support_text TEXT
 );
 
-CREATE TABLE races
+CREATE TABLE IF NOT EXISTS races
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
     names_format_text TEXT
 );
 
-CREATE TABLE race_name_groups
+CREATE TABLE IF NOT EXISTS race_name_groups
 (
     race_element_id INTEGER NOT NULL REFERENCES races(element_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
@@ -209,27 +293,46 @@ CREATE TABLE race_name_groups
     PRIMARY KEY (race_element_id, ordinal)
 );
 
-CREATE INDEX ix_race_name_groups_type ON race_name_groups(race_element_id, name_group_type);
+CREATE INDEX IF NOT EXISTS ix_race_name_groups_type ON race_name_groups(race_element_id, name_group_type);
 
-CREATE TABLE subraces
+CREATE TABLE IF NOT EXISTS subraces
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
-    race_element_id INTEGER REFERENCES races(element_id),
+    race_element_id INTEGER REFERENCES races(element_id) ON DELETE SET NULL,
     parent_support_text TEXT
 );
 
-CREATE TABLE backgrounds
+CREATE TABLE IF NOT EXISTS race_variants
+(
+    element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
+    variant_kind TEXT NOT NULL CHECK (variant_kind IN ('Race Variant', 'Dragonmark')),
+    race_element_id INTEGER REFERENCES races(element_id) ON DELETE SET NULL,
+    parent_support_text TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ix_race_variants_parent ON race_variants(race_element_id);
+
+CREATE TABLE IF NOT EXISTS backgrounds
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE
 );
 
-CREATE TABLE feats
+CREATE TABLE IF NOT EXISTS background_variants
+(
+    element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
+    background_element_id INTEGER REFERENCES backgrounds(element_id) ON DELETE SET NULL,
+    parent_support_text TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ix_background_variants_parent ON background_variants(background_element_id);
+
+CREATE TABLE IF NOT EXISTS feats
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
     allow_duplicate INTEGER CHECK (allow_duplicate IN (0, 1))
 );
 
-CREATE TABLE spells
+CREATE TABLE IF NOT EXISTS spells
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
     spell_level INTEGER NOT NULL DEFAULT 0,
@@ -251,9 +354,9 @@ CREATE TABLE spells
     source_url TEXT
 );
 
-CREATE INDEX ix_spells_level_school ON spells(spell_level, school_name);
+CREATE INDEX IF NOT EXISTS ix_spells_level_school ON spells(spell_level, school_name);
 
-CREATE TABLE spell_access
+CREATE TABLE IF NOT EXISTS spell_access
 (
     spell_element_id INTEGER NOT NULL REFERENCES spells(element_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
@@ -261,9 +364,9 @@ CREATE TABLE spell_access
     PRIMARY KEY (spell_element_id, ordinal)
 );
 
-CREATE INDEX ix_spell_access_text ON spell_access(access_text);
+CREATE INDEX IF NOT EXISTS ix_spell_access_text ON spell_access(access_text);
 
-CREATE TABLE languages
+CREATE TABLE IF NOT EXISTS languages
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
     script_text TEXT,
@@ -273,14 +376,14 @@ CREATE TABLE languages
     is_secret INTEGER NOT NULL DEFAULT 0 CHECK (is_secret IN (0, 1))
 );
 
-CREATE TABLE proficiencies
+CREATE TABLE IF NOT EXISTS proficiencies
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
     proficiency_group TEXT,
     proficiency_subgroup TEXT
 );
 
-CREATE TABLE items
+CREATE TABLE IF NOT EXISTS items
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
     item_kind TEXT NOT NULL CHECK
@@ -297,7 +400,7 @@ CREATE TABLE items
     capacity_text TEXT
 );
 
-CREATE TABLE features
+CREATE TABLE IF NOT EXISTS features
 (
     element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
     feature_kind TEXT NOT NULL CHECK
@@ -312,17 +415,84 @@ CREATE TABLE features
             'Ability Score Improvement'
         )
     ),
-    parent_element_id INTEGER REFERENCES elements(element_id),
+    parent_element_id INTEGER REFERENCES elements(element_id) ON DELETE SET NULL,
     parent_support_text TEXT,
     min_level INTEGER
 );
 
-CREATE INDEX ix_features_parent ON features(parent_element_id, min_level);
-CREATE INDEX ix_features_kind ON features(feature_kind, min_level);
+CREATE INDEX IF NOT EXISTS ix_features_parent ON features(parent_element_id, min_level);
+CREATE INDEX IF NOT EXISTS ix_features_kind ON features(feature_kind, min_level);
+
+-- Setter scopes mirror rule scopes so raw Aurora <set> entries can be preserved
+-- for normal elements and class multiclass blocks without polymorphic FKs.
+CREATE TABLE IF NOT EXISTS setter_scopes
+(
+    setter_scope_id INTEGER PRIMARY KEY,
+    owner_kind TEXT NOT NULL CHECK (owner_kind IN ('element', 'class-multiclass')),
+    owner_element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
+    scope_key TEXT NOT NULL,
+    UNIQUE (owner_kind, owner_element_id, scope_key)
+);
+
+CREATE TABLE IF NOT EXISTS setter_entries
+(
+    setter_entry_id INTEGER PRIMARY KEY,
+    setter_scope_id INTEGER NOT NULL REFERENCES setter_scopes(setter_scope_id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    setter_name TEXT NOT NULL,
+    setter_value TEXT,
+    UNIQUE (setter_scope_id, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS ix_setter_entries_name ON setter_entries(setter_name, setter_scope_id);
+
+CREATE TABLE IF NOT EXISTS setter_entry_attributes
+(
+    setter_entry_id INTEGER NOT NULL REFERENCES setter_entries(setter_entry_id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    attribute_name TEXT NOT NULL,
+    attribute_value TEXT,
+    PRIMARY KEY (setter_entry_id, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS ix_setter_entry_attributes_name ON setter_entry_attributes(attribute_name, setter_entry_id);
+
+-- Preserve Aurora <extract> blocks for packs and similar composite elements.
+CREATE TABLE IF NOT EXISTS element_extracts
+(
+    element_id INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
+    description_text TEXT
+);
+
+CREATE TABLE IF NOT EXISTS element_extract_items
+(
+    extract_item_id INTEGER PRIMARY KEY,
+    element_id INTEGER NOT NULL REFERENCES element_extracts(element_id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    item_text TEXT,
+    target_aurora_id TEXT,
+    linked_element_id INTEGER REFERENCES elements(element_id) ON DELETE SET NULL,
+    amount_text TEXT,
+    UNIQUE (element_id, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS ix_element_extract_items_target ON element_extract_items(target_aurora_id, linked_element_id);
+
+CREATE TABLE IF NOT EXISTS element_extract_item_attributes
+(
+    extract_item_id INTEGER NOT NULL REFERENCES element_extract_items(extract_item_id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    attribute_name TEXT NOT NULL,
+    attribute_value TEXT,
+    PRIMARY KEY (extract_item_id, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS ix_element_extract_item_attributes_name
+    ON element_extract_item_attributes(attribute_name, extract_item_id);
 
 -- Rule scopes let the same grant/select/stat tables be reused for an
 -- element's main rules and a class multiclass block without polymorphic FKs.
-CREATE TABLE rule_scopes
+CREATE TABLE IF NOT EXISTS rule_scopes
 (
     rule_scope_id INTEGER PRIMARY KEY,
     owner_kind TEXT NOT NULL CHECK (owner_kind IN ('element', 'class-multiclass')),
@@ -331,24 +501,24 @@ CREATE TABLE rule_scopes
     UNIQUE (owner_kind, owner_element_id, scope_key)
 );
 
-CREATE TABLE grants
+CREATE TABLE IF NOT EXISTS grants
 (
     grant_id INTEGER PRIMARY KEY,
     rule_scope_id INTEGER NOT NULL REFERENCES rule_scopes(rule_scope_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
     grant_type TEXT NOT NULL,
     target_aurora_id TEXT,
-    target_element_id INTEGER REFERENCES elements(element_id),
+    target_element_id INTEGER REFERENCES elements(element_id) ON DELETE SET NULL,
     name_text TEXT,
     grant_level INTEGER,
     requirements_text TEXT,
     UNIQUE (rule_scope_id, ordinal)
 );
 
-CREATE INDEX ix_grants_target ON grants(target_aurora_id, grant_type);
-CREATE INDEX ix_grants_owner_level ON grants(rule_scope_id, grant_level);
+CREATE INDEX IF NOT EXISTS ix_grants_target ON grants(target_aurora_id, grant_type);
+CREATE INDEX IF NOT EXISTS ix_grants_owner_level ON grants(rule_scope_id, grant_level);
 
-CREATE TABLE selects
+CREATE TABLE IF NOT EXISTS selects
 (
     select_id INTEGER PRIMARY KEY,
     rule_scope_id INTEGER NOT NULL REFERENCES rule_scopes(rule_scope_id) ON DELETE CASCADE,
@@ -360,14 +530,14 @@ CREATE TABLE selects
     number_to_choose INTEGER NOT NULL DEFAULT 1,
     default_choice_text TEXT,
     is_optional INTEGER NOT NULL DEFAULT 0 CHECK (is_optional IN (0, 1)),
-    spellcasting_profile_id INTEGER REFERENCES spellcasting_profiles(spellcasting_profile_id),
+    spellcasting_profile_id INTEGER REFERENCES spellcasting_profiles(spellcasting_profile_id) ON DELETE SET NULL,
     requirements_text TEXT,
     UNIQUE (rule_scope_id, ordinal)
 );
 
-CREATE INDEX ix_selects_type ON selects(select_type, select_level);
+CREATE INDEX IF NOT EXISTS ix_selects_type ON selects(select_type, select_level);
 
-CREATE TABLE select_supports
+CREATE TABLE IF NOT EXISTS select_supports
 (
     select_id INTEGER NOT NULL REFERENCES selects(select_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
@@ -375,22 +545,47 @@ CREATE TABLE select_supports
     PRIMARY KEY (select_id, ordinal)
 );
 
-CREATE INDEX ix_select_supports_text ON select_supports(support_text);
+CREATE INDEX IF NOT EXISTS ix_select_supports_text ON select_supports(support_text);
 
-CREATE TABLE select_support_links
+CREATE TABLE IF NOT EXISTS select_items
+(
+    select_item_id INTEGER PRIMARY KEY,
+    select_id INTEGER NOT NULL REFERENCES selects(select_id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    item_text TEXT,
+    target_aurora_id TEXT,
+    linked_element_id INTEGER REFERENCES elements(element_id) ON DELETE SET NULL,
+    UNIQUE (select_id, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS ix_select_items_target ON select_items(target_aurora_id, linked_element_id);
+
+CREATE TABLE IF NOT EXISTS select_item_attributes
+(
+    select_item_id INTEGER NOT NULL REFERENCES select_items(select_item_id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    attribute_name TEXT NOT NULL,
+    attribute_value TEXT,
+    PRIMARY KEY (select_item_id, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS ix_select_item_attributes_name
+    ON select_item_attributes(attribute_name, select_item_id);
+
+CREATE TABLE IF NOT EXISTS select_support_links
 (
     select_id INTEGER NOT NULL REFERENCES selects(select_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
     support_tag_id INTEGER NOT NULL REFERENCES support_tags(support_tag_id),
-    linked_element_id INTEGER REFERENCES elements(element_id),
+    linked_element_id INTEGER REFERENCES elements(element_id) ON DELETE SET NULL,
     resolution_kind TEXT NOT NULL,
     PRIMARY KEY (select_id, ordinal)
 );
 
-CREATE INDEX ix_select_support_links_tag ON select_support_links(support_tag_id, select_id);
-CREATE INDEX ix_select_support_links_target ON select_support_links(linked_element_id);
+CREATE INDEX IF NOT EXISTS ix_select_support_links_tag ON select_support_links(support_tag_id, select_id);
+CREATE INDEX IF NOT EXISTS ix_select_support_links_target ON select_support_links(linked_element_id);
 
-CREATE TABLE select_option_links
+CREATE TABLE IF NOT EXISTS select_option_links
 (
     select_id INTEGER NOT NULL REFERENCES selects(select_id) ON DELETE CASCADE,
     option_element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
@@ -399,10 +594,10 @@ CREATE TABLE select_option_links
     PRIMARY KEY (select_id, option_element_id, support_tag_id, match_kind)
 );
 
-CREATE INDEX ix_select_option_links_select ON select_option_links(select_id, support_tag_id);
-CREATE INDEX ix_select_option_links_option ON select_option_links(option_element_id, support_tag_id);
+CREATE INDEX IF NOT EXISTS ix_select_option_links_select ON select_option_links(select_id, support_tag_id);
+CREATE INDEX IF NOT EXISTS ix_select_option_links_option ON select_option_links(option_element_id, support_tag_id);
 
-CREATE TABLE stats
+CREATE TABLE IF NOT EXISTS stats
 (
     stat_id INTEGER PRIMARY KEY,
     rule_scope_id INTEGER NOT NULL REFERENCES rule_scopes(rule_scope_id) ON DELETE CASCADE,
@@ -418,36 +613,155 @@ CREATE TABLE stats
     UNIQUE (rule_scope_id, ordinal)
 );
 
-CREATE INDEX ix_stats_name_level ON stats(stat_name, stat_level);
+CREATE INDEX IF NOT EXISTS ix_stats_name_level ON stats(stat_name, stat_level);
 
 -- Seed the highest-value element types for character and feature loading.
-INSERT INTO element_types (type_name, loader_family) VALUES ('Spell', 'spell');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Source', 'source');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Class', 'class');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Archetype', 'archetype');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Class Feature', 'feature');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Archetype Feature', 'feature');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Race', 'race');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Sub Race', 'race');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Racial Trait', 'feature');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Background', 'background');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Background Feature', 'feature');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Feat', 'feat');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Feat Feature', 'feature');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Ability Score Improvement', 'feature');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Language', 'language');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Proficiency', 'proficiency');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Item', 'item');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Weapon', 'item');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Armor', 'item');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Ammunition', 'item');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Mount', 'item');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Vehicle', 'item');
-INSERT INTO element_types (type_name, loader_family) VALUES ('Magic Item', 'item');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Spell', 'spell');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Source', 'source');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Class', 'class');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Archetype', 'archetype');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Class Feature', 'feature');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Archetype Feature', 'feature');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Race', 'race');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Sub Race', 'race');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Racial Trait', 'feature');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Background', 'background');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Background Feature', 'feature');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Background Sub-Feature', 'feature');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Background Variant', 'background');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Feat', 'feat');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Feat Feature', 'feature');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Ability Score Improvement', 'feature');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Language', 'language');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Proficiency', 'proficiency');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Item', 'item');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Weapon', 'item');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Armor', 'item');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Ammunition', 'item');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Mount', 'item');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Vehicle', 'item');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Magic Item', 'item');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Companion', 'companion');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Companion Action', 'companion');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Companion Reaction', 'companion');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Companion Trait', 'companion');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Companion Feature', 'companion');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Monster', 'creature');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Alignment', 'reference');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Background Characteristics', 'background');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Condition', 'reference');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Deity', 'reference');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Dragonmark', 'race');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Grants', 'grant');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Information', 'reference');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Magic School', 'reference');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Option', 'option');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Race Variant', 'race');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Rule', 'rule');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Support', 'support');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Vision', 'reference');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Weapon Group', 'item');
+INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Weapon Property', 'item');
+
+-- Aurora companion stat blocks.
+-- Populated from Aurora XML Companion elements (type="Companion").
+-- ability scores are stored as integers; ac, hp, speed, skills, senses kept
+-- as raw text because Aurora stores them as formatted strings (e.g. "5 (1d4 + 3)").
+-- cr_value is the numeric CR for filtering (0.125 = 1/8, 0.25 = 1/4, 0.5 = 1/2).
+-- actions_text is the raw comma-separated aurora_id list from the actions setter.
+CREATE TABLE IF NOT EXISTS companions
+(
+    element_id              INTEGER PRIMARY KEY REFERENCES elements(element_id) ON DELETE CASCADE,
+    size_text               TEXT,
+    creature_type           TEXT,
+    alignment               TEXT,
+    ac_text                 TEXT,
+    hp_text                 TEXT,
+    speed_text              TEXT,
+    str_score               INTEGER,
+    dex_score               INTEGER,
+    con_score               INTEGER,
+    int_score               INTEGER,
+    wis_score               INTEGER,
+    cha_score               INTEGER,
+    skills_text             TEXT,
+    resistances_text        TEXT,
+    immunities_text         TEXT,
+    condition_immunities_text TEXT,
+    senses_text             TEXT,
+    languages_text          TEXT,
+    challenge_text          TEXT,
+    cr_value                REAL,
+    proficiency_bonus       INTEGER,
+    actions_text            TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ix_companions_cr ON companions(cr_value, creature_type);
+CREATE INDEX IF NOT EXISTS ix_companions_type ON companions(creature_type, size_text);
+
+-- Unified creature table for SRD and external creature data.
+-- Populated by the `srd-creatures` import command (5e-bits/5e-database JSON; formerly bagelbits/5e-database).
+-- source_kind = 'srd'    : from the SRD 5.1 / 5e-database JSON
+--             = 'aurora' : Aurora Companion element promoted to this table (no SRD match)
+--             = 'custom' : manually added entries
+CREATE TABLE IF NOT EXISTS creatures
+(
+    creature_id                 INTEGER PRIMARY KEY,
+    name                        TEXT NOT NULL,
+    slug                        TEXT NOT NULL,
+    cr_text                     TEXT,
+    cr_value                    REAL,
+    size_text                   TEXT,
+    creature_type               TEXT,
+    subtype_text                TEXT,
+    alignment                   TEXT,
+    ac_text                     TEXT,
+    hp_average                  INTEGER,
+    hp_text                     TEXT,
+    speed_text                  TEXT,
+    str_score                   INTEGER,
+    dex_score                   INTEGER,
+    con_score                   INTEGER,
+    int_score                   INTEGER,
+    wis_score                   INTEGER,
+    cha_score                   INTEGER,
+    saving_throws_text          TEXT,
+    skills_text                 TEXT,
+    damage_vulnerabilities_text TEXT,
+    damage_resistances_text     TEXT,
+    damage_immunities_text      TEXT,
+    condition_immunities_text   TEXT,
+    senses_text                 TEXT,
+    languages_text              TEXT,
+    proficiency_bonus           INTEGER,
+    source_kind                 TEXT NOT NULL DEFAULT 'srd' CHECK (source_kind IN ('srd', 'aurora', 'custom')),
+    source_name                 TEXT,
+    description_text            TEXT,
+    created_utc                 TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ix_creatures_cr ON creatures(cr_value, creature_type);
+CREATE INDEX IF NOT EXISTS ix_creatures_type ON creatures(creature_type, size_text);
+CREATE INDEX IF NOT EXISTS ix_creatures_name ON creatures(name);
+CREATE INDEX IF NOT EXISTS ix_creatures_slug ON creatures(slug);
+
+-- Cross-reference between creatures (SRD/external data) and Aurora Companion elements.
+-- link_kind = 'name-match' : automatically matched on normalized name equality
+--           = 'exact'      : matched on a canonical known pairing
+--           = 'manual'     : manually curated override
+CREATE TABLE IF NOT EXISTS creature_aurora_links
+(
+    creature_id INTEGER NOT NULL REFERENCES creatures(creature_id) ON DELETE CASCADE,
+    element_id  INTEGER NOT NULL REFERENCES elements(element_id)  ON DELETE CASCADE,
+    link_kind   TEXT NOT NULL DEFAULT 'name-match' CHECK (link_kind IN ('name-match', 'exact', 'manual')),
+    PRIMARY KEY (creature_id, element_id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_creature_aurora_links_element ON creature_aurora_links(element_id);
 
 -- Loader-centric views.
 
-CREATE VIEW v_feature_loader AS
+CREATE VIEW IF NOT EXISTS v_feature_loader AS
 SELECT
     e.element_id,
     e.aurora_id,
@@ -479,7 +793,7 @@ LEFT JOIN element_texts AS body
    AND body.text_kind = 'description'
    AND body.ordinal = 1;
 
-CREATE VIEW v_element_support_loader AS
+CREATE VIEW IF NOT EXISTS v_element_support_loader AS
 SELECT
     child.element_id AS child_element_id,
     child.aurora_id AS child_aurora_id,
@@ -506,7 +820,7 @@ LEFT JOIN elements AS target
 LEFT JOIN element_types AS target_type
     ON target_type.element_type_id = target.element_type_id;
 
-CREATE VIEW v_support_tag_summary AS
+CREATE VIEW IF NOT EXISTS v_support_tag_summary AS
 SELECT
     st.support_tag_id,
     st.support_text,
@@ -528,7 +842,7 @@ GROUP BY
     st.support_text,
     st.support_kind;
 
-CREATE VIEW v_class_feature_progression AS
+CREATE VIEW IF NOT EXISTS v_class_feature_progression AS
 SELECT
     c.element_id AS class_element_id,
     class_element.aurora_id AS class_aurora_id,
@@ -554,7 +868,35 @@ JOIN element_types AS feature_type
 WHERE g.grant_type IN ('Class Feature', 'Archetype Feature')
 ORDER BY class_name, g.grant_level, feature_name;
 
-CREATE VIEW v_selection_loader AS
+CREATE VIEW IF NOT EXISTS v_grant_loader AS
+SELECT
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    g.grant_id,
+    g.ordinal,
+    g.grant_type,
+    g.name_text,
+    g.target_aurora_id,
+    g.grant_level,
+    g.requirements_text,
+    target.element_id AS target_element_id,
+    target.name AS target_name,
+    target_type.type_name AS target_type_name
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+LEFT JOIN elements AS target
+    ON target.element_id = g.target_element_id
+LEFT JOIN element_types AS target_type
+    ON target_type.element_type_id = target.element_type_id;
+
+CREATE VIEW IF NOT EXISTS v_selection_loader AS
 SELECT
     owner.element_id AS owner_element_id,
     owner.aurora_id AS owner_aurora_id,
@@ -594,7 +936,7 @@ GROUP BY
     s.is_optional,
     s.requirements_text;
 
-CREATE VIEW v_select_option_candidates AS
+CREATE VIEW IF NOT EXISTS v_select_option_candidates AS
 SELECT
     owner.element_id AS owner_element_id,
     owner.aurora_id AS owner_aurora_id,
@@ -627,7 +969,201 @@ JOIN elements AS option_element
 JOIN element_types AS option_type
     ON option_type.element_type_id = option_element.element_type_id;
 
-CREATE VIEW v_support_tag_roles AS
+CREATE VIEW IF NOT EXISTS v_setter_loader AS
+SELECT
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    ss.owner_kind AS setter_owner_kind,
+    se.setter_entry_id,
+    se.ordinal,
+    se.setter_name,
+    se.setter_value,
+    GROUP_CONCAT(sea.attribute_name || '=' || COALESCE(sea.attribute_value, ''), ' | ') AS attributes_summary
+FROM setter_entries AS se
+JOIN setter_scopes AS ss
+    ON ss.setter_scope_id = se.setter_scope_id
+JOIN elements AS owner
+    ON owner.element_id = ss.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+LEFT JOIN setter_entry_attributes AS sea
+    ON sea.setter_entry_id = se.setter_entry_id
+GROUP BY
+    owner.element_id,
+    owner.aurora_id,
+    owner.name,
+    owner_type.type_name,
+    ss.owner_kind,
+    se.setter_entry_id,
+    se.ordinal,
+    se.setter_name,
+    se.setter_value;
+
+CREATE VIEW IF NOT EXISTS v_extract_loader AS
+SELECT
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    ex.description_text,
+    ei.extract_item_id,
+    ei.ordinal,
+    ei.item_text,
+    ei.target_aurora_id,
+    linked.aurora_id AS linked_aurora_id,
+    linked.name AS linked_name,
+    ei.amount_text,
+    GROUP_CONCAT(eia.attribute_name || '=' || COALESCE(eia.attribute_value, ''), ' | ') AS attributes_summary
+FROM element_extracts AS ex
+JOIN elements AS owner
+    ON owner.element_id = ex.element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+LEFT JOIN element_extract_items AS ei
+    ON ei.element_id = ex.element_id
+LEFT JOIN elements AS linked
+    ON linked.element_id = ei.linked_element_id
+LEFT JOIN element_extract_item_attributes AS eia
+    ON eia.extract_item_id = ei.extract_item_id
+GROUP BY
+    owner.element_id,
+    owner.aurora_id,
+    owner.name,
+    owner_type.type_name,
+    ex.description_text,
+    ei.extract_item_id,
+    ei.ordinal,
+    ei.item_text,
+    ei.target_aurora_id,
+    linked.aurora_id,
+    linked.name,
+    ei.amount_text;
+
+CREATE VIEW IF NOT EXISTS v_element_block_loader AS
+SELECT
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    eb.element_block_id,
+    eb.ordinal,
+    eb.block_name,
+    eb.body_text,
+    eb.raw_xml,
+    GROUP_CONCAT(eba.attribute_name || '=' || COALESCE(eba.attribute_value, ''), ' | ') AS attributes_summary
+FROM element_blocks AS eb
+JOIN elements AS owner
+    ON owner.element_id = eb.element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+LEFT JOIN element_block_attributes AS eba
+    ON eba.element_block_id = eb.element_block_id
+GROUP BY
+    owner.element_id,
+    owner.aurora_id,
+    owner.name,
+    owner_type.type_name,
+    eb.element_block_id,
+    eb.ordinal,
+    eb.block_name,
+    eb.body_text,
+    eb.raw_xml;
+
+CREATE VIEW IF NOT EXISTS v_element_text_loader AS
+SELECT
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    etx.element_text_id,
+    etx.text_kind,
+    etx.ordinal,
+    etx.level,
+    etx.display,
+    etx.alt_text,
+    etx.action_text,
+    etx.usage_text,
+    etx.body,
+    etm.content_format,
+    etm.raw_xml
+FROM element_texts AS etx
+JOIN elements AS owner
+    ON owner.element_id = etx.element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+LEFT JOIN element_text_markup AS etm
+    ON etm.element_text_id = etx.element_text_id;
+
+CREATE VIEW IF NOT EXISTS v_expression_usage_loader AS
+SELECT
+    eu.expression_usage_id,
+    eu.owner_kind,
+    eu.owner_id,
+    eu.field_name,
+    eu.ordinal,
+    eu.source_text,
+    e.expression_id,
+    e.parse_status,
+    e.error_text,
+    root.node_kind AS root_node_kind,
+    root.value_type AS root_value_type,
+    root.value_text AS root_value_text
+FROM expression_usages AS eu
+JOIN expressions AS e
+    ON e.expression_id = eu.expression_id
+LEFT JOIN expression_nodes AS root
+    ON root.expression_id = e.expression_id
+   AND root.parent_node_id IS NULL;
+
+CREATE VIEW IF NOT EXISTS v_select_item_loader AS
+SELECT
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    rs.owner_kind AS rule_owner_kind,
+    s.select_id,
+    s.name_text AS select_name,
+    s.select_type,
+    si.select_item_id,
+    si.ordinal,
+    si.item_text,
+    si.target_aurora_id,
+    linked.aurora_id AS linked_aurora_id,
+    linked.name AS linked_name,
+    GROUP_CONCAT(sia.attribute_name || '=' || COALESCE(sia.attribute_value, ''), ' | ') AS attributes_summary
+FROM select_items AS si
+JOIN selects AS s
+    ON s.select_id = si.select_id
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = s.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+LEFT JOIN elements AS linked
+    ON linked.element_id = si.linked_element_id
+LEFT JOIN select_item_attributes AS sia
+    ON sia.select_item_id = si.select_item_id
+GROUP BY
+    owner.element_id,
+    owner.aurora_id,
+    owner.name,
+    owner_type.type_name,
+    rs.owner_kind,
+    s.select_id,
+    s.name_text,
+    s.select_type,
+    si.select_item_id,
+    si.ordinal,
+    si.item_text,
+    si.target_aurora_id,
+    linked.aurora_id,
+    linked.name;
+
+CREATE VIEW IF NOT EXISTS v_support_tag_roles AS
 SELECT
     summary.support_tag_id,
     summary.support_text,
@@ -648,7 +1184,7 @@ SELECT
     END AS option_role_kind
 FROM v_support_tag_summary AS summary;
 
-CREATE VIEW v_spell_loader AS
+CREATE VIEW IF NOT EXISTS v_spell_loader AS
 SELECT
     e.element_id,
     e.aurora_id,
@@ -672,7 +1208,10 @@ SELECT
     sp.source_url,
     GROUP_CONCAT(sa.access_text, ' | ') AS access_summary,
     sheet.body AS sheet_text,
-    body.body AS description_text
+    body.body AS description_text,
+    sheet_markup.raw_xml AS sheet_raw_xml,
+    body_markup.raw_xml AS description_raw_xml,
+    summary_markup.raw_xml AS summary_raw_xml
 FROM spells AS sp
 JOIN elements AS e
     ON e.element_id = sp.element_id
@@ -686,6 +1225,16 @@ LEFT JOIN element_texts AS body
     ON body.element_id = e.element_id
    AND body.text_kind = 'description'
    AND body.ordinal = 1
+LEFT JOIN element_text_markup AS sheet_markup
+    ON sheet_markup.element_text_id = sheet.element_text_id
+LEFT JOIN element_text_markup AS body_markup
+    ON body_markup.element_text_id = body.element_text_id
+LEFT JOIN element_texts AS summary
+    ON summary.element_id = e.element_id
+   AND summary.text_kind = 'summary'
+   AND summary.ordinal = 1
+LEFT JOIN element_text_markup AS summary_markup
+    ON summary_markup.element_text_id = summary.element_text_id
 GROUP BY
     e.element_id,
     e.aurora_id,
@@ -708,9 +1257,12 @@ GROUP BY
     sp.dc_success_text,
     sp.source_url,
     sheet.body,
-    body.body;
+    body.body,
+    sheet_markup.raw_xml,
+    body_markup.raw_xml,
+    summary_markup.raw_xml;
 
-CREATE VIEW v_character_core_elements AS
+CREATE VIEW IF NOT EXISTS v_character_core_elements AS
 SELECT
     e.element_id,
     e.aurora_id,
@@ -731,8 +1283,11 @@ WHERE et.type_name IN
     'Class',
     'Archetype',
     'Race',
+    'Race Variant',
+    'Dragonmark',
     'Sub Race',
     'Background',
+    'Background Variant',
     'Feat',
     'Spell',
     'Language',

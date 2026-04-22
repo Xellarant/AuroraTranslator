@@ -1,25 +1,19 @@
 ﻿using _5eApiTranslator.Models;
 using System;
 using System.Collections.Generic;
-using Microsoft.Data.SqlClient;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
-using System.Xml;
-using System.ComponentModel;
 using System.Xml.Linq;
-using _5eApiTranslator.ResponseObjects;
 using Microsoft.Data.Sqlite;
 
 namespace _5eApiTranslator
 {
     class Program
-    {        
-        static string apiBase = "https://www.dnd5eapi.co/api";
-        static string connectionString = "Data Source=(LocalDb)\\MSSQLLocalDB;Initial Catalog=5eHelper;User ID=5eHelper_Admin;pwd=5eHelper_Admin";
+    {
         static string projectRootPath = ResolveProjectRootPath();
         static string defaultAuroraPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -47,6 +41,19 @@ namespace _5eApiTranslator
             }
         }
 
+        static string defaultSrdMonstersPath = Path.Combine(
+            projectRootPath,
+            "Data",
+            "5e-SRD-Monsters.json");
+
+        static string defaultXellarantXmlPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "5e Character Builder",
+            "custom",
+            "supplements",
+            "the-book-of-xellarant",
+            "creatures.xml");
+
         private static async Task RunAsync(string[] args)
         {
             if (args.Length > 0
@@ -59,17 +66,46 @@ namespace _5eApiTranslator
                 return;
             }
 
-            Console.WriteLine("Pass `sqlite-import [auroraPath] [sqlitePath]` to import Aurora XML into the SQLite proof of concept schema.");
+            if (args.Length > 0
+                && string.Equals(args[0], "srd-creatures", StringComparison.OrdinalIgnoreCase))
+            {
+                string jsonPath   = args.Length > 1 ? args[1] : defaultSrdMonstersPath;
+                string sqlitePath = args.Length > 2 ? args[2] : defaultSqlitePath;
 
-            //await FillClasses();
-            //Console.WriteLine("Classes Imported.");
+                AuroraSqlitePocImporter.ImportSrdCreatures(jsonPath, sqlitePath);
+                return;
+            }
 
-            //await FillSpells();
-            //Console.WriteLine("Spells Imported.");
+            if (args.Length > 0
+                && string.Equals(args[0], "generate-xellarant-xml", StringComparison.OrdinalIgnoreCase))
+            {
+                string jsonPath   = args.Length > 1 ? args[1] : defaultSrdMonstersPath;
+                string sqlitePath = args.Length > 2 ? args[2] : defaultSqlitePath;
+                string outputPath = args.Length > 3 ? args[3] : defaultXellarantXmlPath;
 
-            //FillAuroraSpells();
-            //Console.WriteLine("Aurora Spells Imported.");
+                XellarantXmlGenerator.Generate(jsonPath, sqlitePath, outputPath);
+                return;
+            }
 
+            if (args.Length > 0
+                && string.Equals(args[0], "eval-expression", StringComparison.OrdinalIgnoreCase))
+            {
+                string expressionText = args.Length > 1 ? args[1] : null;
+                string contextJsonPath = args.Length > 2 ? args[2] : null;
+
+                EvaluateExpression(expressionText, contextJsonPath);
+                return;
+            }
+
+            Console.WriteLine("Commands:");
+            Console.WriteLine("  sqlite-import [auroraPath] [sqlitePath]              Import Aurora XML into the SQLite database.");
+            Console.WriteLine("  srd-creatures [jsonPath] [sqlitePath]                Import SRD monsters and link to Aurora companions.");
+            Console.WriteLine("  generate-xellarant-xml [jsonPath] [sqlitePath] [out] Generate The Book of Xellarant creatures XML.");
+            Console.WriteLine("  eval-expression [expressionText] [contextJson]       Parse and evaluate an Aurora expression.");
+            Console.WriteLine($"Default Aurora path:  {defaultAuroraPath}");
+            Console.WriteLine($"Default SQLite path:  {defaultSqlitePath}");
+            Console.WriteLine($"Default SRD JSON:     {defaultSrdMonstersPath}");
+            Console.WriteLine($"Default XML output:   {defaultXellarantXmlPath}");
         }
 
         private static void WriteError(Exception exception, string[] args)
@@ -89,6 +125,31 @@ namespace _5eApiTranslator
                 Console.Error.WriteLine("Usage: sqlite-import [auroraPath] [sqlitePath]");
                 Console.Error.WriteLine($"Default Aurora path: {defaultAuroraPath}");
                 Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "srd-creatures", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: srd-creatures [jsonPath] [sqlitePath]");
+                Console.Error.WriteLine($"Default JSON path:   {defaultSrdMonstersPath}");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "generate-xellarant-xml", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: generate-xellarant-xml [jsonPath] [sqlitePath] [outputPath]");
+                Console.Error.WriteLine($"Default JSON path:   {defaultSrdMonstersPath}");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+                Console.Error.WriteLine($"Default output:      {defaultXellarantXmlPath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "eval-expression", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: eval-expression [expressionText] [contextJsonPath]");
+                Console.Error.WriteLine("Context JSON shape:");
+                Console.Error.WriteLine(@"  { ""tokens"": [], ""numericValues"": {}, ""scalarValues"": {}, ""macroValues"": {} }");
             }
         }
 
@@ -118,116 +179,6 @@ namespace _5eApiTranslator
             throw new DirectoryNotFoundException("Could not locate the project root containing 5eDataGenerator.csproj.");
         }
 
-        private static async Task FillClasses()
-        {
-            HttpClient client = new HttpClient();
-
-            using (var response = await client.GetAsync($"{apiBase}/classes"))
-            {
-                string apiResponse = await response.Content.ReadAsStringAsync();
-                BulkApiResponse classList = JsonSerializer.Deserialize<BulkApiResponse>(apiResponse, new JsonSerializerOptions { IncludeFields = true });
-
-                using (SqlConnection sqlConnection = new SqlConnection(connectionString))
-                {
-                    using (SqlCommand sqlCommand = new SqlCommand("sp_Classes_Import", sqlConnection))
-                    {
-                        sqlConnection.Open();
-
-                        sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
-
-                        sqlCommand.Parameters.AddWithValue("@tvpClasses_Basic", classList.results.ToDataTable());
-                        sqlCommand.Parameters.AddWithValue("@IsSubclass", true);
-                        sqlCommand.ExecuteNonQuery();
-
-                        sqlConnection.Close();
-                    }
-                }
-            }
-        }
-
-        private static async Task FillSpells()
-        {
-            HttpClient client = new HttpClient();
-
-            using (var response = await client.GetAsync($"{apiBase}/spells"))
-            {
-                string apiResponse = await response.Content.ReadAsStringAsync();
-                BulkApiResponse spellList = JsonSerializer.Deserialize<BulkApiResponse>(apiResponse, new JsonSerializerOptions { IncludeFields = true });
-
-                List<Spell> spellListDetailed = new List<Spell>();
-
-                foreach (var entry in spellList.results)
-                {
-                    using (var spellResponse = await client.GetAsync($"{apiBase}/spells/{entry.index}"))
-                    {
-                        var spellResponseContent = await spellResponse.Content.ReadAsStringAsync();
-                        Spell detailedSpell = JsonSerializer.Deserialize<Spell>(spellResponseContent, new JsonSerializerOptions { IncludeFields = true });
-                        spellListDetailed.Add(detailedSpell);
-                    }
-                }
-
-                using (SqlConnection sqlConnection = new SqlConnection(connectionString))
-                {
-                    foreach (var spell in spellListDetailed)
-                    {
-                        using (SqlCommand sqlCommand = new SqlCommand("sp_Spells_Import", sqlConnection))
-                        {                            
-                            sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
-
-                            sqlCommand.Parameters.AddWithValue("@spell_index", spell.index);
-                            sqlCommand.Parameters.AddWithValue("@spell_name", spell.name);
-                            sqlCommand.Parameters.AddWithValue("@spell_desc", spell.desc?.Count > 0 ? string.Join(" \n ", spell.desc) : null);
-                            sqlCommand.Parameters.AddWithValue("@higher_level_desc", spell.higher_level?.Count > 0 ? string.Join(" \n ", spell.higher_level) : null);
-                            sqlCommand.Parameters.AddWithValue("@spell_range", spell.range);
-                            sqlCommand.Parameters.AddWithValue("@hasVerbal", spell.hasVerbal);
-                            sqlCommand.Parameters.AddWithValue("@hasSomatic", spell.hasSomatic);
-                            sqlCommand.Parameters.AddWithValue("@hasMaterial", spell.hasMaterial);
-                            sqlCommand.Parameters.AddWithValue("@material_component", spell.material);
-                            sqlCommand.Parameters.AddWithValue("@isRitual", spell.ritual);
-                            sqlCommand.Parameters.AddWithValue("@spell_duration", spell.duration);
-                            sqlCommand.Parameters.AddWithValue("@isConcentration", spell.concentration);
-                            sqlCommand.Parameters.AddWithValue("@casting_time", spell.casting_time);
-                            sqlCommand.Parameters.AddWithValue("@spell_level", spell.level);
-                            sqlCommand.Parameters.AddWithValue("@spell_attack_type", spell.attack_type);
-                            sqlCommand.Parameters.AddWithValue("@spell_damage_type", spell.damage?.damage_type?.index);
-                            sqlCommand.Parameters.AddWithValue("@spell_damage_formula", 
-                                JsonSerializer.Serialize(spell.damage?.damage_at_slot_level, new JsonSerializerOptions { IncludeFields = true }));
-                            sqlCommand.Parameters.AddWithValue("@spell_dc", spell.dc?.index);
-                            sqlCommand.Parameters.AddWithValue("@spell_dc_success", spell.dc?.dc_success);
-                            sqlCommand.Parameters.AddWithValue("@school_of_magic", spell.school?.index);
-                            sqlCommand.Parameters.AddWithValue("@apiUrl", spell.url);
-
-                            foreach (SqlParameter parameter in sqlCommand.Parameters)
-                            {
-                                if (parameter.Value == null)
-                                    parameter.Value = DBNull.Value;
-                            }
-
-                            sqlConnection.Open();
-                            sqlCommand.ExecuteNonQuery();
-                            sqlConnection.Close();
-                        }
-
-                        List<BaseApiClass> spell_Classes = new List<BaseApiClass>();
-                        spell_Classes.AddRange(spell.classes);
-                        spell_Classes.AddRange(spell.subclasses);
-
-                        using (SqlCommand sqlCommand = new SqlCommand("sp_Spells_Classes_Import", sqlConnection))
-                        {
-                            sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
-
-                            sqlCommand.Parameters.AddWithValue("@spell_index", spell.index);
-                            sqlCommand.Parameters.AddWithValue("@tvpClasses", spell_Classes?.ToDataTable());
-
-                            sqlConnection.Open();
-                            sqlCommand.ExecuteNonQuery();
-                            sqlConnection.Close();
-                        }
-                    }                    
-                }
-            }
-        }
-
         private static void ImportAuroraToSqlite(string auroraPath, string sqlitePath)
         {
             if (!Directory.Exists(auroraPath))
@@ -241,9 +192,49 @@ namespace _5eApiTranslator
             }
 
             AuroraImportCatalog catalog = BuildAuroraImportCatalog(auroraPath);
-            AuroraSqlitePocImporter.Import(catalog, sqliteSchemaPath, sqlitePath);
+            string srdPath = File.Exists(defaultSrdMonstersPath) ? defaultSrdMonstersPath : null;
+            AuroraSqlitePocImporter.Import(catalog, sqliteSchemaPath, sqlitePath, srdPath);
 
             Console.WriteLine($"Imported {catalog.Elements.Count} Aurora elements and {catalog.Spells.Count} Aurora spells into {sqlitePath}.");
+        }
+
+        private static void EvaluateExpression(string expressionText, string contextJsonPath)
+        {
+            if (string.IsNullOrWhiteSpace(expressionText))
+                throw new ArgumentException("Expression text is required.", nameof(expressionText));
+
+            if (!string.IsNullOrWhiteSpace(contextJsonPath) && !File.Exists(contextJsonPath))
+                throw new FileNotFoundException("The expression context JSON file was not found.", contextJsonPath);
+
+            AuroraExpressionParseResult parseResult = AuroraExpressionEngine.Parse(expressionText);
+            AuroraExpressionEvaluationContext context = string.IsNullOrWhiteSpace(contextJsonPath)
+                ? new AuroraExpressionEvaluationContext()
+                : AuroraExpressionEvaluationContext.Load(contextJsonPath);
+
+            bool evaluationResult = AuroraExpressionEngine.Evaluate(parseResult.RootNode, context);
+
+            Console.WriteLine($"Expression: {expressionText}");
+            Console.WriteLine($"Parse status: {parseResult.Status}");
+
+            if (!string.IsNullOrWhiteSpace(parseResult.ErrorText))
+                Console.WriteLine($"Parse error: {parseResult.ErrorText}");
+
+            Console.WriteLine($"Root node: {DescribeExpressionNode(parseResult.RootNode)}");
+            Console.WriteLine($"Evaluation result: {evaluationResult}");
+
+            if (!string.IsNullOrWhiteSpace(contextJsonPath))
+                Console.WriteLine($"Context JSON: {contextJsonPath}");
+        }
+
+        private static string DescribeExpressionNode(AuroraExpressionNode node)
+        {
+            if (node == null)
+                return "(none)";
+
+            if (string.Equals(node.Kind, "value", StringComparison.OrdinalIgnoreCase))
+                return $"{node.Kind}:{node.ValueType}:{node.ValueText}";
+
+            return $"{node.Kind} ({node.Children.Count} child node(s))";
         }
 
         private static AuroraImportCatalog BuildAuroraImportCatalog(string auroraPath)
@@ -263,6 +254,7 @@ namespace _5eApiTranslator
                 catalog.Files.Add(new AuroraFileInfo
                 {
                     RelativePath = relativePath,
+                    FullPath = file,
                     Name = info?.Element("name")?.Value ?? Path.GetFileNameWithoutExtension(file),
                     Description = info?.Element("description")?.Value,
                     Author = new Author
@@ -306,230 +298,6 @@ namespace _5eApiTranslator
             return catalog;
         }
 
-        private static void GrabAuroraElements()
-        {
-            string auroraPath = @"C:\Users\Ralla\Documents\5e Character Builder\custom";
-            string[] files = Directory.GetFiles(auroraPath, "*.xml", SearchOption.AllDirectories);
-
-            List<AuroraFileInfo> auroraFiles = new();
-            List<AuroraSpell> spellsFound = new();
-            List<AuroraElement> elementsFound = new();
-
-            List<string> types = new();
-
-            var elementImporters = new Dictionary<string, Action<AuroraElement>>(StringComparer.OrdinalIgnoreCase)
-            {
-                // already implemented
-                { "feat",                       ImportAuroraFeat  },
-                { "magic item",                 ImportMagicItem   },
-
-                // own table/procedure
-                { "class",                      ImportClass       },
-                { "archetype",                  ImportArchetype   },
-                { "race",                       ImportRace        },
-                { "sub race",                   ImportSubRace     },
-                { "background",                 ImportBackground  },
-                { "language",                   ImportLanguage    },
-                { "proficiency",                ImportProficiency },
-
-                // shared sp_Features_Import
-                { "class feature",              ImportFeature     },
-                { "archetype feature",          ImportFeature     },
-                { "racial trait",               ImportFeature     },
-                { "background feature",         ImportFeature     },
-                { "feat feature",               ImportFeature     },
-                { "ability score improvement",  ImportFeature     },
-
-                // shared sp_Items_Import
-                { "item",                       ImportItem        },
-                { "weapon",                     ImportItem        },
-                { "armor",                      ImportItem        },
-                { "ammunition",                 ImportItem        },
-                { "mount",                      ImportItem        },
-                { "vehicle",                    ImportItem        },
-
-                // lower priority
-                { "companion",                  ImportCompanion   },
-                { "companion action",           ImportCompanion   },
-                { "companion trait",            ImportCompanion   },
-                { "deity",                      ImportDeity       },
-                { "option",                     ImportOption      },
-                { "list",                       ImportList        },
-                // "support" intentionally omitted — Aurora meta-type, no user-facing data
-            };
-
-            foreach (string file in files)
-            {
-                FileStream stream = File.OpenRead(file);
-                XDocument xml = XDocument.Load(stream);                
-
-                foreach (var node in xml.DescendantNodes())
-                {
-                    if (node is XElement element
-                        && element.Name == "info")
-                    {
-                        var fileName = element.Element("name")?.Value;
-                        var fileDesc = element.Element("description")?.Value;
-                        var fileAuthor = new Author();
-                        fileAuthor.name = element.Element("author")?.Value;
-                        fileAuthor.url = element.Element("author")?.Attribute("url")?.Value;
-                        FileVersion fileVersion = new();
-                        fileVersion.versionString = element.Element("update")?.Attribute("version")?.Value;
-                        fileVersion.fileName = element.Element("update")?.Element("file")?.Attribute("name")?.Value;
-                        fileVersion.fileUrl = element.Element("update")?.Element("file")?.Attribute("url")?.Value;
-
-                        if (!auroraFiles.Where(x => x.FileVersion.fileName == fileVersion.fileName).Any())
-                        {
-                            auroraFiles.Add(new AuroraFileInfo
-                            {
-                                Name = fileName,
-                                Description = fileDesc,
-                                Author = fileAuthor,
-                                FileVersion = fileVersion
-                            });
-                        }
-                    }
-
-                    else if (node is XElement element1
-                        && element1.Name == "element")
-                    {
-                        //var element1 = element1;
-                        var nameAttribute = element1.Attribute("name");
-                        var typeAttribute = element1.Attribute("type");
-                        var sourceAttribute = element1.Attribute("source");
-                        var idAttribute = element1.Attribute("id");
-
-                        if (typeAttribute?.Value.ToLower() == "spell")
-                        {
-                            AuroraSpell spell = FillAuroraSpell((XElement)node, nameAttribute.Value, sourceAttribute.Value, idAttribute.Value);
-
-                            if (spell != null)
-                            {
-                                ImportAuroraSpell(spell);
-                                spellsFound.Add(spell);
-                            }
-                        }
-
-                        else if (typeAttribute?.Value != null && elementImporters.TryGetValue(typeAttribute.Value, out var import))
-                        {
-                            AuroraElement el = FillAuroraElement((XElement)node, nameAttribute.Value, sourceAttribute.Value,
-                                idAttribute.Value, typeAttribute.Value);
-
-                            if (el != null)
-                            {
-                                import(el);
-                                elementsFound.Add(el);
-                            }
-                        }
-                    }
-                    else if (node is XElement element2)
-                    {
-                        try
-                        {
-                            var nameAttribute = element2.Attribute("name");
-                            var typeAttribute = element2.Attribute("type");
-                            var sourceAttribute = element2.Attribute("source");
-                            var idAttribute = element2.Attribute("id");
-                            var AuroraElement = FillAuroraElement((XElement)node, nameAttribute?.Value, sourceAttribute?.Value, idAttribute?.Value);
-
-                            if (typeAttribute?.Value.ToLower() == "magic item")
-                            {
-                                Console.WriteLine("Hey! I found one!");
-                            }
-                        }
-                        catch (Exception ex) 
-                        {
-                            // SOMETHING WENT WRONG!!!
-                            Console.Error.WriteLine(ex.Message); // oh well.
-                        }
-
-                        if (!types.Contains((node as XElement)?.Name.ToString()))
-                            types.Add((node as XElement)?.Name.ToString());
-                    }
-                }                
-            }
-            Console.WriteLine($"Number of types detected: {types.Count}");
-
-            // spells found?
-            Console.WriteLine($"Number of spells checked/filled: {spellsFound.Count}");
-
-            // feats found?
-            Console.WriteLine($"Number of feats checked/filled: {elementsFound.Where(x => x.type.ToLower() == "feat").Count()}");
-
-            // magic items found?
-            Console.WriteLine($"Number of magic items checked/filled: {elementsFound.Where(x => x.type.ToLower() == "magic item").Count()}");
-        }
-
-        private static void ImportMagicItem(AuroraElement mitem)
-        {
-            //throw new NotImplementedException();
-
-            using (SqlConnection sqlConnection = new SqlConnection(connectionString))
-            {
-                using (SqlCommand sqlCommand = new SqlCommand("sp_MItems_Import", sqlConnection))
-                {
-                    sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
-
-                    sqlCommand.Parameters.AddWithValue("@mitem_index", mitem.index);
-                    sqlCommand.Parameters.AddWithValue("@mitem_name", mitem.name);
-                    sqlCommand.Parameters.AddWithValue("@mitem_desc", mitem.description);
-                    sqlCommand.Parameters.AddWithValue("@mitemTypeId", null); // TODO: insert logic to determine mitem type category
-                    sqlCommand.Parameters.AddWithValue("@mitem_source", mitem.source);
-                    sqlCommand.Parameters.AddWithValue("@mitem_aurora_id", mitem.id);
-                    if (mitem.requirements?.Count > 0)
-                    {
-                        sqlCommand.Parameters.AddWithValue("@mitem_requirements", mitem.requirements?.Count > 1 ? string.Join(", ", mitem.requirements) : mitem.requirements[0]);
-                    }
-                    if (mitem.supports?.Count > 0)
-                    {
-                        sqlCommand.Parameters.AddWithValue("@mitem_supports", mitem.supports?.Count > 1 ? string.Join("; ", mitem.supports) : mitem.supports[0]);
-                    }
-                    sqlCommand.Parameters.AddWithValue(
-                        "@mitem_rules", mitem.rules != null ?
-                            JsonSerializer.Serialize(mitem.rules, new JsonSerializerOptions { IncludeFields = true })
-                            : null);
-
-                    foreach (SqlParameter parameter in sqlCommand.Parameters)
-                    {
-                        if (parameter.Value == null)
-                            parameter.Value = DBNull.Value;
-                    }
-
-                    sqlConnection.Open();
-                    sqlCommand.ExecuteNonQuery();
-                    sqlConnection.Close();
-                }
-
-                //    //TODO: finish working out below code.
-
-                //    //List<string> mitem_Supports = new List<string>();
-                //    //// Rules mitem_Rules = new Rules();
-
-                //    //if (mitem.supports != null)
-                //    //    mitem_Supports.AddRange(mitem.supports);
-
-                //    //if (mitem.rules != null)
-                //    //{
-                //    //    // mitem_Rules = mitem.rules;
-                //    //    /*
-                //    //     * TODO: will need to deal with Grants, Selects, and Stats.
-                //    //     */
-                //    //}                    
-
-                //    //using (SqlCommand sqlCommand = new SqlCommand("sp_mitems_Rules_Import", sqlConnection))
-                //    //{
-                //    //    sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
-
-                //    //    sqlCommand.Parameters.AddWithValue("@mitem_index", mitem.index);
-                //    //    //sqlCommand.Parameters.AddWithValue("@tvpmitems", mitem_Classes?.ToDataTable());
-
-                //    //    sqlConnection.Open();
-                //    //    sqlCommand.ExecuteNonQuery();
-                //    //    sqlConnection.Close();
-                //    //}
-            }
-        }
-
         private static AuroraSpell FillAuroraSpell(XElement spellElement, string name, string source, string id)
         {
             var spell = new AuroraSpell();
@@ -561,6 +329,7 @@ namespace _5eApiTranslator
                 // fill descriptions
                 if (childElement.Name == "description")
                 {
+                    spell.descriptionRawXml = childElement.ToString(SaveOptions.DisableFormatting);
                     spell.desc = new();
                     if (childElement.Value.Contains("At Higher Levels."))
                     {
@@ -648,34 +417,48 @@ namespace _5eApiTranslator
 
             foreach (var childElement in element.Elements())
             {
+                string childName = childElement.Name.LocalName;
+                bool handled = false;
+
                 // fill compendium_display
-                if (childElement.Name == "compendium")
+                if (childName == "compendium")
                 {
                     auroraElement.compendium.display = Convert.ToBoolean(childElement.Attribute("display")?.Value ?? "true");
+                    handled = true;
                 }
 
                 // fill supports (for now just going into classes)
-                if (childElement.Name == "supports")
+                if (childName == "supports")
                 {
                     auroraElement.supports = ParseAuroraTextCollection(childElement.Value);
+                    handled = true;
                 }
 
                 // Fill requirements...
                 // TODO: figure out what to do with requirements (how to store/retrieve?)
-                if (childElement.Name == "requirements")
+                if (childName == "requirements")
                 {
                     auroraElement.requirements = ParseAuroraTextCollection(childElement.Value);
+                    handled = true;
                 }
 
-                if (childElement.Name == "prerequisite")
+                if (childName == "prerequisites")
+                {
+                    auroraElement.prerequisites = ParsePrerequisitesCollection(childElement);
+                    handled = true;
+                }
+
+                if (childName == "prerequisite")
                 {
                     auroraElement.prerequisite = childElement.Value;
+                    handled = true;
                 }
 
                 // fill descriptions
-                if (childElement.Name == "description")
+                if (childName == "description")
                 {
                     auroraElement.description = childElement.Value;
+                    auroraElement.descriptionRawXml = childElement.ToString(SaveOptions.DisableFormatting);
 
                     //if (childElement.Value.Contains("At Higher Levels."))
                     //{
@@ -688,11 +471,23 @@ namespace _5eApiTranslator
                     //{
                     //    auroraElement.desc.Add(childElement.Value);
                     //}
+                    handled = true;
                 }
 
-                if (childElement.Name == "sheet")
+                if (childName == "extract")
+                {
+                    auroraElement.extract = new AuroraExtract
+                    {
+                        description = childElement.Element("description")?.Value,
+                        items = ParseAuroraItemEntries(childElement)
+                    };
+                    handled = true;
+                }
+
+                if (childName == "sheet")
                 {
                     auroraElement.sheet = new();
+                    auroraElement.sheet.rawXml = childElement.ToString(SaveOptions.DisableFormatting);
 
                     if (childElement.Attribute("display") != null)
                     {
@@ -715,19 +510,23 @@ namespace _5eApiTranslator
                                 level = desc.Attribute("level")?.Value != null ?
                                     Convert.ToInt32(desc.Attribute("level")?.Value)
                                     : null,
-                                text = desc.Value
+                                text = desc.Value,
+                                rawXml = desc.ToString(SaveOptions.DisableFormatting)
                             });
                     }
+
+                    handled = true;
                 }
 
                 // fill setters
-                if (childElement.Name == "setters")
+                if (childName == "setters" || childName == "setter")
                 {
-                    auroraElement.setters = new();
+                    auroraElement.setters ??= new();
                     FillSetters(auroraElement.setters, childElement);
+                    handled = true;
                 }
 
-                if (childElement.Name == "spellcasting")
+                if (childName == "spellcasting")
                 {
                     // used if this element is a spellcasting class or archetype.
 
@@ -748,9 +547,11 @@ namespace _5eApiTranslator
                     {
                         auroraElement.spellcasting.extendList = ParseAuroraTextCollection(childElement.Element("extend")?.Value);
                     }
+
+                    handled = true;
                 }
 
-                if (childElement.Name == "multiclass")
+                if (childName == "multiclass")
                 {
                     // used for class-type elements.
                     // used to describe what's required to multiclass from or into this class.
@@ -777,11 +578,40 @@ namespace _5eApiTranslator
                         auroraElement.multiclass.rules = FillRules(mcRules);
                     }
 
+                    handled = true;
                 }
 
-                if (childElement.Name == "rules")
+                if (childName == "rules")
                 {
                     auroraElement.rules = FillRules(childElement);
+                    handled = true;
+                }
+
+                if (childName == "grant")
+                {
+                    auroraElement.rules ??= new Rules { grants = new(), selects = new(), stats = new() };
+                    auroraElement.rules.grants.Add(ParseGrant(childElement));
+                    handled = true;
+                }
+
+                if (childName == "select")
+                {
+                    auroraElement.rules ??= new Rules { grants = new(), selects = new(), stats = new() };
+                    auroraElement.rules.selects.Add(ParseSelect(childElement));
+                    handled = true;
+                }
+
+                if (childName == "stat")
+                {
+                    auroraElement.rules ??= new Rules { grants = new(), selects = new(), stats = new() };
+                    auroraElement.rules.stats.Add(ParseStat(childElement));
+                    handled = true;
+                }
+
+                if (!handled)
+                {
+                    auroraElement.additionalBlocks ??= new();
+                    auroraElement.additionalBlocks.Add(ParseAuroraBlockEntry(childElement));
                 }
             }
 
@@ -799,56 +629,134 @@ namespace _5eApiTranslator
 
             foreach (var grant in parentElement.Elements("grant"))
             {
-                rules.grants.Add(new Grant
-                {
-                    type = grant.Attribute("type")?.Value,
-                    id = grant.Attribute("id")?.Value,
-                    name = grant.Attribute("name")?.Value,
-                    level = grant.Attribute("level")?.Value != null ?
-                            Convert.ToInt32(grant.Attribute("level")?.Value) :
-                            null,
-                    requirements = ParseAuroraTextCollection(grant.Attribute("requirements")?.Value)
-                });
+                rules.grants.Add(ParseGrant(grant));
             }
 
             foreach (var select in parentElement.Elements("select"))
             {
-                rules.selects.Add(new Select
-                {
-                    type = select.Attribute("type")?.Value,
-                    name = select.Attribute("name")?.Value,
-                    supports = ParseAuroraTextCollection(select.Attribute("supports")?.Value),
-                    level = select.Attribute("level")?.Value != null ?
-                        Convert.ToInt32(select.Attribute("level")?.Value) :
-                        null,
-                    requirements = ParseAuroraTextCollection(select.Attribute("requirements")?.Value),
-                    number = select.Attribute("number")?.Value != null ?
-                        Convert.ToInt32(select.Attribute("number")?.Value) :
-                        1,
-                    defaultChoice = select.Attribute("default")?.Value,
-                    optional = ParseNullableBoolean(select.Attribute("optional")?.Value) ?? false,
-                    spellcasting = select.Attribute("spellcasting")?.Value
-                });
+                rules.selects.Add(ParseSelect(select));
             }
 
             foreach (var stat in parentElement.Elements("stat"))
             {
-                rules.stats.Add(new Stat
-                {
-                    name = stat.Attribute("name")?.Value,
-                    value = stat.Attribute("value")?.Value,
-                    bonus = stat.Attribute("bonus")?.Value,
-                    equipped = ParseAuroraTextCollection(stat.Attribute("equipped")?.Value),
-                    level = stat.Attribute("level")?.Value != null ?
-                        Convert.ToInt32(stat.Attribute("level")?.Value) :
-                        null,
-                    requirements = ParseAuroraTextCollection(stat.Attribute("requirements")?.Value),
-                    inline = ParseNullableBoolean(stat.Attribute("inline")?.Value) ?? false,
-                    alt = stat.Attribute("alt")?.Value
-                });
+                rules.stats.Add(ParseStat(stat));
             }
 
             return rules;
+        }
+
+        private static Grant ParseGrant(XElement grant)
+        {
+            return new Grant
+            {
+                type = grant.Attribute("type")?.Value,
+                id = grant.Attribute("id")?.Value,
+                name = grant.Attribute("name")?.Value,
+                level = grant.Attribute("level")?.Value != null ?
+                        Convert.ToInt32(grant.Attribute("level")?.Value) :
+                        null,
+                requirements = ParseAuroraTextCollection(grant.Attribute("requirements")?.Value)
+            };
+        }
+
+        private static Select ParseSelect(XElement select)
+        {
+            return new Select
+            {
+                type = select.Attribute("type")?.Value,
+                name = select.Attribute("name")?.Value,
+                supports = ParseAuroraTextCollection(select.Attribute("supports")?.Value),
+                level = select.Attribute("level")?.Value != null ?
+                    Convert.ToInt32(select.Attribute("level")?.Value) :
+                    null,
+                requirements = ParseAuroraTextCollection(select.Attribute("requirements")?.Value),
+                number = select.Attribute("number")?.Value != null ?
+                    Convert.ToInt32(select.Attribute("number")?.Value) :
+                    1,
+                defaultChoice = select.Attribute("default")?.Value,
+                optional = ParseNullableBoolean(select.Attribute("optional")?.Value) ?? false,
+                spellcasting = select.Attribute("spellcasting")?.Value,
+                items = ParseAuroraItemEntries(select)
+            };
+        }
+
+        private static Stat ParseStat(XElement stat)
+        {
+            return new Stat
+            {
+                name = stat.Attribute("name")?.Value,
+                value = stat.Attribute("value")?.Value,
+                bonus = stat.Attribute("bonus")?.Value,
+                equipped = ParseAuroraTextCollection(stat.Attribute("equipped")?.Value),
+                level = stat.Attribute("level")?.Value != null ?
+                    Convert.ToInt32(stat.Attribute("level")?.Value) :
+                    null,
+                requirements = ParseAuroraTextCollection(stat.Attribute("requirements")?.Value),
+                inline = ParseNullableBoolean(stat.Attribute("inline")?.Value) ?? false,
+                alt = stat.Attribute("alt")?.Value
+            };
+        }
+
+        private static List<AuroraItemEntry> ParseAuroraItemEntries(XElement parentElement)
+        {
+            var items = new List<AuroraItemEntry>();
+
+            foreach (var itemElement in parentElement.Elements("item"))
+            {
+                var item = new AuroraItemEntry
+                {
+                    value = itemElement.Value?.Trim()
+                };
+
+                foreach (var attribute in itemElement.Attributes())
+                {
+                    item.attributes[attribute.Name.LocalName] = attribute.Value;
+                }
+
+                items.Add(item);
+            }
+
+            return items;
+        }
+
+        private static AuroraTextCollection ParsePrerequisitesCollection(XElement prerequisitesElement)
+        {
+            if (prerequisitesElement == null)
+                return null;
+
+            var nestedPrerequisites = prerequisitesElement.Elements("prerequisite")
+                .Select(x => x.Value?.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+
+            if (nestedPrerequisites.Any())
+            {
+                var collection = new AuroraTextCollection
+                {
+                    raw = string.Join(", ", nestedPrerequisites)
+                };
+                collection.AddRange(nestedPrerequisites);
+                return collection;
+            }
+
+            return ParseAuroraTextCollection(prerequisitesElement.Value);
+        }
+
+        private static AuroraBlockEntry ParseAuroraBlockEntry(XElement element)
+        {
+            var block = new AuroraBlockEntry
+            {
+                name = element.Name.LocalName,
+                value = element.Value,
+                rawXml = element.ToString(SaveOptions.DisableFormatting)
+            };
+
+            foreach (var attribute in element.Attributes())
+            {
+                block.attributes[attribute.Name.LocalName] = attribute.Value;
+            }
+
+            return block;
         }
 
         private static void FillSetters(AuroraSetters setters, XElement parentElement)
@@ -1030,254 +938,5 @@ namespace _5eApiTranslator
             return value?.Trim().ToLower().Replace(" ", "-");
         }
 
-        private static void ImportAuroraSpell(AuroraSpell spell)
-        {
-            using (SqlConnection sqlConnection = new SqlConnection(connectionString))
-            {
-                using (SqlCommand sqlCommand = new SqlCommand("sp_Spells_Import", sqlConnection))
-                {
-                    sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
-
-                    sqlCommand.Parameters.AddWithValue("@spell_index", spell.index);
-                    sqlCommand.Parameters.AddWithValue("@spell_name", spell.name);
-                    sqlCommand.Parameters.AddWithValue("@spell_desc", spell.desc?.Count > 0 ? string.Join(" \n ", spell.desc) : null);
-                    sqlCommand.Parameters.AddWithValue("@higher_level_desc", spell.higher_level?.Count > 0 ? string.Join(" \n ", spell.higher_level) : null);
-                    sqlCommand.Parameters.AddWithValue("@spell_range", spell.range);
-                    sqlCommand.Parameters.AddWithValue("@hasVerbal", spell.hasVerbal);
-                    sqlCommand.Parameters.AddWithValue("@hasSomatic", spell.hasSomatic);
-                    sqlCommand.Parameters.AddWithValue("@hasMaterial", spell.hasMaterial);
-                    sqlCommand.Parameters.AddWithValue("@material_component", spell.material);
-                    sqlCommand.Parameters.AddWithValue("@isRitual", spell.ritual);
-                    sqlCommand.Parameters.AddWithValue("@spell_duration", spell.duration);
-                    sqlCommand.Parameters.AddWithValue("@isConcentration", spell.concentration);
-                    sqlCommand.Parameters.AddWithValue("@casting_time", spell.casting_time);
-                    sqlCommand.Parameters.AddWithValue("@spell_level", spell.level);
-                    sqlCommand.Parameters.AddWithValue("@spell_attack_type", spell.attack_type);
-                    sqlCommand.Parameters.AddWithValue("@spell_damage_type", spell.damage?.damage_type?.index);
-                    sqlCommand.Parameters.AddWithValue("@spell_damage_formula",
-                        JsonSerializer.Serialize(spell.damage?.damage_at_slot_level, new JsonSerializerOptions { IncludeFields = true }));
-                    sqlCommand.Parameters.AddWithValue("@spell_dc", spell.dc?.index);
-                    sqlCommand.Parameters.AddWithValue("@spell_dc_success", spell.dc?.dc_success);
-                    sqlCommand.Parameters.AddWithValue("@school_of_magic", spell.school?.index);
-                    sqlCommand.Parameters.AddWithValue("@apiUrl", spell.url ?? spell.setters.sourceUrl);
-                    sqlCommand.Parameters.AddWithValue("@spell_source", spell.source);
-                    sqlCommand.Parameters.AddWithValue("@spell_aurora_id", spell.aurora_id);
-
-                    foreach (SqlParameter parameter in sqlCommand.Parameters)
-                    {
-                        if (parameter.Value == null)
-                            parameter.Value = DBNull.Value;
-                    }
-
-                    sqlConnection.Open();
-                    sqlCommand.ExecuteNonQuery();
-                    sqlConnection.Close();
-                }
-
-                List<BaseApiClass> spell_Classes = new List<BaseApiClass>();
-                
-                if (spell.classes != null)
-                    spell_Classes.AddRange(spell.classes);
-
-                if (spell.subclasses != null)
-                    spell_Classes.AddRange(spell.subclasses);
-
-                using (SqlCommand sqlCommand = new SqlCommand("sp_Spells_Classes_Import", sqlConnection))
-                {
-                    sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
-
-                    sqlCommand.Parameters.AddWithValue("@spell_index", spell.index);
-                    sqlCommand.Parameters.AddWithValue("@tvpClasses", spell_Classes?.ToDataTable());
-
-                    sqlConnection.Open();
-                    sqlCommand.ExecuteNonQuery();
-                    sqlConnection.Close();
-                }
-            }            
-        }
-
-        private static void ImportAuroraFeat(AuroraElement feat)
-        {
-            //throw new NotImplementedException();
-
-            using (SqlConnection sqlConnection = new SqlConnection(connectionString))
-            {
-                using (SqlCommand sqlCommand = new SqlCommand("sp_Feats_Import", sqlConnection))
-                {
-                    sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
-
-                    sqlCommand.Parameters.AddWithValue("@feat_index", feat.index);
-                    sqlCommand.Parameters.AddWithValue("@feat_name", feat.name);
-                    sqlCommand.Parameters.AddWithValue("@feat_desc", feat.description);
-                    sqlCommand.Parameters.AddWithValue("@featTypeId", null); // TODO: insert logic to determine feat type category
-                    sqlCommand.Parameters.AddWithValue("@feat_source", feat.source);
-                    sqlCommand.Parameters.AddWithValue("@feat_aurora_id", feat.id);
-                    if (feat.requirements?.Count > 0)
-                    {
-                        sqlCommand.Parameters.AddWithValue("@feat_requirements", feat.requirements?.Count > 1 ? string.Join(", ", feat.requirements) : feat.requirements[0]);
-                    }
-                    if (feat.supports?.Count > 0)
-                    {
-                        sqlCommand.Parameters.AddWithValue("@feat_supports", feat.supports?.Count > 1 ? string.Join("; ", feat.supports) : feat.supports[0]);
-                    }
-                    sqlCommand.Parameters.AddWithValue(
-                        "@feat_rules", feat.rules != null ? 
-                            JsonSerializer.Serialize(feat.rules, new JsonSerializerOptions { IncludeFields = true }) 
-                            : null);
-
-                    foreach (SqlParameter parameter in sqlCommand.Parameters)
-                    {
-                        if (parameter.Value == null)
-                            parameter.Value = DBNull.Value;
-                    }
-
-                    sqlConnection.Open();
-                    sqlCommand.ExecuteNonQuery();
-                    sqlConnection.Close();
-                }
-
-                //TODO: finish working out below code.
-
-                //List<string> feat_Supports = new List<string>();
-                //// Rules feat_Rules = new Rules();
-
-                //if (feat.supports != null)
-                //    feat_Supports.AddRange(feat.supports);
-
-                //if (feat.rules != null)
-                //{
-                //    // feat_Rules = feat.rules;
-                //    /*
-                //     * TODO: will need to deal with Grants, Selects, and Stats.
-                //     */
-                //}                    
-
-                //using (SqlCommand sqlCommand = new SqlCommand("sp_Feats_Rules_Import", sqlConnection))
-                //{
-                //    sqlCommand.CommandType = System.Data.CommandType.StoredProcedure;
-
-                //    sqlCommand.Parameters.AddWithValue("@feat_index", feat.index);
-                //    //sqlCommand.Parameters.AddWithValue("@tvpFeats", feat_Classes?.ToDataTable());
-
-                //    sqlConnection.Open();
-                //    sqlCommand.ExecuteNonQuery();
-                //    sqlConnection.Close();
-                //}
-            }
-        }
-
-        // sp_Classes_Import
-        // Key params: index, name, source, aurora_id, hit_die (setters.hd),
-        //             spellcasting (ability, list), multiclass (prerequisite, requirements)
-        //             rules serialized as JSON (level-gated grants/selects)
-        private static void ImportClass(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Archetypes_Import
-        // Key params: index, name, source, aurora_id, parent_class (from supports),
-        //             spellcasting (ability, list, extend), rules serialized as JSON
-        private static void ImportArchetype(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Races_Import
-        // Key params: index, name, source, aurora_id,
-        //             names_male / names_female / names_clan (setters), names_format (setters)
-        //             rules serialized as JSON
-        private static void ImportRace(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_SubRaces_Import
-        // Key params: index, name, source, aurora_id, parent_race (from supports),
-        //             rules serialized as JSON
-        private static void ImportSubRace(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Backgrounds_Import
-        // Key params: index, name, source, aurora_id, description,
-        //             rules serialized as JSON (grants for proficiencies/languages/equipment)
-        private static void ImportBackground(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Languages_Import
-        // Key params: index, name, source, aurora_id,
-        //             speakers (setters), script (setters), is_exotic (setters)
-        private static void ImportLanguage(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Proficiencies_Import
-        // Key params: index, name, source, aurora_id, type (from supports — e.g. skill, weapon, armor, tool)
-        private static void ImportProficiency(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Features_Import
-        // Shared by: Class Feature, Archetype Feature, Racial Trait,
-        //            Background Feature, Feat Feature, Ability Score Improvement
-        // Key params: index, name, source, aurora_id, feature_type (el.type),
-        //             parent_id (from supports), level (from sheet or rules),
-        //             description, sheet info (alt, action, usage),
-        //             rules serialized as JSON
-        private static void ImportFeature(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Items_Import
-        // Shared by: Item, Weapon, Armor, Ammunition, Mount, Vehicle
-        // Key params: index, name, source, aurora_id, item_type (el.type),
-        //             description, cost (setters), weight (setters),
-        //             -- weapon-specific: damage die, damage type, properties (from supports)
-        //             -- armor-specific: ac formula, stealth disadvantage (setters)
-        //             -- mount/vehicle: speed, capacity (setters)
-        private static void ImportItem(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Companions_Import
-        // Shared by: Companion, Companion Action, Companion Trait
-        // Key params: index, name, source, aurora_id, companion_type (el.type),
-        //             description, sheet info — full stat block TBD
-        private static void ImportCompanion(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Deities_Import
-        // Key params: index, name, source, aurora_id, description,
-        //             alignment, domains, symbol (likely all setters)
-        private static void ImportDeity(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Options_Import
-        // Key params: index, name, source, aurora_id, description,
-        //             rules serialized as JSON (modifies character creation)
-        private static void ImportOption(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
-
-        // sp_Lists_Import
-        // Key params: index, name, source, aurora_id, list_type (from supports),
-        //             entries serialized as JSON (personality traits, ideals, bonds, flaws)
-        private static void ImportList(AuroraElement el)
-        {
-            throw new NotImplementedException();
-        }
     }
 }

@@ -4,80 +4,113 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace _5eApiTranslator
 {
     internal static class AuroraSqlitePocImporter
     {
-        public static void Import(AuroraImportCatalog catalog, string schemaPath, string sqlitePath)
+        /// <summary>
+        /// Incrementally imports Aurora XML catalog into the SQLite database.
+        /// Files whose MD5 hash matches the stored hash are skipped; changed or
+        /// new files are deleted (cascade) and re-imported. Deleted files are
+        /// removed automatically.  <paramref name="srdJsonPath"/> is optional —
+        /// when provided the SRD monsters are also imported/updated if their
+        /// file has changed.
+        /// </summary>
+        public static void Import(
+            AuroraImportCatalog catalog,
+            string schemaPath,
+            string sqlitePath,
+            string srdJsonPath = null)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(sqlitePath) ?? AppContext.BaseDirectory);
 
-            if (File.Exists(sqlitePath))
-            {
-                File.Delete(sqlitePath);
-            }
-
-            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-            {
-                DataSource = sqlitePath
-            }.ToString());
-
+            using var connection = new SqliteConnection(
+                new SqliteConnectionStringBuilder { DataSource = sqlitePath }.ToString());
             connection.Open();
 
-            using (var schemaCommand = connection.CreateCommand())
-            {
-                schemaCommand.CommandText = File.ReadAllText(schemaPath);
-                schemaCommand.ExecuteNonQuery();
-            }
+            // Apply schema if it has not been applied yet (idempotent: IF NOT EXISTS guards).
+            EnsureSchema(connection, schemaPath);
+
+            // The schema SQL sets PRAGMA foreign_keys = ON for standalone use; reaffirm it here
+            // so enforcement is active for the import transaction too.
+            ExecuteSql(connection, null, "PRAGMA foreign_keys = ON;");
 
             using var transaction = connection.BeginTransaction();
 
             Dictionary<string, long> elementTypeIds = LoadElementTypeIds(connection, transaction);
-            Dictionary<string, long> sourceBookIds = new(StringComparer.OrdinalIgnoreCase);
-            Dictionary<string, long> sourceFileIds = new(StringComparer.OrdinalIgnoreCase);
 
+            // ── Source books: accumulate-only (INSERT OR IGNORE) ────────────────
+            var sourceBookIds = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
             foreach (var sourceName in catalog.Elements.Select(x => x.source)
                 .Concat(catalog.Spells.Select(x => x.source))
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                sourceBookIds[sourceName] = InsertSourceBook(connection, transaction, sourceName);
+                sourceBookIds[sourceName] = EnsureSourceBook(connection, transaction, sourceName);
             }
+
+            // ── Source files: incremental (hash-checked) ─────────────────────────
+            var existingFiles = LoadExistingSourceFileHashes(connection, transaction);
+            var sourceFileIds = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            var changedPaths  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenPaths     = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var file in catalog.Files)
             {
-                sourceFileIds[file.RelativePath] = InsertSourceFile(connection, transaction, file);
-            }
+                seenPaths.Add(file.RelativePath);
+                string hash = ComputeFileHash(file.FullPath);
 
-            foreach (var element in catalog.Elements)
-            {
-                if (!elementTypeIds.TryGetValue(element.type, out long elementTypeId))
+                if (existingFiles.TryGetValue(file.RelativePath, out var existing))
                 {
-                    continue;
+                    if (existing.Hash == hash)
+                    {
+                        // Unchanged — reuse existing ID, skip element re-import.
+                        sourceFileIds[file.RelativePath] = existing.Id;
+                        continue;
+                    }
+                    // Changed — delete cascade, then re-import below.
+                    DeleteSourceFile(connection, transaction, existing.Id);
                 }
 
+                long newId = InsertSourceFile(connection, transaction, file, hash);
+                sourceFileIds[file.RelativePath] = newId;
+                changedPaths.Add(file.RelativePath);
+            }
+
+            // Remove source files that are no longer on disk (cascade cleans elements).
+            foreach (var (path, existing) in existingFiles)
+            {
+                if (!seenPaths.Contains(path))
+                    DeleteSourceFile(connection, transaction, existing.Id);
+            }
+
+            int addedElements = 0;
+
+            // ── Elements: only process changed/new files ─────────────────────────
+            foreach (var element in catalog.Elements)
+            {
+                if (!changedPaths.Contains(element.source_file_path ?? string.Empty)) continue;
+                if (!elementTypeIds.TryGetValue(element.type, out long elementTypeId)) continue;
+
                 long elementId = InsertElementBase(
-                    connection,
-                    transaction,
-                    elementTypeId,
-                    sourceBookIds.TryGetValue(element.source ?? string.Empty, out var sourceBookId) ? sourceBookId : (long?)null,
-                    sourceFileIds.TryGetValue(element.source_file_path ?? string.Empty, out var sourceFileId) ? sourceFileId : (long?)null,
-                    element.id,
-                    element.name,
-                    element.index,
-                    element.compendium.display,
-                    DetermineLoaderPriority(element.type));
+                    connection, transaction, elementTypeId,
+                    sourceBookIds.TryGetValue(element.source ?? string.Empty, out var sbId) ? sbId : (long?)null,
+                    sourceFileIds.TryGetValue(element.source_file_path ?? string.Empty, out var sfId) ? sfId : (long?)null,
+                    element.id, element.name, element.index,
+                    element.compendium.display, DetermineLoaderPriority(element.type));
 
                 InsertElementTexts(connection, transaction, elementId, element);
                 InsertElementSupports(connection, transaction, elementId, element.supports);
                 InsertElementRequirements(connection, transaction, elementId, element.requirements);
+                InsertElementBlocks(connection, transaction, elementId, element.additionalBlocks);
+                InsertSetters(connection, transaction, elementId, "element", element.setters);
+                InsertExtract(connection, transaction, elementId, element.extract);
 
                 if (element.spellcasting != null)
-                {
                     InsertSpellcastingProfile(connection, transaction, elementId, element.type, element.spellcasting);
-                }
 
                 InsertSubtypeRecord(connection, transaction, elementId, element);
                 InsertRules(connection, transaction, elementId, "element", element.rules);
@@ -86,35 +119,166 @@ namespace _5eApiTranslator
                     && element.multiclass != null)
                 {
                     InsertClassMulticlass(connection, transaction, elementId, element.multiclass);
+                    InsertSetters(connection, transaction, elementId, "class-multiclass", element.multiclass.setters);
                     InsertRules(connection, transaction, elementId, "class-multiclass", element.multiclass.rules);
                 }
+
+                addedElements++;
             }
 
+            // ── Spells: only process changed/new files ───────────────────────────
             foreach (var spell in catalog.Spells)
             {
-                if (!elementTypeIds.TryGetValue("Spell", out long elementTypeId))
-                {
-                    continue;
-                }
+                if (!changedPaths.Contains(spell.source_file_path ?? string.Empty)) continue;
+                if (!elementTypeIds.TryGetValue("Spell", out long elementTypeId)) continue;
 
                 long elementId = InsertElementBase(
-                    connection,
-                    transaction,
-                    elementTypeId,
-                    sourceBookIds.TryGetValue(spell.source ?? string.Empty, out var sourceBookId) ? sourceBookId : (long?)null,
-                    sourceFileIds.TryGetValue(spell.source_file_path ?? string.Empty, out var sourceFileId) ? sourceFileId : (long?)null,
-                    spell.aurora_id,
-                    spell.name,
-                    spell.index,
-                    spell.compendium_display,
-                    DetermineLoaderPriority("Spell"));
+                    connection, transaction, elementTypeId,
+                    sourceBookIds.TryGetValue(spell.source ?? string.Empty, out var sbId) ? sbId : (long?)null,
+                    sourceFileIds.TryGetValue(spell.source_file_path ?? string.Empty, out var sfId) ? sfId : (long?)null,
+                    spell.aurora_id, spell.name, spell.index,
+                    spell.compendium_display, DetermineLoaderPriority("Spell"));
 
                 InsertSpellTexts(connection, transaction, elementId, spell);
+                InsertSetters(connection, transaction, elementId, "element", spell.setters);
                 InsertSpellRecord(connection, transaction, elementId, spell);
+                addedElements++;
             }
 
-            ResolveDeferredRelationships(connection, transaction);
+            // ── SRD creatures: import/update if JSON file changed ────────────────
+            int srdAdded = 0;
+            if (!string.IsNullOrEmpty(srdJsonPath) && File.Exists(srdJsonPath))
+                srdAdded = ImportSrdCreaturesIfChanged(connection, transaction, srdJsonPath);
+
+            // Only re-resolve cross-file FK relationships when something actually changed.
+            if (changedPaths.Count > 0 || srdAdded > 0)
+            {
+                ResolveDeferredRelationships(connection, transaction);
+                RebuildExpressionCatalog(connection, transaction);
+            }
+
             transaction.Commit();
+
+            int skipped = catalog.Files.Count - changedPaths.Count;
+            Console.WriteLine(
+                $"Aurora import: {addedElements} elements processed " +
+                $"({changedPaths.Count} files changed, {skipped} unchanged).");
+            if (srdAdded > 0)
+                Console.WriteLine($"SRD creatures: {srdAdded} creatures imported/updated.");
+            else if (!string.IsNullOrEmpty(srdJsonPath))
+                Console.WriteLine("SRD creatures: no changes.");
+        }
+
+        // ── Schema / DB setup ────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Applies the schema SQL to the database. All DDL uses <c>IF NOT EXISTS</c> /
+        /// <c>INSERT OR IGNORE</c> guards, making this safe to re-run on an existing DB.
+        /// Running it on every open also picks up new tables added to the schema after
+        /// a database was first created. Then runs <see cref="ApplyMigrations"/> for any
+        /// changes (ADD COLUMN) that cannot be expressed with IF NOT EXISTS.
+        /// </summary>
+        private static void EnsureSchema(SqliteConnection connection, string schemaPath)
+        {
+            // Always run the schema SQL — all DDL uses IF NOT EXISTS / INSERT OR IGNORE guards,
+            // making it safe to re-run against an existing database. This also handles the case
+            // where new tables were added to the schema after the DB was initially created.
+            //
+            // The .sql file contains PRAGMA / BEGIN TRANSACTION / COMMIT for use with standalone
+            // SQLite tools.  Strip those lines before executing programmatically: we manage our
+            // own transaction and deliberately leave FK enforcement OFF during bulk import.
+            string rawSql = File.ReadAllText(schemaPath);
+            string schemaSql = System.Text.RegularExpressions.Regex.Replace(
+                rawSql,
+                @"^\s*(PRAGMA\s+\S.*?;|BEGIN\s+TRANSACTION\s*;|COMMIT\s*;|ROLLBACK\s*;)\s*$",
+                "",
+                System.Text.RegularExpressions.RegexOptions.Multiline |
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            using var schema = connection.CreateCommand();
+            schema.CommandText = schemaSql;
+            schema.ExecuteNonQuery();
+
+            // Apply any migrations that can't be expressed with IF NOT EXISTS in the schema
+            // (e.g. ADD COLUMN on an existing table).
+            ApplyMigrations(connection);
+        }
+
+        /// <summary>
+        /// Applies incremental schema migrations for columns that cannot be added via
+        /// <c>IF NOT EXISTS</c> in the schema SQL (SQLite does not support conditional ADD COLUMN).
+        /// All new tables are handled by the schema SQL itself; only column additions go here.
+        /// </summary>
+        private static void ApplyMigrations(SqliteConnection connection)
+        {
+            // M001: add file_hash to source_files (added for incremental import support).
+            // New databases get this column from the schema SQL; this migration handles
+            // databases that were created before the column existed.
+            using var colCheck = connection.CreateCommand();
+            colCheck.CommandText =
+                "SELECT COUNT(*) FROM pragma_table_info('source_files') WHERE name = 'file_hash';";
+            if ((long)colCheck.ExecuteScalar() == 0)
+            {
+                using var alter = connection.CreateCommand();
+                alter.CommandText = "ALTER TABLE source_files ADD COLUMN file_hash TEXT;";
+                alter.ExecuteNonQuery();
+            }
+        }
+
+        // ── Source book helpers ──────────────────────────────────────────────────
+
+        /// <summary>Inserts the source book if it doesn't exist and returns its ID.</summary>
+        private static long EnsureSourceBook(
+            SqliteConnection connection, SqliteTransaction transaction, string sourceName)
+        {
+            using var insert = connection.CreateCommand();
+            insert.Transaction = transaction;
+            insert.CommandText = "INSERT OR IGNORE INTO source_books (name) VALUES ($name);";
+            insert.Parameters.AddWithValue("$name", sourceName);
+            insert.ExecuteNonQuery();
+
+            using var select = connection.CreateCommand();
+            select.Transaction = transaction;
+            select.CommandText = "SELECT source_book_id FROM source_books WHERE name = $name;";
+            select.Parameters.AddWithValue("$name", sourceName);
+            return (long)select.ExecuteScalar();
+        }
+
+        // ── Source file helpers ──────────────────────────────────────────────────
+
+        private static Dictionary<string, (long Id, string Hash)> LoadExistingSourceFileHashes(
+            SqliteConnection connection, SqliteTransaction transaction)
+        {
+            var map = new Dictionary<string, (long, string)>(StringComparer.OrdinalIgnoreCase);
+            using var cmd = connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = "SELECT source_file_id, relative_path, file_hash FROM source_files;";
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+                map[reader.GetString(1)] = (reader.GetInt64(0), reader.IsDBNull(2) ? "" : reader.GetString(2));
+            return map;
+        }
+
+        private static void DeleteSourceFile(
+            SqliteConnection connection, SqliteTransaction transaction, long sourceFileId)
+        {
+            // ON DELETE CASCADE on elements.source_file_id handles all element child tables.
+            // Cross-file nullable FKs (features.parent_element_id, grants.target_element_id, etc.)
+            // all have ON DELETE SET NULL, so the DB engine nulls them automatically.
+            // ResolveDeferredRelationships at the end of Import() re-resolves them from text IDs.
+            using var cmd = connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = "DELETE FROM source_files WHERE source_file_id = $id;";
+            cmd.Parameters.AddWithValue("$id", sourceFileId);
+            cmd.ExecuteNonQuery();
+        }
+
+        private static string ComputeFileHash(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return "";
+            using var md5    = MD5.Create();
+            using var stream = File.OpenRead(path);
+            return Convert.ToHexString(md5.ComputeHash(stream));
         }
 
         private static Dictionary<string, long> LoadElementTypeIds(SqliteConnection connection, SqliteTransaction transaction)
@@ -134,17 +298,9 @@ namespace _5eApiTranslator
             return map;
         }
 
-        private static long InsertSourceBook(SqliteConnection connection, SqliteTransaction transaction, string sourceName)
-        {
-            using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = "INSERT INTO source_books (name) VALUES ($name);";
-            command.Parameters.AddWithValue("$name", sourceName);
-            command.ExecuteNonQuery();
-            return GetLastInsertRowId(connection, transaction);
-        }
-
-        private static long InsertSourceFile(SqliteConnection connection, SqliteTransaction transaction, AuroraFileInfo file)
+        private static long InsertSourceFile(
+            SqliteConnection connection, SqliteTransaction transaction,
+            AuroraFileInfo file, string hash = null)
         {
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
@@ -158,7 +314,8 @@ INSERT INTO source_files
     update_file_name,
     update_url,
     author_name,
-    author_url
+    author_url,
+    file_hash
 )
 VALUES
 (
@@ -169,17 +326,19 @@ VALUES
     $update_file_name,
     $update_url,
     $author_name,
-    $author_url
+    $author_url,
+    $file_hash
 );";
 
-            command.Parameters.AddWithValue("$relative_path", file.RelativePath);
-            command.Parameters.AddWithValue("$package_name", (object)file.Name ?? DBNull.Value);
+            command.Parameters.AddWithValue("$relative_path",       file.RelativePath);
+            command.Parameters.AddWithValue("$package_name",        (object)file.Name ?? DBNull.Value);
             command.Parameters.AddWithValue("$package_description", (object)file.Description ?? DBNull.Value);
-            command.Parameters.AddWithValue("$version_text", (object)file.FileVersion?.versionString ?? DBNull.Value);
-            command.Parameters.AddWithValue("$update_file_name", (object)file.FileVersion?.fileName ?? DBNull.Value);
-            command.Parameters.AddWithValue("$update_url", (object)file.FileVersion?.fileUrl ?? DBNull.Value);
-            command.Parameters.AddWithValue("$author_name", (object)file.Author?.name ?? DBNull.Value);
-            command.Parameters.AddWithValue("$author_url", (object)file.Author?.url ?? DBNull.Value);
+            command.Parameters.AddWithValue("$version_text",        (object)file.FileVersion?.versionString ?? DBNull.Value);
+            command.Parameters.AddWithValue("$update_file_name",    (object)file.FileVersion?.fileName ?? DBNull.Value);
+            command.Parameters.AddWithValue("$update_url",          (object)file.FileVersion?.fileUrl ?? DBNull.Value);
+            command.Parameters.AddWithValue("$author_name",         (object)file.Author?.name ?? DBNull.Value);
+            command.Parameters.AddWithValue("$author_url",          (object)file.Author?.url ?? DBNull.Value);
+            command.Parameters.AddWithValue("$file_hash",           (object)hash ?? DBNull.Value);
             command.ExecuteNonQuery();
 
             return GetLastInsertRowId(connection, transaction);
@@ -243,9 +402,18 @@ VALUES
                 InsertElementText(connection, transaction, elementId, "prerequisite", 1, null, null, null, null, null, element.prerequisite);
             }
 
+            if (element.prerequisites?.Any() == true)
+            {
+                int ordinal = 1;
+                foreach (var prerequisite in element.prerequisites)
+                {
+                    InsertElementText(connection, transaction, elementId, "prerequisites", ordinal++, null, null, null, null, null, prerequisite);
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(element.description))
             {
-                InsertElementText(connection, transaction, elementId, "description", 1, null, null, null, null, null, element.description);
+                InsertElementText(connection, transaction, elementId, "description", 1, null, null, null, null, null, element.description, element.descriptionRawXml);
             }
 
             if (element.sheet == null)
@@ -268,7 +436,8 @@ VALUES
                         element.sheet.alt,
                         element.sheet.action,
                         element.sheet.usage,
-                        sheetDescription.text);
+                        sheetDescription.text,
+                        sheetDescription.rawXml);
                 }
             }
             else
@@ -284,7 +453,8 @@ VALUES
                     element.sheet.alt,
                     element.sheet.action,
                     element.sheet.usage,
-                    string.Empty);
+                    string.Empty,
+                    element.sheet.rawXml);
             }
         }
 
@@ -292,7 +462,7 @@ VALUES
         {
             if (spell.desc?.Any() == true)
             {
-                InsertElementText(connection, transaction, elementId, "description", 1, null, null, null, null, null, string.Join(Environment.NewLine, spell.desc));
+                InsertElementText(connection, transaction, elementId, "description", 1, null, null, null, null, null, string.Join(Environment.NewLine, spell.desc), spell.descriptionRawXml);
             }
 
             if (spell.higher_level?.Any() == true)
@@ -312,7 +482,8 @@ VALUES
             string altText,
             string actionText,
             string usageText,
-            string body)
+            string body,
+            string rawXml = null)
         {
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
@@ -352,6 +523,58 @@ VALUES
             command.Parameters.AddWithValue("$usage_text", (object)usageText ?? DBNull.Value);
             command.Parameters.AddWithValue("$body", body ?? string.Empty);
             command.ExecuteNonQuery();
+
+            if (!string.IsNullOrWhiteSpace(rawXml))
+            {
+                long elementTextId = GetLastInsertRowId(connection, transaction);
+                ExecuteInsert(connection, transaction,
+                    @"INSERT INTO element_text_markup
+(element_text_id, content_format, raw_xml)
+VALUES
+($element_text_id, 'aurora-xml', $raw_xml);",
+                    ("$element_text_id", elementTextId),
+                    ("$raw_xml", rawXml));
+            }
+        }
+
+        private static void InsertElementBlocks(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            long elementId,
+            IEnumerable<AuroraBlockEntry> blocks)
+        {
+            if (blocks?.Any() != true)
+                return;
+
+            int ordinal = 1;
+            foreach (var block in blocks)
+            {
+                ExecuteInsert(connection, transaction,
+                    @"INSERT INTO element_blocks
+(element_id, ordinal, block_name, body_text, raw_xml)
+VALUES
+($element_id, $ordinal, $block_name, $body_text, $raw_xml);",
+                    ("$element_id", elementId),
+                    ("$ordinal", ordinal++),
+                    ("$block_name", block.name ?? string.Empty),
+                    ("$body_text", (object)block.value ?? DBNull.Value),
+                    ("$raw_xml", block.rawXml ?? string.Empty));
+
+                long elementBlockId = GetLastInsertRowId(connection, transaction);
+                int attributeOrdinal = 1;
+                foreach (var attribute in block.attributes)
+                {
+                    ExecuteInsert(connection, transaction,
+                        @"INSERT INTO element_block_attributes
+(element_block_id, ordinal, attribute_name, attribute_value)
+VALUES
+($element_block_id, $ordinal, $attribute_name, $attribute_value);",
+                        ("$element_block_id", elementBlockId),
+                        ("$ordinal", attributeOrdinal++),
+                        ("$attribute_name", attribute.Key),
+                        ("$attribute_value", (object)attribute.Value ?? DBNull.Value));
+                }
+            }
         }
 
         private static void InsertElementSupports(SqliteConnection connection, SqliteTransaction transaction, long elementId, AuroraTextCollection supports)
@@ -470,9 +693,29 @@ VALUES
                 return;
             }
 
+            if (string.Equals(element.type, "Race Variant", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(element.type, "Dragonmark", StringComparison.OrdinalIgnoreCase))
+            {
+                ExecuteInsert(connection, transaction,
+                    "INSERT INTO race_variants (element_id, variant_kind, parent_support_text) VALUES ($element_id, $variant_kind, $parent_support_text);",
+                    ("$element_id", elementId),
+                    ("$variant_kind", element.type),
+                    ("$parent_support_text", (object)GetPreferredSupportText(element.supports, "Race Variant") ?? DBNull.Value));
+                return;
+            }
+
             if (string.Equals(element.type, "Background", StringComparison.OrdinalIgnoreCase))
             {
                 ExecuteInsert(connection, transaction, "INSERT INTO backgrounds (element_id) VALUES ($element_id);", ("$element_id", elementId));
+                return;
+            }
+
+            if (string.Equals(element.type, "Background Variant", StringComparison.OrdinalIgnoreCase))
+            {
+                ExecuteInsert(connection, transaction,
+                    "INSERT INTO background_variants (element_id, parent_support_text) VALUES ($element_id, $parent_support_text);",
+                    ("$element_id", elementId),
+                    ("$parent_support_text", (object)GetPreferredSupportText(element.supports, "Background Variant") ?? DBNull.Value));
                 return;
             }
 
@@ -539,7 +782,52 @@ VALUES
                     ("$properties_text", (object)element.supports?.raw ?? DBNull.Value),
                     ("$speed_text", (object)element.setters?.GetValue("speed") ?? DBNull.Value),
                     ("$capacity_text", (object)element.setters?.GetValue("capacity") ?? DBNull.Value));
+                return;
             }
+
+            if (string.Equals(element.type, "Companion", StringComparison.OrdinalIgnoreCase))
+            {
+                var crText = element.setters?.GetValue("challenge");
+                ExecuteInsert(connection, transaction,
+                    @"INSERT INTO companions
+(element_id, size_text, creature_type, alignment, ac_text, hp_text, speed_text,
+ str_score, dex_score, con_score, int_score, wis_score, cha_score,
+ skills_text, resistances_text, immunities_text, condition_immunities_text,
+ senses_text, languages_text, challenge_text, cr_value, proficiency_bonus, actions_text)
+VALUES
+($element_id, $size_text, $creature_type, $alignment, $ac_text, $hp_text, $speed_text,
+ $str_score, $dex_score, $con_score, $int_score, $wis_score, $cha_score,
+ $skills_text, $resistances_text, $immunities_text, $condition_immunities_text,
+ $senses_text, $languages_text, $challenge_text, $cr_value, $proficiency_bonus, $actions_text);",
+                    ("$element_id",               elementId),
+                    ("$size_text",                (object)element.setters?.GetValue("size")               ?? DBNull.Value),
+                    ("$creature_type",            (object)element.setters?.GetValue("type")               ?? DBNull.Value),
+                    ("$alignment",                (object)element.setters?.GetValue("alignment")          ?? DBNull.Value),
+                    ("$ac_text",                  (object)element.setters?.GetValue("ac")                 ?? DBNull.Value),
+                    ("$hp_text",                  (object)element.setters?.GetValue("hp")                 ?? DBNull.Value),
+                    ("$speed_text",               (object)element.setters?.GetValue("speed")              ?? DBNull.Value),
+                    ("$str_score",                ParseIntSetter(element.setters?.GetValue("strength"))),
+                    ("$dex_score",                ParseIntSetter(element.setters?.GetValue("dexterity"))),
+                    ("$con_score",                ParseIntSetter(element.setters?.GetValue("constitution"))),
+                    ("$int_score",                ParseIntSetter(element.setters?.GetValue("intelligence"))),
+                    ("$wis_score",                ParseIntSetter(element.setters?.GetValue("wisdom"))),
+                    ("$cha_score",                ParseIntSetter(element.setters?.GetValue("charisma"))),
+                    ("$skills_text",              (object)element.setters?.GetValue("skills")             ?? DBNull.Value),
+                    ("$resistances_text",         (object)element.setters?.GetValue("resistances")        ?? DBNull.Value),
+                    ("$immunities_text",          (object)element.setters?.GetValue("immunities")         ?? DBNull.Value),
+                    ("$condition_immunities_text",(object)element.setters?.GetValue("condition-immunities") ?? DBNull.Value),
+                    ("$senses_text",              (object)element.setters?.GetValue("senses")             ?? DBNull.Value),
+                    ("$languages_text",           (object)element.setters?.GetValue("languages")          ?? DBNull.Value),
+                    ("$challenge_text",           (object)crText                                          ?? DBNull.Value),
+                    ("$cr_value",                 ParseCrValue(crText)),
+                    ("$proficiency_bonus",        ParseIntSetter(element.setters?.GetValue("proficiency"))),
+                    ("$actions_text",             (object)element.setters?.GetValue("actions")            ?? DBNull.Value));
+                return;
+            }
+
+            // Companion Action and Companion Trait are simple text elements (description + sheet).
+            // The base element row + element_texts are sufficient; no subtype record is needed.
+            // They are referenced by the parent Companion's actions_text (comma-separated aurora_ids).
         }
 
         private static void InsertClassMulticlass(SqliteConnection connection, SqliteTransaction transaction, long elementId, Multiclass multiclass)
@@ -574,6 +862,90 @@ VALUES
                 ("$extend_text", (object)spellcasting.extendList?.raw ?? DBNull.Value));
         }
 
+        private static void InsertSetters(SqliteConnection connection, SqliteTransaction transaction, long elementId, string ownerKind, AuroraSetters setters)
+        {
+            if (setters?.entries?.Any() != true)
+                return;
+
+            long setterScopeId = InsertSetterScope(connection, transaction, ownerKind, elementId);
+
+            int ordinal = 1;
+            foreach (var setterEntry in setters.entries)
+            {
+                ExecuteInsert(connection, transaction,
+                    @"INSERT INTO setter_entries
+(setter_scope_id, ordinal, setter_name, setter_value)
+VALUES
+($setter_scope_id, $ordinal, $setter_name, $setter_value);",
+                    ("$setter_scope_id", setterScopeId),
+                    ("$ordinal", ordinal++),
+                    ("$setter_name", setterEntry.name ?? string.Empty),
+                    ("$setter_value", (object)setterEntry.value ?? DBNull.Value));
+
+                long setterEntryId = GetLastInsertRowId(connection, transaction);
+                int attributeOrdinal = 1;
+                foreach (var attribute in setterEntry.attributes)
+                {
+                    ExecuteInsert(connection, transaction,
+                        @"INSERT INTO setter_entry_attributes
+(setter_entry_id, ordinal, attribute_name, attribute_value)
+VALUES
+($setter_entry_id, $ordinal, $attribute_name, $attribute_value);",
+                        ("$setter_entry_id", setterEntryId),
+                        ("$ordinal", attributeOrdinal++),
+                        ("$attribute_name", attribute.Key),
+                        ("$attribute_value", (object)attribute.Value ?? DBNull.Value));
+                }
+            }
+        }
+
+        private static void InsertExtract(SqliteConnection connection, SqliteTransaction transaction, long elementId, AuroraExtract extract)
+        {
+            if (extract == null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(extract.description) && !(extract.items?.Any() == true))
+                return;
+
+            ExecuteInsert(connection, transaction,
+                @"INSERT INTO element_extracts
+(element_id, description_text)
+VALUES
+($element_id, $description_text);",
+                ("$element_id", elementId),
+                ("$description_text", (object)extract.description ?? DBNull.Value));
+
+            int ordinal = 1;
+            foreach (var item in extract.items ?? Enumerable.Empty<AuroraItemEntry>())
+            {
+                ExecuteInsert(connection, transaction,
+                    @"INSERT INTO element_extract_items
+(element_id, ordinal, item_text, target_aurora_id, amount_text)
+VALUES
+($element_id, $ordinal, $item_text, $target_aurora_id, $amount_text);",
+                    ("$element_id", elementId),
+                    ("$ordinal", ordinal++),
+                    ("$item_text", (object)item.value ?? DBNull.Value),
+                    ("$target_aurora_id", (object)GetItemTargetAuroraId(item) ?? DBNull.Value),
+                    ("$amount_text", (object)item.GetAttribute("amount") ?? DBNull.Value));
+
+                long extractItemId = GetLastInsertRowId(connection, transaction);
+                int attributeOrdinal = 1;
+                foreach (var attribute in item.attributes)
+                {
+                    ExecuteInsert(connection, transaction,
+                        @"INSERT INTO element_extract_item_attributes
+(extract_item_id, ordinal, attribute_name, attribute_value)
+VALUES
+($extract_item_id, $ordinal, $attribute_name, $attribute_value);",
+                        ("$extract_item_id", extractItemId),
+                        ("$ordinal", attributeOrdinal++),
+                        ("$attribute_name", attribute.Key),
+                        ("$attribute_value", (object)attribute.Value ?? DBNull.Value));
+                }
+            }
+        }
+
         private static void InsertRules(SqliteConnection connection, SqliteTransaction transaction, long elementId, string ownerKind, Rules rules)
         {
             if (rules == null)
@@ -606,9 +978,9 @@ VALUES
             {
                 ExecuteInsert(connection, transaction,
                     @"INSERT INTO selects
-(rule_scope_id, ordinal, select_type, name_text, supports_text, select_level, number_to_choose, default_choice_text, is_optional, requirements_text)
+(rule_scope_id, ordinal, select_type, name_text, supports_text, select_level, number_to_choose, default_choice_text, is_optional, spellcasting_profile_id, requirements_text)
 VALUES
-($rule_scope_id, $ordinal, $select_type, $name_text, $supports_text, $select_level, $number_to_choose, $default_choice_text, $is_optional, $requirements_text);",
+($rule_scope_id, $ordinal, $select_type, $name_text, $supports_text, $select_level, $number_to_choose, $default_choice_text, $is_optional, $spellcasting_profile_id, $requirements_text);",
                     ("$rule_scope_id", ruleScopeId),
                     ("$ordinal", ordinal++),
                     ("$select_type", select.type ?? string.Empty),
@@ -618,6 +990,7 @@ VALUES
                     ("$number_to_choose", select.number),
                     ("$default_choice_text", (object)select.defaultChoice ?? DBNull.Value),
                     ("$is_optional", select.optional ? 1 : 0),
+                    ("$spellcasting_profile_id", ResolveSpellcastingProfileId(connection, transaction, elementId, select.spellcasting)),
                     ("$requirements_text", (object)select.requirements?.raw ?? DBNull.Value));
 
                 long selectId = GetLastInsertRowId(connection, transaction);
@@ -630,6 +1003,8 @@ VALUES
                         ("$ordinal", supportOrdinal++),
                         ("$support_text", support));
                 }
+
+                InsertSelectItems(connection, transaction, selectId, select.items);
             }
 
             ordinal = 1;
@@ -653,6 +1028,45 @@ VALUES
             }
         }
 
+        private static void InsertSelectItems(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            long selectId,
+            IEnumerable<AuroraItemEntry> items)
+        {
+            if (items?.Any() != true)
+                return;
+
+            int ordinal = 1;
+            foreach (var item in items)
+            {
+                ExecuteInsert(connection, transaction,
+                    @"INSERT INTO select_items
+(select_id, ordinal, item_text, target_aurora_id)
+VALUES
+($select_id, $ordinal, $item_text, $target_aurora_id);",
+                    ("$select_id", selectId),
+                    ("$ordinal", ordinal++),
+                    ("$item_text", (object)item.value ?? DBNull.Value),
+                    ("$target_aurora_id", (object)GetItemTargetAuroraId(item) ?? DBNull.Value));
+
+                long selectItemId = GetLastInsertRowId(connection, transaction);
+                int attributeOrdinal = 1;
+                foreach (var attribute in item.attributes)
+                {
+                    ExecuteInsert(connection, transaction,
+                        @"INSERT INTO select_item_attributes
+(select_item_id, ordinal, attribute_name, attribute_value)
+VALUES
+($select_item_id, $ordinal, $attribute_name, $attribute_value);",
+                        ("$select_item_id", selectItemId),
+                        ("$ordinal", attributeOrdinal++),
+                        ("$attribute_name", attribute.Key),
+                        ("$attribute_value", (object)attribute.Value ?? DBNull.Value));
+                }
+            }
+        }
+
         private static long InsertRuleScope(SqliteConnection connection, SqliteTransaction transaction, string ownerKind, long ownerElementId)
         {
             ExecuteInsert(connection, transaction,
@@ -661,6 +1075,56 @@ VALUES
                 ("$owner_element_id", ownerElementId),
                 ("$scope_key", ownerKind == "class-multiclass" ? "multiclass" : "element"));
             return GetLastInsertRowId(connection, transaction);
+        }
+
+        private static long InsertSetterScope(SqliteConnection connection, SqliteTransaction transaction, string ownerKind, long ownerElementId)
+        {
+            ExecuteInsert(connection, transaction,
+                "INSERT INTO setter_scopes (owner_kind, owner_element_id, scope_key) VALUES ($owner_kind, $owner_element_id, $scope_key);",
+                ("$owner_kind", ownerKind),
+                ("$owner_element_id", ownerElementId),
+                ("$scope_key", ownerKind == "class-multiclass" ? "multiclass" : "element"));
+            return GetLastInsertRowId(connection, transaction);
+        }
+
+        private static object ResolveSpellcastingProfileId(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            long ownerElementId,
+            string spellcastingProfileName)
+        {
+            if (string.IsNullOrWhiteSpace(spellcastingProfileName))
+                return DBNull.Value;
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+SELECT spellcasting_profile_id
+FROM spellcasting_profiles
+WHERE owner_element_id = $owner_element_id
+  AND profile_name = $profile_name
+LIMIT 1;";
+            command.Parameters.AddWithValue("$owner_element_id", ownerElementId);
+            command.Parameters.AddWithValue("$profile_name", spellcastingProfileName);
+            return command.ExecuteScalar() ?? DBNull.Value;
+        }
+
+        private static string GetItemTargetAuroraId(AuroraItemEntry item)
+        {
+            string attributeId = item?.GetAttribute("id");
+            if (!string.IsNullOrWhiteSpace(attributeId)
+                && attributeId.StartsWith("ID_", StringComparison.OrdinalIgnoreCase))
+            {
+                return attributeId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(item?.value)
+                && item.value.StartsWith("ID_", StringComparison.OrdinalIgnoreCase))
+            {
+                return item.value;
+            }
+
+            return null;
         }
 
         private static void InsertSpellRecord(SqliteConnection connection, SqliteTransaction transaction, long elementId, AuroraSpell spell)
@@ -698,9 +1162,136 @@ VALUES
                         "INSERT INTO spell_access (spell_element_id, ordinal, access_text) VALUES ($spell_element_id, $ordinal, $access_text);",
                         ("$spell_element_id", elementId),
                         ("$ordinal", ordinal++),
-                        ("$access_text", access.name));
+                    ("$access_text", access.name));
                 }
             }
+        }
+
+        private static void RebuildExpressionCatalog(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            ExecuteSql(connection, transaction, "DELETE FROM expression_usages;");
+            ExecuteSql(connection, transaction, "DELETE FROM expression_nodes;");
+            ExecuteSql(connection, transaction, "DELETE FROM expressions;");
+
+            var cache = new Dictionary<string, long>(StringComparer.Ordinal);
+            var sources = new[]
+            {
+                new ExpressionSource("element-requirement", "requirement_text",
+                    "SELECT element_id, ordinal, requirement_text FROM element_requirements WHERE trim(requirement_text) <> '';"),
+                new ExpressionSource("element-support", "support_text",
+                    "SELECT element_id, ordinal, support_text FROM element_supports WHERE trim(support_text) <> '';"),
+                new ExpressionSource("select-support", "support_text",
+                    "SELECT select_id, ordinal, support_text FROM select_supports WHERE trim(support_text) <> '';"),
+                new ExpressionSource("grant", "requirements_text",
+                    "SELECT grant_id, 1 AS ordinal, requirements_text FROM grants WHERE requirements_text IS NOT NULL AND trim(requirements_text) <> '';"),
+                new ExpressionSource("select", "requirements_text",
+                    "SELECT select_id, 1 AS ordinal, requirements_text FROM selects WHERE requirements_text IS NOT NULL AND trim(requirements_text) <> '';"),
+                new ExpressionSource("stat", "requirements_text",
+                    "SELECT stat_id, 1 AS ordinal, requirements_text FROM stats WHERE requirements_text IS NOT NULL AND trim(requirements_text) <> '';"),
+                new ExpressionSource("stat", "equipped_expression_text",
+                    "SELECT stat_id, 1 AS ordinal, equipped_expression_text FROM stats WHERE equipped_expression_text IS NOT NULL AND trim(equipped_expression_text) <> '';"),
+                new ExpressionSource("class-multiclass", "requirements_text",
+                    "SELECT class_element_id, 1 AS ordinal, requirements_text FROM class_multiclass WHERE requirements_text IS NOT NULL AND trim(requirements_text) <> '';"),
+                new ExpressionSource("spellcasting-profile", "list_text",
+                    "SELECT spellcasting_profile_id, 1 AS ordinal, list_text FROM spellcasting_profiles WHERE list_text IS NOT NULL AND trim(list_text) <> '';"),
+                new ExpressionSource("spellcasting-profile", "extend_text",
+                    "SELECT spellcasting_profile_id, 1 AS ordinal, extend_text FROM spellcasting_profiles WHERE extend_text IS NOT NULL AND trim(extend_text) <> '';")
+            };
+
+            foreach (var source in sources)
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = source.Sql;
+
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    long ownerId = reader.GetInt64(0);
+                    int ordinal = reader.GetInt32(1);
+                    string rawText = reader.IsDBNull(2) ? null : reader.GetString(2)?.Trim();
+                    if (string.IsNullOrWhiteSpace(rawText))
+                        continue;
+
+                    long expressionId = EnsureExpression(connection, transaction, cache, rawText);
+                    ExecuteInsert(connection, transaction,
+                        @"INSERT INTO expression_usages
+(expression_id, owner_kind, owner_id, field_name, ordinal, source_text)
+VALUES
+($expression_id, $owner_kind, $owner_id, $field_name, $ordinal, $source_text);",
+                        ("$expression_id", expressionId),
+                        ("$owner_kind", source.OwnerKind),
+                        ("$owner_id", ownerId),
+                        ("$field_name", source.FieldName),
+                        ("$ordinal", ordinal),
+                        ("$source_text", rawText));
+                }
+            }
+        }
+
+        private static long EnsureExpression(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            Dictionary<string, long> cache,
+            string rawText)
+        {
+            if (cache.TryGetValue(rawText, out long existingExpressionId))
+                return existingExpressionId;
+
+            AuroraExpressionParseResult parseResult = AuroraExpressionEngine.Parse(rawText);
+
+            ExecuteInsert(connection, transaction,
+                @"INSERT INTO expressions
+(raw_text, normalized_text, parse_status, error_text)
+VALUES
+($raw_text, $normalized_text, $parse_status, $error_text);",
+                ("$raw_text", rawText),
+                ("$normalized_text", NormalizeExpressionText(rawText)),
+                ("$parse_status", parseResult.Status),
+                ("$error_text", (object)parseResult.ErrorText ?? DBNull.Value));
+
+            long expressionId = GetLastInsertRowId(connection, transaction);
+            InsertExpressionNode(connection, transaction, expressionId, null, 1, parseResult.RootNode);
+            cache[rawText] = expressionId;
+            return expressionId;
+        }
+
+        private static void InsertExpressionNode(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            long expressionId,
+            long? parentNodeId,
+            int ordinal,
+            AuroraExpressionNode expressionNode)
+        {
+            if (expressionNode == null)
+                return;
+
+            ExecuteInsert(connection, transaction,
+                @"INSERT INTO expression_nodes
+(expression_id, parent_node_id, ordinal, node_kind, value_type, value_text)
+VALUES
+($expression_id, $parent_node_id, $ordinal, $node_kind, $value_type, $value_text);",
+                ("$expression_id", expressionId),
+                ("$parent_node_id", parentNodeId.HasValue ? parentNodeId.Value : DBNull.Value),
+                ("$ordinal", ordinal),
+                ("$node_kind", expressionNode.Kind),
+                ("$value_type", (object)expressionNode.ValueType ?? DBNull.Value),
+                ("$value_text", (object)expressionNode.ValueText ?? DBNull.Value));
+
+            long expressionNodeId = GetLastInsertRowId(connection, transaction);
+            int childOrdinal = 1;
+            foreach (var childNode in expressionNode.Children)
+            {
+                InsertExpressionNode(connection, transaction, expressionId, expressionNodeId, childOrdinal++, childNode);
+            }
+        }
+
+        private static string NormalizeExpressionText(string rawText)
+        {
+            return string.IsNullOrWhiteSpace(rawText)
+                ? string.Empty
+                : rawText.Trim().ToLowerInvariant();
         }
 
         private static void ResolveDeferredRelationships(SqliteConnection connection, SqliteTransaction transaction)
@@ -717,6 +1308,30 @@ WHERE target_element_id IS NULL
   AND target_aurora_id IS NOT NULL;");
 
             ExecuteSql(connection, transaction, @"
+UPDATE element_extract_items
+SET linked_element_id =
+(
+    SELECT MIN(e.element_id)
+    FROM elements AS e
+    WHERE e.aurora_id = element_extract_items.target_aurora_id
+       OR (element_extract_items.target_aurora_id IS NULL AND e.name = element_extract_items.item_text)
+)
+WHERE linked_element_id IS NULL
+  AND (target_aurora_id IS NOT NULL OR item_text IS NOT NULL);");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE select_items
+SET linked_element_id =
+(
+    SELECT MIN(e.element_id)
+    FROM elements AS e
+    WHERE e.aurora_id = select_items.target_aurora_id
+       OR (select_items.target_aurora_id IS NULL AND e.name = select_items.item_text)
+)
+WHERE linked_element_id IS NULL
+  AND (target_aurora_id IS NOT NULL OR item_text IS NOT NULL);");
+
+            ExecuteSql(connection, transaction, @"
 UPDATE subraces
 SET race_element_id =
 (
@@ -730,6 +1345,36 @@ SET race_element_id =
        OR subraces.parent_support_text LIKE '% ' || parent.name
 )
 WHERE race_element_id IS NULL
+  AND parent_support_text IS NOT NULL;");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE race_variants
+SET race_element_id =
+(
+    SELECT MIN(parent.element_id)
+    FROM races AS r
+    JOIN elements AS parent ON parent.element_id = r.element_id
+    WHERE parent.aurora_id = race_variants.parent_support_text
+       OR parent.name = race_variants.parent_support_text
+       OR race_variants.parent_support_text = parent.name || ' Variant'
+       OR trim(replace(replace(race_variants.parent_support_text, 'Variant ', ''), ' Variant', '')) = parent.name
+)
+WHERE race_element_id IS NULL
+  AND parent_support_text IS NOT NULL;");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE background_variants
+SET background_element_id =
+(
+    SELECT MIN(parent.element_id)
+    FROM backgrounds AS b
+    JOIN elements AS parent ON parent.element_id = b.element_id
+    WHERE parent.aurora_id = background_variants.parent_support_text
+       OR parent.name = background_variants.parent_support_text
+       OR background_variants.parent_support_text = 'Variant ' || parent.name
+       OR trim(replace(background_variants.parent_support_text, 'Variant ', '')) = parent.name
+)
+WHERE background_element_id IS NULL
   AND parent_support_text IS NOT NULL;");
 
             ExecuteSql(connection, transaction, @"
@@ -798,7 +1443,11 @@ FROM
 );");
 
             ExecuteSql(connection, transaction, @"
-INSERT INTO element_support_links
+INSERT OR IGNORE INTO support_tags (support_text, normalized_text, support_kind)
+VALUES ('[[inline-item]]', '[[inline-item]]', 'bounded-option-set');");
+
+            ExecuteSql(connection, transaction, @"
+INSERT OR IGNORE INTO element_support_links
 (
     element_id,
     ordinal,
@@ -881,7 +1530,7 @@ WHERE ordinal = 1
   );");
 
             ExecuteSql(connection, transaction, @"
-INSERT INTO select_support_links
+INSERT OR IGNORE INTO select_support_links
 (
     select_id,
     ordinal,
@@ -965,6 +1614,25 @@ JOIN support_tags AS st
     ON st.support_tag_id = ssl.support_tag_id
 JOIN elements AS e
     ON e.name = st.support_text;");
+
+            ExecuteSql(connection, transaction, @"
+INSERT OR IGNORE INTO select_option_links
+(
+    select_id,
+    option_element_id,
+    support_tag_id,
+    match_kind
+)
+SELECT
+    si.select_id,
+    si.linked_element_id,
+    (SELECT support_tag_id FROM support_tags WHERE support_text = '[[inline-item]]'),
+    CASE
+        WHEN si.target_aurora_id IS NOT NULL THEN 'inline-item-id'
+        ELSE 'inline-item-text'
+    END
+FROM select_items AS si
+WHERE si.linked_element_id IS NOT NULL;");
 
             ExecuteSql(connection, transaction, @"
 UPDATE support_tags
@@ -1108,6 +1776,8 @@ WHERE support_kind = 'unclassified'
   );");
         }
 
+        private sealed record ExpressionSource(string OwnerKind, string FieldName, string Sql);
+
         private static void ExecuteSql(SqliteConnection connection, SqliteTransaction transaction, string sql)
         {
             using var command = connection.CreateCommand();
@@ -1156,9 +1826,12 @@ WHERE support_kind = 'unclassified'
                 "source" => 5,
                 "race" => 10,
                 "sub race" => 20,
+                "race variant" => 25,
+                "dragonmark" => 26,
                 "class" => 30,
                 "archetype" => 40,
                 "background" => 50,
+                "background variant" => 55,
                 "feat" => 60,
                 "language" => 70,
                 "proficiency" => 80,
@@ -1167,9 +1840,52 @@ WHERE support_kind = 'unclassified'
                 "archetype feature" => 110,
                 "racial trait" => 120,
                 "background feature" => 130,
+                "background sub-feature" => 135,
                 "feat feature" => 140,
                 "ability score improvement" => 150,
+                "grants" => 160,
+                "companion" => 200,
+                "companion action" => 210,
+                "companion reaction" => 215,
+                "companion trait" => 210,
+                "companion feature" => 210,
+                "monster" => 220,
+                "weapon property" => 230,
+                "weapon group" => 235,
+                "option" => 300,
+                "support" => 310,
+                "rule" => 320,
+                "information" => 330,
+                "deity" => 340,
+                "alignment" => 350,
+                "vision" => 360,
+                "condition" => 370,
+                "magic school" => 380,
+                "background characteristics" => 390,
                 _ => 500
+            };
+        }
+
+        /// <summary>
+        /// Parses a setter string as an integer parameter value, returning DBNull if parsing fails.
+        /// </summary>
+        private static object ParseIntSetter(string value) =>
+            int.TryParse(value?.Trim(), out var n) ? (object)n : DBNull.Value;
+
+        /// <summary>
+        /// Converts a CR string ("0", "1/8", "1/4", "1/2", "1" … "30") to a REAL value
+        /// suitable for numeric comparison, returning DBNull if the string is unrecognized.
+        /// </summary>
+        private static object ParseCrValue(string crText)
+        {
+            if (string.IsNullOrWhiteSpace(crText)) return DBNull.Value;
+            return crText.Trim() switch
+            {
+                "0"   => (object)0.0,
+                "1/8" => 0.125,
+                "1/4" => 0.25,
+                "1/2" => 0.5,
+                _     => double.TryParse(crText.Trim(), out var d) ? (object)d : DBNull.Value
             };
         }
 
@@ -1210,6 +1926,21 @@ WHERE support_kind = 'unclassified'
                 || string.Equals(elementType, "Ability Score Improvement", StringComparison.OrdinalIgnoreCase);
         }
 
+        private static string GetPreferredSupportText(AuroraTextCollection supports, params string[] ignoredSupports)
+        {
+            if (supports == null || supports.Count == 0)
+                return null;
+
+            HashSet<string> ignored = new(
+                ignoredSupports?.Where(x => !string.IsNullOrWhiteSpace(x)) ?? Enumerable.Empty<string>(),
+                StringComparer.OrdinalIgnoreCase);
+
+            string preferred = supports.FirstOrDefault(x => !ignored.Contains(x));
+            return string.IsNullOrWhiteSpace(preferred)
+                ? supports.FirstOrDefault()
+                : preferred;
+        }
+
         private static bool IsItemType(string elementType)
         {
             return string.Equals(elementType, "Item", StringComparison.OrdinalIgnoreCase)
@@ -1220,6 +1951,164 @@ WHERE support_kind = 'unclassified'
                 || string.Equals(elementType, "Vehicle", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(elementType, "Magic Item", StringComparison.OrdinalIgnoreCase);
         }
+
+        // ── SRD creature import ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Imports SRD monsters from the 5e-bits/5e-database JSON file into the
+        /// <c>creatures</c> table of an existing Aurora SQLite database, then
+        /// name-matches them against Aurora Companion elements to populate
+        /// <c>creature_aurora_links</c>.
+        /// Always performs a full replace of the creatures table (DELETE + re-insert)
+        /// because creature rows have no natural key to upsert against.
+        /// </summary>
+        public static void ImportSrdCreatures(string jsonPath, string sqlitePath)
+        {
+            if (!File.Exists(jsonPath))
+                throw new FileNotFoundException($"SRD monsters JSON not found: {jsonPath}");
+            if (!File.Exists(sqlitePath))
+                throw new FileNotFoundException($"SQLite database not found — run sqlite-import first: {sqlitePath}");
+
+            using var connection = new SqliteConnection(
+                new SqliteConnectionStringBuilder { DataSource = sqlitePath }.ToString());
+            connection.Open();
+            ExecuteSql(connection, null, "PRAGMA foreign_keys = ON;");
+            using var transaction = connection.BeginTransaction();
+
+            int inserted = ImportSrdCreaturesIfChanged(connection, transaction, jsonPath, force: true);
+
+            transaction.Commit();
+            Console.WriteLine($"Imported {inserted} SRD creatures from {Path.GetFileName(jsonPath)} into {sqlitePath}.");
+        }
+
+        /// <summary>
+        /// Imports SRD creatures within an existing transaction only if the JSON
+        /// file hash has changed since last import. Returns the number of creatures
+        /// inserted, or 0 if skipped. Pass <paramref name="force"/> = true to
+        /// skip the hash check (used by the standalone <c>srd-creatures</c> command).
+        /// </summary>
+        private static int ImportSrdCreaturesIfChanged(
+            SqliteConnection connection, SqliteTransaction transaction,
+            string jsonPath, bool force = false)
+        {
+            string hash = ComputeFileHash(jsonPath);
+
+            if (!force)
+            {
+                // Check stored hash in import_state.
+                using var check = connection.CreateCommand();
+                check.Transaction = transaction;
+                check.CommandText =
+                    "SELECT file_hash FROM import_state WHERE key = 'srd-monsters';";
+                string storedHash = check.ExecuteScalar() as string;
+                if (storedHash == hash) return 0;
+            }
+
+            // Full replace of SRD creatures (no upsert key available).
+            ExecuteSql(connection, transaction,
+                "DELETE FROM creatures WHERE source_kind = 'srd';");
+
+            var monsters = JsonSerializer.Deserialize<List<SrdMonster>>(
+                File.ReadAllText(jsonPath),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (monsters == null || monsters.Count == 0) return 0;
+
+            foreach (var m in monsters)
+                InsertSrdCreature(connection, transaction, m);
+
+            LinkCreaturesToAuroraCompanions(connection, transaction);
+
+            // Persist the hash.
+            ExecuteInsert(connection, transaction,
+                "INSERT OR REPLACE INTO import_state (key, file_hash, imported_utc) VALUES ($key, $hash, $utc);",
+                ("$key", (object)"srd-monsters"),
+                ("$hash", (object)hash),
+                ("$utc", (object)DateTime.UtcNow.ToString("o")));
+
+            return monsters.Count;
+        }
+
+        private static void InsertSrdCreature(SqliteConnection connection, SqliteTransaction transaction, _5eApiTranslator.Models.SrdMonster m)
+        {
+            var crText           = SrdHelpers.FormatCr(m.ChallengeRating);
+            var acText           = SrdHelpers.FormatAc(m.ArmorClass);
+            var speedText        = SrdHelpers.FormatSpeed(m.Speed);
+            var savingThrowsText = SrdHelpers.FormatSavingThrows(m.Proficiencies);
+            var skillsText       = SrdHelpers.FormatSkills(m.Proficiencies);
+            var sensesText       = SrdHelpers.FormatSenses(m.Senses);
+            var conditionImmunitiesText = m.ConditionImmunities?.Count > 0
+                ? string.Join(", ", m.ConditionImmunities.Select(ci => ci.Name))
+                : null;
+
+            ExecuteInsert(connection, transaction,
+                @"INSERT INTO creatures
+(name, slug, cr_text, cr_value, size_text, creature_type, subtype_text, alignment,
+ ac_text, hp_average, hp_text, speed_text,
+ str_score, dex_score, con_score, int_score, wis_score, cha_score,
+ saving_throws_text, skills_text,
+ damage_vulnerabilities_text, damage_resistances_text, damage_immunities_text,
+ condition_immunities_text, senses_text, languages_text,
+ proficiency_bonus, source_kind, source_name)
+VALUES
+($name, $slug, $cr_text, $cr_value, $size_text, $creature_type, $subtype_text, $alignment,
+ $ac_text, $hp_average, $hp_text, $speed_text,
+ $str_score, $dex_score, $con_score, $int_score, $wis_score, $cha_score,
+ $saving_throws_text, $skills_text,
+ $damage_vulnerabilities_text, $damage_resistances_text, $damage_immunities_text,
+ $condition_immunities_text, $senses_text, $languages_text,
+ $proficiency_bonus, $source_kind, $source_name);",
+                ("$name",                        (object)m.Name),
+                ("$slug",                        (object)(m.Index ?? m.Name?.Trim().ToLower().Replace(" ", "-"))),
+                ("$cr_text",                     crText),
+                ("$cr_value",                    (object)m.ChallengeRating),
+                ("$size_text",                   (object)m.Size ?? DBNull.Value),
+                ("$creature_type",               (object)m.Type ?? DBNull.Value),
+                ("$subtype_text",                (object)(string.IsNullOrWhiteSpace(m.Subtype) ? null : m.Subtype) ?? DBNull.Value),
+                ("$alignment",                   (object)m.Alignment ?? DBNull.Value),
+                ("$ac_text",                     (object)acText ?? DBNull.Value),
+                ("$hp_average",                  (object)m.HitPoints),
+                ("$hp_text",                     (object)m.HitPointsRoll ?? DBNull.Value),
+                ("$speed_text",                  (object)speedText ?? DBNull.Value),
+                ("$str_score",                   (object)m.Strength),
+                ("$dex_score",                   (object)m.Dexterity),
+                ("$con_score",                   (object)m.Constitution),
+                ("$int_score",                   (object)m.Intelligence),
+                ("$wis_score",                   (object)m.Wisdom),
+                ("$cha_score",                   (object)m.Charisma),
+                ("$saving_throws_text",          (object)savingThrowsText ?? DBNull.Value),
+                ("$skills_text",                 (object)skillsText ?? DBNull.Value),
+                ("$damage_vulnerabilities_text", m.DamageVulnerabilities?.Count > 0 ? string.Join(", ", m.DamageVulnerabilities) : (object)DBNull.Value),
+                ("$damage_resistances_text",     m.DamageResistances?.Count > 0 ? string.Join(", ", m.DamageResistances) : (object)DBNull.Value),
+                ("$damage_immunities_text",      m.DamageImmunities?.Count > 0 ? string.Join(", ", m.DamageImmunities) : (object)DBNull.Value),
+                ("$condition_immunities_text",   (object)conditionImmunitiesText ?? DBNull.Value),
+                ("$senses_text",                 (object)sensesText ?? DBNull.Value),
+                ("$languages_text",              (object)(string.IsNullOrWhiteSpace(m.Languages) ? null : m.Languages) ?? DBNull.Value),
+                ("$proficiency_bonus",           (object)m.ProficiencyBonus),
+                ("$source_kind",                 "srd"),
+                ("$source_name",                 "SRD 5.1"));
+        }
+
+        /// <summary>
+        /// Name-matches SRD creatures against Aurora Companion elements and
+        /// inserts rows into <c>creature_aurora_links</c>. Safe to run multiple
+        /// times — uses INSERT OR IGNORE on the primary key.
+        /// </summary>
+        internal static void LinkCreaturesToAuroraCompanions(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            ExecuteSql(connection, transaction, @"
+INSERT OR IGNORE INTO creature_aurora_links (creature_id, element_id, link_kind)
+SELECT
+    c.creature_id,
+    e.element_id,
+    'name-match'
+FROM creatures AS c
+JOIN elements AS e
+    ON lower(trim(e.name)) = lower(trim(c.name))
+JOIN element_types AS et
+    ON et.element_type_id = e.element_type_id
+WHERE et.type_name = 'Companion';");
+        }
+
     }
 }
-
