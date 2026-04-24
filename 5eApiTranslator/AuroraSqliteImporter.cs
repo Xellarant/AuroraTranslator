@@ -11,6 +11,30 @@ namespace _5eApiTranslator
 {
     internal static class AuroraSqliteImporter
     {
+        private static readonly IReadOnlyDictionary<string, (string TargetName, IReadOnlyList<string> TypeNames)> GrantTargetAliasMap
+            = new Dictionary<string, (string TargetName, IReadOnlyList<string> TypeNames)>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ID_LANGUAGE_Draconic"] = ("Draconic", new[] { "Language" }),
+                ["ID_LANGUAGE_Infernal"] = ("Infernal", new[] { "Language" }),
+                ["ID_GFP_PHB_SPELL_POISON_SPRAY"] = ("Poison Spray", new[] { "Spell" }),
+                ["ID_PHB_SPELL_ANIMATE_OBJECT"] = ("Animate Objects", new[] { "Spell" }),
+                ["ID_PHB_SPELL_BANISH"] = ("Banishment", new[] { "Spell" }),
+                ["ID_PHB_SPELL_CAUSE_FEAR"] = ("Cause Fear", new[] { "Spell" }),
+                ["ID_PHB_SPELL_ERUPTING_EARTH"] = ("Erupting Earth", new[] { "Spell" }),
+                ["ID_PHB_SPELL_SUMMON_GREATER_DEMONS"] = ("Summon Greater Demon", new[] { "Spell" }),
+                ["ID_PHB_SPELL_SUMMON_LESSER_DEMONS"] = ("Summon Lesser Demons", new[] { "Spell" }),
+                ["ID_PHB_SPELL_TELEPATHIC_BOND"] = ("Rary’s Telepathic Bond", new[] { "Spell" }),
+                ["ID_PHB_SPELL_WALL_OF_FLAME"] = ("Wall of Fire", new[] { "Spell" }),
+                ["ID_RGTTYR_FEATURE_REPLACEMENT_BENDER_EXTRA_ATTACK"] = ("Improved Extra Attack: Bender", new[] { "Class Feature" }),
+                ["ID_RGTTYR_FEAT_FOCUSED_DISCIPLINE_FEATURES"] = ("Focused Discipline", new[] { "Feat" })
+            };
+
+        private static readonly IReadOnlyDictionary<string, (string TargetName, IReadOnlyList<string> TypeNames)> ExtractTargetAliasMap
+            = new Dictionary<string, (string TargetName, IReadOnlyList<string> TypeNames)>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ID_WOTC_PHB24_WEAPON_CROSSBOW_LIGHT"] = ("Light Crossbow", new[] { "Weapon" })
+            };
+
         /// <summary>
         /// Incrementally imports Aurora XML catalog into the SQLite database.
         /// Files whose MD5 hash matches the stored hash are skipped; changed or
@@ -502,6 +526,14 @@ SET option_kind = 'text-choice'
 WHERE (target_aurora_id IS NULL OR trim(target_aurora_id) = '')
   AND
   (
+      EXISTS
+      (
+          SELECT 1
+          FROM selects AS s
+          WHERE s.select_id = select_items.select_id
+            AND lower(trim(s.select_type)) = 'list'
+      )
+      OR
       item_text IS NULL
       OR trim(item_text) = ''
       OR item_text LIKE '%.%'
@@ -859,6 +891,12 @@ LIMIT $sample_count;";
                 alter.ExecuteNonQuery();
             }
 
+            // M004: add semantic grant target columns so Aurora internal/system grants
+            // can resolve without requiring synthetic element rows.
+            EnsureColumnExists(connection, "grants", "target_semantic_key", "TEXT");
+            EnsureColumnExists(connection, "grants", "target_semantic_kind", "TEXT");
+            EnsureColumnExists(connection, "grants", "target_semantic_name", "TEXT");
+
             using var cacheTables = connection.CreateCommand();
             cacheTables.CommandText = @"
 CREATE TABLE IF NOT EXISTS content_packages
@@ -887,6 +925,8 @@ CREATE INDEX IF NOT EXISTS ix_content_packages_precedence
     ON content_packages(is_enabled, precedence_rank DESC, package_kind, package_name);
 CREATE INDEX IF NOT EXISTS ix_source_files_package
     ON source_files(content_package_id, relative_path);
+CREATE INDEX IF NOT EXISTS ix_grants_semantic
+    ON grants(target_semantic_key, target_semantic_kind);
 
 CREATE TABLE IF NOT EXISTS resolved_elements_cache
 (
@@ -941,6 +981,23 @@ CREATE INDEX IF NOT EXISTS ix_select_items_kind
 
             if (refreshViews)
                 RefreshResolutionViews(connection);
+        }
+
+        private static void EnsureColumnExists(
+            SqliteConnection connection,
+            string tableName,
+            string columnName,
+            string columnDefinition)
+        {
+            using var check = connection.CreateCommand();
+            check.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{tableName}') WHERE name = $column_name;";
+            check.Parameters.AddWithValue("$column_name", columnName);
+            if ((long)(check.ExecuteScalar() ?? 0L) != 0)
+                return;
+
+            using var alter = connection.CreateCommand();
+            alter.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};";
+            alter.ExecuteNonQuery();
         }
 
         private static void RefreshResolutionViews(SqliteConnection connection)
@@ -1079,6 +1136,7 @@ JOIN element_types AS owner_type
     ON owner_type.element_type_id = owner.element_type_id
 WHERE g.target_aurora_id IS NOT NULL
   AND g.target_element_id IS NULL
+  AND COALESCE(g.target_semantic_key, '') = ''
 
 UNION ALL
 
@@ -1221,6 +1279,9 @@ SELECT
         WHEN raw.link_kind = 'archetype-parent'
          AND raw.unresolved_text = 'Training Paradigm'
             THEN 'missing-source'
+        WHEN raw.link_kind = 'grant'
+         AND COALESCE(trim(raw.unresolved_key), '') = ''
+            THEN 'missing-source'
         ELSE 'actionable'
     END AS diagnostic_status,
     CASE
@@ -1250,6 +1311,9 @@ SELECT
         WHEN raw.link_kind = 'archetype-parent'
          AND raw.unresolved_text = 'Training Paradigm'
             THEN 'archetype-base-class-not-imported'
+        WHEN raw.link_kind = 'grant'
+         AND COALESCE(trim(raw.unresolved_key), '') = ''
+            THEN 'grant-empty-target-id'
         ELSE NULL
     END AS diagnostic_reason
 FROM v_unresolved_loader_links AS raw
@@ -1718,8 +1782,17 @@ WHERE parent_class_element_id IN (SELECT element_id FROM temp.affected_winner_el
 
             ExecuteSql(connection, transaction, @"
 UPDATE grants
-SET target_element_id = NULL
-WHERE target_aurora_id IN (SELECT aurora_id FROM temp.affected_aurora_ids);
+SET target_element_id = NULL,
+    target_semantic_key = NULL,
+    target_semantic_kind = NULL,
+    target_semantic_name = NULL
+WHERE target_aurora_id IN (SELECT aurora_id FROM temp.affected_aurora_ids)
+   OR rule_scope_id IN
+      (
+          SELECT rs.rule_scope_id
+          FROM rule_scopes AS rs
+          WHERE rs.owner_element_id IN (SELECT element_id FROM temp.affected_owner_elements)
+      );
 
 UPDATE grants
 SET target_element_id =
@@ -1729,6 +1802,8 @@ SET target_element_id =
     WHERE rec.aurora_id = grants.target_aurora_id
 )
 WHERE target_aurora_id IN (SELECT aurora_id FROM temp.affected_aurora_ids);");
+
+            ResolveGrantTargets(connection, transaction, affectedScopeOnly: true);
 
             ExecuteSql(connection, transaction, @"
 UPDATE element_extract_items
@@ -1755,6 +1830,8 @@ SET linked_element_id =
 )
 WHERE target_aurora_id IN (SELECT aurora_id FROM temp.affected_aurora_ids)
    OR lower(trim(item_text)) IN (SELECT normalized_name FROM temp.affected_normalized_names);");
+
+            ResolveExtractItemAliases(connection, transaction, affectedScopeOnly: true);
 
             ExecuteSql(connection, transaction, @"
 UPDATE select_items
@@ -3305,6 +3382,9 @@ LIMIT 1;";
             if (!string.IsNullOrWhiteSpace(targetAuroraId))
                 return "aurora-reference";
 
+            if (string.Equals(select?.type, "List", StringComparison.OrdinalIgnoreCase))
+                return "text-choice";
+
             string itemText = item?.value?.Trim();
             if (IsLikelyTextChoice(select?.name, itemText))
                 return "text-choice";
@@ -3624,11 +3704,441 @@ VALUES
                 : char.ToUpperInvariant(word[0]) + word[1..];
         }
 
+        private static void ResolveGrantTargets(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            bool affectedScopeOnly)
+        {
+            string scopeFilter = affectedScopeOnly
+                ? @"
+  AND
+  (
+      rs.owner_element_id IN (SELECT element_id FROM temp.affected_owner_elements)
+      OR g.target_aurora_id IN (SELECT aurora_id FROM temp.affected_aurora_ids)
+  )"
+                : string.Empty;
+
+            using var select = connection.CreateCommand();
+            select.Transaction = transaction;
+            select.CommandText = $@"
+SELECT
+    g.grant_id,
+    g.grant_type,
+    g.target_aurora_id
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+WHERE g.target_element_id IS NULL
+  AND COALESCE(g.target_semantic_key, '') = ''
+  AND g.target_aurora_id IS NOT NULL{scopeFilter};";
+
+            var grantRows = new List<(long GrantId, string GrantType, string TargetAuroraId)>();
+            using (var reader = select.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    grantRows.Add(
+                        (
+                            reader.GetInt64(0),
+                            reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                            reader.IsDBNull(2) ? string.Empty : reader.GetString(2)
+                        ));
+                }
+            }
+
+            using var updateElement = connection.CreateCommand();
+            updateElement.Transaction = transaction;
+            updateElement.CommandText = @"
+UPDATE grants
+SET target_element_id = $target_element_id,
+    target_semantic_key = NULL,
+    target_semantic_kind = NULL,
+    target_semantic_name = NULL
+WHERE grant_id = $grant_id;";
+            var updateElementId = updateElement.Parameters.Add("$target_element_id", SqliteType.Integer);
+            var updateElementGrantId = updateElement.Parameters.Add("$grant_id", SqliteType.Integer);
+
+            using var updateSemantic = connection.CreateCommand();
+            updateSemantic.Transaction = transaction;
+            updateSemantic.CommandText = @"
+UPDATE grants
+SET target_semantic_key = $target_semantic_key,
+    target_semantic_kind = $target_semantic_kind,
+    target_semantic_name = $target_semantic_name
+WHERE grant_id = $grant_id;";
+            var updateSemanticKey = updateSemantic.Parameters.Add("$target_semantic_key", SqliteType.Text);
+            var updateSemanticKind = updateSemantic.Parameters.Add("$target_semantic_kind", SqliteType.Text);
+            var updateSemanticName = updateSemantic.Parameters.Add("$target_semantic_name", SqliteType.Text);
+            var updateSemanticGrantId = updateSemantic.Parameters.Add("$grant_id", SqliteType.Integer);
+
+            foreach (var grantRow in grantRows)
+            {
+                if (TryResolveGrantElementFallback(connection, transaction, grantRow.GrantType, grantRow.TargetAuroraId, out long targetElementId))
+                {
+                    updateElementId.Value = targetElementId;
+                    updateElementGrantId.Value = grantRow.GrantId;
+                    updateElement.ExecuteNonQuery();
+                    continue;
+                }
+
+                if (TryResolveGrantSemantic(grantRow.TargetAuroraId, out string semanticKey, out string semanticKind, out string semanticName))
+                {
+                    updateSemanticKey.Value = semanticKey;
+                    updateSemanticKind.Value = semanticKind;
+                    updateSemanticName.Value = semanticName;
+                    updateSemanticGrantId.Value = grantRow.GrantId;
+                    updateSemantic.ExecuteNonQuery();
+                }
+            }
+        }
+
+        private static bool TryResolveGrantElementFallback(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            string grantType,
+            string targetAuroraId,
+            out long elementId)
+        {
+            elementId = 0;
+            if (string.IsNullOrWhiteSpace(targetAuroraId))
+                return false;
+
+            foreach (var alias in BuildGrantTargetAliases(grantType, targetAuroraId))
+            {
+                if (TryResolveElementByResolvedName(connection, transaction, alias.TargetName, alias.TypeNames, out elementId))
+                    return true;
+            }
+
+            foreach (var candidateName in BuildGrantTargetCandidateNames(grantType, targetAuroraId))
+            {
+                if (TryResolveElementByResolvedName(connection, transaction, candidateName, GetGrantFallbackTypeNames(grantType), out elementId))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryResolveGrantSemantic(
+            string targetAuroraId,
+            out string semanticKey,
+            out string semanticKind,
+            out string semanticName)
+        {
+            semanticKey = null;
+            semanticKind = null;
+            semanticName = null;
+
+            if (string.IsNullOrWhiteSpace(targetAuroraId))
+                return false;
+
+            if (targetAuroraId.StartsWith("ID_SIZE_", StringComparison.OrdinalIgnoreCase))
+            {
+                string sizeName = HumanizeAuroraToken(targetAuroraId["ID_SIZE_".Length..]);
+                semanticKey = targetAuroraId;
+                semanticKind = "size";
+                semanticName = sizeName;
+                return true;
+            }
+
+            if (!targetAuroraId.StartsWith("ID_INTERNAL_", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            string internalToken = targetAuroraId["ID_INTERNAL_".Length..];
+            semanticKey = targetAuroraId;
+
+            if (internalToken.StartsWith("CONDITION_DAMAGE_RESISTANCE_", StringComparison.OrdinalIgnoreCase))
+            {
+                semanticKind = "damage-resistance";
+                semanticName = HumanizeAuroraToken(internalToken["CONDITION_DAMAGE_RESISTANCE_".Length..]);
+                return true;
+            }
+
+            if (internalToken.StartsWith("CONDITION_DAMAGE_IMMUNITY_", StringComparison.OrdinalIgnoreCase))
+            {
+                semanticKind = "damage-immunity";
+                semanticName = HumanizeAuroraToken(internalToken["CONDITION_DAMAGE_IMMUNITY_".Length..]);
+                return true;
+            }
+
+            if (internalToken.StartsWith("CONDITION_DAMAGE_VULNERABILITY_", StringComparison.OrdinalIgnoreCase))
+            {
+                semanticKind = "damage-vulnerability";
+                semanticName = HumanizeAuroraToken(internalToken["CONDITION_DAMAGE_VULNERABILITY_".Length..]);
+                return true;
+            }
+
+            if (internalToken.StartsWith("CONDITION_CONDITION_IMMUNITY_", StringComparison.OrdinalIgnoreCase))
+            {
+                semanticKind = "condition-immunity";
+                semanticName = HumanizeAuroraToken(internalToken["CONDITION_CONDITION_IMMUNITY_".Length..]);
+                return true;
+            }
+
+            if (internalToken.StartsWith("GRANT_MULTICLASS_SPELLCASTING_SLOTS_", StringComparison.OrdinalIgnoreCase))
+            {
+                semanticKind = "multiclass-spellcasting-slots";
+                semanticName = HumanizeAuroraToken(internalToken["GRANT_MULTICLASS_SPELLCASTING_SLOTS_".Length..]);
+                return true;
+            }
+
+            if (internalToken.StartsWith("GRANTS_MULTICLASS_SPELLCASTING_SLOTS_", StringComparison.OrdinalIgnoreCase))
+            {
+                semanticKind = "multiclass-spellcasting-slots";
+                semanticName = HumanizeAuroraToken(internalToken["GRANTS_MULTICLASS_SPELLCASTING_SLOTS_".Length..]);
+                return true;
+            }
+
+            if (internalToken.StartsWith("GRANT_", StringComparison.OrdinalIgnoreCase))
+            {
+                string suffix = internalToken["GRANT_".Length..];
+                semanticKind = BuildSemanticKindFromInternalGrantSuffix(suffix);
+                semanticName = HumanizeAuroraToken(suffix);
+                return true;
+            }
+
+            if (internalToken.StartsWith("GRANTS_", StringComparison.OrdinalIgnoreCase))
+            {
+                string suffix = internalToken["GRANTS_".Length..];
+                semanticKind = BuildSemanticKindFromInternalGrantSuffix(suffix);
+                semanticName = HumanizeAuroraToken(suffix);
+                return true;
+            }
+
+            semanticKind = internalToken.ToLowerInvariant().Replace('_', '-');
+            semanticName = HumanizeAuroraToken(internalToken);
+            return true;
+        }
+
+        private static void ResolveExtractItemAliases(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            bool affectedScopeOnly)
+        {
+            string scopeFilter = affectedScopeOnly
+                ? @"
+  AND ex.element_id IN (SELECT element_id FROM temp.affected_owner_elements)"
+                : string.Empty;
+
+            using var select = connection.CreateCommand();
+            select.Transaction = transaction;
+            select.CommandText = $@"
+SELECT
+    ei.extract_item_id,
+    ei.target_aurora_id
+FROM element_extract_items AS ei
+JOIN element_extracts AS ex
+    ON ex.element_id = ei.element_id
+WHERE ei.linked_element_id IS NULL
+  AND ei.target_aurora_id IS NOT NULL{scopeFilter};";
+
+            var rows = new List<(long ExtractItemId, string TargetAuroraId)>();
+            using (var reader = select.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    rows.Add((reader.GetInt64(0), reader.IsDBNull(1) ? string.Empty : reader.GetString(1)));
+                }
+            }
+
+            using var update = connection.CreateCommand();
+            update.Transaction = transaction;
+            update.CommandText = @"
+UPDATE element_extract_items
+SET linked_element_id = $linked_element_id
+WHERE extract_item_id = $extract_item_id;";
+            var linkedElementId = update.Parameters.Add("$linked_element_id", SqliteType.Integer);
+            var extractItemId = update.Parameters.Add("$extract_item_id", SqliteType.Integer);
+
+            foreach (var row in rows)
+            {
+                if (!ExtractTargetAliasMap.TryGetValue(row.TargetAuroraId ?? string.Empty, out var alias))
+                    continue;
+
+                if (!TryResolveElementByResolvedName(connection, transaction, alias.TargetName, alias.TypeNames, out long resolvedElementId))
+                    continue;
+
+                linkedElementId.Value = resolvedElementId;
+                extractItemId.Value = row.ExtractItemId;
+                update.ExecuteNonQuery();
+            }
+        }
+
+        private static string BuildSemanticKindFromInternalGrantSuffix(string suffix)
+        {
+            if (string.IsNullOrWhiteSpace(suffix))
+                return "internal-grant";
+
+            if (suffix.StartsWith("MULTICLASS_SPELLCASTING_SLOTS_", StringComparison.OrdinalIgnoreCase))
+                return "multiclass-spellcasting-slots";
+
+            return suffix.ToLowerInvariant().Replace('_', '-');
+        }
+
+        private static bool TryResolveElementByResolvedName(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            string targetName,
+            IReadOnlyList<string> typeNames,
+            out long elementId)
+        {
+            elementId = 0;
+            if (string.IsNullOrWhiteSpace(targetName) || typeNames == null || typeNames.Count == 0)
+                return false;
+
+            string normalizedName = targetName.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(normalizedName))
+                return false;
+
+            foreach (string typeName in typeNames.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = @"
+SELECT rec.winning_element_id
+FROM resolved_elements_cache AS rec
+JOIN elements AS e
+    ON e.element_id = rec.winning_element_id
+JOIN element_types AS et
+    ON et.element_type_id = e.element_type_id
+WHERE lower(trim(e.name)) = $normalized_name
+  AND et.type_name = $type_name
+ORDER BY rec.precedence_rank DESC, rec.winning_element_id ASC
+LIMIT 1;";
+                command.Parameters.AddWithValue("$normalized_name", normalizedName);
+                command.Parameters.AddWithValue("$type_name", typeName);
+                object result = command.ExecuteScalar();
+                if (result is long longId)
+                {
+                    elementId = longId;
+                    return true;
+                }
+
+                if (result is int intId)
+                {
+                    elementId = intId;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static IReadOnlyList<string> GetGrantFallbackTypeNames(string grantType)
+        {
+            string normalizedGrantType = grantType?.Trim() ?? string.Empty;
+            return normalizedGrantType switch
+            {
+                "Feat Feature" => new[] { "Feat Feature", "Feat" },
+                "Class Feature" => new[] { "Class Feature" },
+                "Archetype Feature" => new[] { "Archetype Feature" },
+                "Language" => new[] { "Language" },
+                "Spell" => new[] { "Spell" },
+                _ => string.IsNullOrWhiteSpace(normalizedGrantType)
+                    ? Array.Empty<string>()
+                    : new[] { normalizedGrantType }
+            };
+        }
+
+        private static IEnumerable<(string TargetName, IReadOnlyList<string> TypeNames)> BuildGrantTargetAliases(string grantType, string targetAuroraId)
+        {
+            if (string.IsNullOrWhiteSpace(targetAuroraId))
+                yield break;
+
+            if (GrantTargetAliasMap.TryGetValue(targetAuroraId, out var alias))
+            {
+                yield return alias;
+            }
+        }
+
+        private static IEnumerable<string> BuildGrantTargetCandidateNames(string grantType, string targetAuroraId)
+        {
+            var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(targetAuroraId))
+                return candidates;
+
+            string[] tokens = targetAuroraId
+                .Split('_', StringSplitOptions.RemoveEmptyEntries)
+                .Where(token => !token.Equals("ID", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            if (tokens.Length == 0)
+                return candidates;
+
+            void AddCandidate(IEnumerable<string> candidateTokens)
+            {
+                string candidate = HumanizeAuroraToken(candidateTokens);
+                if (!string.IsNullOrWhiteSpace(candidate))
+                    candidates.Add(candidate);
+            }
+
+            int spellIndex = Array.LastIndexOf(tokens, "SPELL");
+            if (spellIndex >= 0 && spellIndex < tokens.Length - 1)
+                AddCandidate(tokens.Skip(spellIndex + 1));
+
+            int languageIndex = Array.LastIndexOf(tokens, "LANGUAGE");
+            if (languageIndex >= 0 && languageIndex < tokens.Length - 1)
+                AddCandidate(tokens.Skip(languageIndex + 1));
+
+            int featuresIndex = Array.LastIndexOf(tokens, "FEATURES");
+            if (featuresIndex > 0)
+            {
+                int startIndex = Array.FindLastIndex(tokens, featuresIndex - 1,
+                    token => token is "FEAT" or "CLASS" or "ARCHETYPE" or "RACIAL" or "RACE");
+                startIndex = startIndex >= 0 ? startIndex + 1 : 1;
+                if (startIndex < featuresIndex)
+                    AddCandidate(tokens.Skip(startIndex).Take(featuresIndex - startIndex));
+            }
+
+            int featureIndex = Array.LastIndexOf(tokens, "FEATURE");
+            if (featureIndex >= 0 && featureIndex < tokens.Length - 1)
+            {
+                string[] trailing = tokens.Skip(featureIndex + 1)
+                    .SkipWhile(token => token is "REPLACEMENT" or "OPTION" or "OPTIONS")
+                    .ToArray();
+                if (trailing.Length > 0)
+                {
+                    AddCandidate(trailing);
+                    if (trailing.Length > 1)
+                    {
+                        string candidate = $"{HumanizeAuroraToken(trailing.Skip(1))}: {HumanizeAuroraToken(trailing.Take(1))}";
+                        if (!string.IsNullOrWhiteSpace(candidate))
+                            candidates.Add(candidate);
+                    }
+                }
+            }
+
+            return candidates;
+        }
+
+        private static string HumanizeAuroraToken(IEnumerable<string> tokens)
+        {
+            if (tokens == null)
+                return null;
+
+            string[] words = tokens
+                .Where(token => !string.IsNullOrWhiteSpace(token))
+                .Select(CapitalizeWord)
+                .ToArray();
+
+            return words.Length == 0 ? null : string.Join(" ", words);
+        }
+
+        private static string HumanizeAuroraToken(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                return null;
+
+            return HumanizeAuroraToken(token.Split('_', StringSplitOptions.RemoveEmptyEntries));
+        }
+
         private static void ResolveDeferredRelationships(SqliteConnection connection, SqliteTransaction transaction)
         {
             ExecuteSql(connection, transaction, @"
 UPDATE grants
-SET target_element_id = NULL
+SET target_element_id = NULL,
+    target_semantic_key = NULL,
+    target_semantic_kind = NULL,
+    target_semantic_name = NULL
 WHERE target_aurora_id IS NOT NULL;");
 
             ExecuteSql(connection, transaction, @"
@@ -3686,6 +4196,8 @@ SET target_element_id =
 WHERE target_element_id IS NULL
   AND target_aurora_id IS NOT NULL;");
 
+            ResolveGrantTargets(connection, transaction, affectedScopeOnly: false);
+
             ExecuteSql(connection, transaction, @"
 UPDATE element_extract_items
 SET linked_element_id =
@@ -3705,6 +4217,8 @@ SET linked_element_id =
 )
 WHERE linked_element_id IS NULL
   AND (target_aurora_id IS NOT NULL OR item_text IS NOT NULL);");
+
+            ResolveExtractItemAliases(connection, transaction, affectedScopeOnly: false);
 
             ExecuteSql(connection, transaction, @"
 UPDATE select_items

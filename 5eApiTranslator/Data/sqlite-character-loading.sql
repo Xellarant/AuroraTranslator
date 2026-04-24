@@ -582,6 +582,9 @@ CREATE TABLE IF NOT EXISTS grants
     grant_type TEXT NOT NULL,
     target_aurora_id TEXT,
     target_element_id INTEGER REFERENCES elements(element_id) ON DELETE SET NULL,
+    target_semantic_key TEXT,
+    target_semantic_kind TEXT,
+    target_semantic_name TEXT,
     name_text TEXT,
     grant_level INTEGER,
     spellcasting_name TEXT,
@@ -592,6 +595,7 @@ CREATE TABLE IF NOT EXISTS grants
 
 CREATE INDEX IF NOT EXISTS ix_grants_target ON grants(target_aurora_id, grant_type);
 CREATE INDEX IF NOT EXISTS ix_grants_owner_level ON grants(rule_scope_id, grant_level);
+CREATE INDEX IF NOT EXISTS ix_grants_semantic ON grants(target_semantic_key, target_semantic_kind);
 
 CREATE TABLE IF NOT EXISTS selects
 (
@@ -873,6 +877,7 @@ JOIN element_types AS owner_type
     ON owner_type.element_type_id = owner.element_type_id
 WHERE g.target_aurora_id IS NOT NULL
   AND g.target_element_id IS NULL
+  AND COALESCE(g.target_semantic_key, '') = ''
 
 UNION ALL
 
@@ -1014,6 +1019,9 @@ SELECT
         WHEN raw.link_kind = 'archetype-parent'
          AND raw.unresolved_text = 'Training Paradigm'
             THEN 'missing-source'
+        WHEN raw.link_kind = 'grant'
+         AND COALESCE(trim(raw.unresolved_key), '') = ''
+            THEN 'missing-source'
         ELSE 'actionable'
     END AS diagnostic_status,
     CASE
@@ -1043,6 +1051,9 @@ SELECT
         WHEN raw.link_kind = 'archetype-parent'
          AND raw.unresolved_text = 'Training Paradigm'
             THEN 'archetype-base-class-not-imported'
+        WHEN raw.link_kind = 'grant'
+         AND COALESCE(trim(raw.unresolved_key), '') = ''
+            THEN 'grant-empty-target-id'
         ELSE NULL
     END AS diagnostic_reason
 FROM v_unresolved_loader_links AS raw
@@ -1269,6 +1280,9 @@ SELECT
     g.grant_type,
     g.name_text,
     g.target_aurora_id,
+    g.target_semantic_key,
+    g.target_semantic_kind,
+    g.target_semantic_name,
     g.grant_level,
     g.requirements_text,
     target.element_id AS target_element_id,
