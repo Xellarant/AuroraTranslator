@@ -368,10 +368,45 @@ ORDER BY
             EnsurePackageAdministrationSchema(connection, refreshViews: true);
 
             long totalUnresolvedCount;
+            long actionableUnresolvedCount;
             using (var totalCommand = connection.CreateCommand())
             {
-                totalCommand.CommandText = "SELECT COUNT(*) FROM v_unresolved_loader_links;";
+                totalCommand.CommandText = "SELECT COUNT(*) FROM v_unresolved_loader_link_diagnostics;";
                 totalUnresolvedCount = (long)(totalCommand.ExecuteScalar() ?? 0L);
+            }
+
+            using (var actionableCommand = connection.CreateCommand())
+            {
+                actionableCommand.CommandText = @"
+SELECT COUNT(*)
+FROM v_unresolved_loader_link_diagnostics
+WHERE diagnostic_status = 'actionable';";
+                actionableUnresolvedCount = (long)(actionableCommand.ExecuteScalar() ?? 0L);
+            }
+
+            var deferredSummaries = new List<UnresolvedLinkDeferredSummary>();
+            using (var deferredCommand = connection.CreateCommand())
+            {
+                deferredCommand.CommandText = @"
+SELECT
+    diagnostic_status,
+    diagnostic_reason,
+    link_kind,
+    COUNT(*) AS total_count
+FROM v_unresolved_loader_link_diagnostics
+WHERE diagnostic_status <> 'actionable'
+GROUP BY diagnostic_status, diagnostic_reason, link_kind
+ORDER BY total_count DESC, diagnostic_status ASC, link_kind ASC;";
+
+                using var deferredReader = deferredCommand.ExecuteReader();
+                while (deferredReader.Read())
+                {
+                    string diagnosticStatus = deferredReader.GetString(0);
+                    string diagnosticReason = deferredReader.IsDBNull(1) ? null : deferredReader.GetString(1);
+                    string linkKind = deferredReader.GetString(2);
+                    int totalCount = Convert.ToInt32(deferredReader.GetInt64(3));
+                    deferredSummaries.Add(new UnresolvedLinkDeferredSummary(diagnosticStatus, diagnosticReason, linkKind, totalCount));
+                }
             }
 
             var kindSummaries = new List<UnresolvedLinkKindSummary>();
@@ -382,7 +417,8 @@ ORDER BY
 SELECT
     link_kind,
     COUNT(*) AS total_count
-FROM v_unresolved_loader_links
+FROM v_unresolved_loader_link_diagnostics
+WHERE diagnostic_status = 'actionable'
 GROUP BY link_kind
 ORDER BY total_count DESC, link_kind ASC;";
 
@@ -396,7 +432,7 @@ ORDER BY total_count DESC, link_kind ASC;";
                 }
             }
 
-            return new UnresolvedLinkDiagnosticsReport(totalUnresolvedCount, kindSummaries);
+            return new UnresolvedLinkDiagnosticsReport(totalUnresolvedCount, actionableUnresolvedCount, deferredSummaries, kindSummaries);
         }
 
         // ── Schema / DB setup ────────────────────────────────────────────────────
@@ -508,6 +544,31 @@ WHERE option_kind IS NULL
             classify.ExecuteNonQuery();
         }
 
+        private static void SeedParentFamilyAliases(SqliteConnection connection)
+        {
+            using var seed = connection.CreateCommand();
+            seed.CommandText = @"
+INSERT OR IGNORE INTO parent_family_aliases
+(alias_text, link_kind, target_name, target_type_name, target_aurora_id, resolution_kind, priority)
+VALUES
+('Replicate Magic Item Option', 'feature-parent', 'Replicate Magic Item', 'Class Feature', NULL, 'target-name', 100),
+('Artificer Infusion', 'feature-parent', 'Infuse Item', 'Class Feature', NULL, 'target-name', 100),
+('UA Artificer Infusion', 'feature-parent', 'Infuse Item', 'Class Feature', NULL, 'target-name', 100),
+('Kibbles Psionic Talent', 'feature-parent', 'Psionic Talents', 'Class Feature', NULL, 'target-name', 100),
+('Kensei Weapon', 'feature-parent', 'Path of the Kensei', 'Archetype Feature', NULL, 'target-name', 100),
+('Humanoid Favored Enemy', 'feature-parent', 'Favored Enemy', 'Class Feature', NULL, 'target-name', 100),
+('PHB24 Eldritch Invocation', 'feature-parent', 'Level 1: Eldritch Invocations', 'Class Feature', NULL, 'target-name', 100),
+('Weapon Mastery', 'feature-parent', 'Level 1: Weapon Mastery', 'Class Feature', NULL, 'target-name', 100),
+('Improvement Option', 'feature-parent', 'Ability Score Improvement', 'Class Feature', NULL, 'target-name', 100),
+('Blood Hunter Order', 'archetype-parent', 'Blood Hunter', 'Class', NULL, 'target-name', 100),
+('Artificer Specialist', 'archetype-parent', 'Artificer', 'Class', NULL, 'target-name', 100),
+('UA Artificer Specialist', 'archetype-parent', 'Artificer', 'Class', NULL, 'target-name', 100),
+('Bender Discipline', 'archetype-parent', 'Bender', 'Class', NULL, 'target-name', 100),
+('Avenger Archetype', 'archetype-parent', 'Avenger', 'Class', NULL, 'target-name', 100),
+('Kibbles Psionic Archetype', 'archetype-parent', 'Psion', 'Class', NULL, 'target-name', 100);";
+            seed.ExecuteNonQuery();
+        }
+
         private static IReadOnlyList<UnresolvedLinkPatternSummary> LoadUnresolvedPatterns(
             SqliteConnection connection,
             string linkKind,
@@ -531,8 +592,9 @@ WITH ranked AS
                      COALESCE(unresolved_key, unresolved_text, '') ASC,
                      COALESCE(unresolved_text, unresolved_key, '') ASC
         ) AS rank_in_kind
-    FROM v_unresolved_loader_links
+    FROM v_unresolved_loader_link_diagnostics
     WHERE link_kind = $link_kind
+      AND diagnostic_status = 'actionable'
     GROUP BY link_kind, unresolved_key, unresolved_text
 )
 SELECT
@@ -586,8 +648,9 @@ SELECT DISTINCT
     owner_name,
     owner_type_name,
     owner_aurora_id
-FROM v_unresolved_loader_links
+FROM v_unresolved_loader_link_diagnostics
 WHERE link_kind = $link_kind
+  AND diagnostic_status = 'actionable'
   AND ((unresolved_key = $unresolved_key) OR (unresolved_key IS NULL AND $unresolved_key IS NULL))
   AND ((unresolved_text = $unresolved_text) OR (unresolved_text IS NULL AND $unresolved_text IS NULL))
 ORDER BY owner_name ASC, owner_aurora_id ASC
@@ -850,7 +913,21 @@ CREATE TABLE IF NOT EXISTS resolved_unique_element_names_cache
     name TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_resolved_unique_names_element
-    ON resolved_unique_element_names_cache(winning_element_id);";
+    ON resolved_unique_element_names_cache(winning_element_id);
+
+CREATE TABLE IF NOT EXISTS parent_family_aliases
+(
+    alias_text TEXT NOT NULL,
+    link_kind TEXT NOT NULL CHECK (link_kind IN ('feature-parent', 'archetype-parent')),
+    target_name TEXT,
+    target_type_name TEXT,
+    target_aurora_id TEXT,
+    resolution_kind TEXT NOT NULL DEFAULT 'target-name',
+    priority INTEGER NOT NULL DEFAULT 100,
+    PRIMARY KEY (alias_text, link_kind)
+);
+CREATE INDEX IF NOT EXISTS ix_parent_family_aliases_target_name
+    ON parent_family_aliases(link_kind, target_name, target_type_name);";
             cacheTables.ExecuteNonQuery();
 
             using var selectItemKindIndex = connection.CreateCommand();
@@ -860,6 +937,7 @@ CREATE INDEX IF NOT EXISTS ix_select_items_kind
             selectItemKindIndex.ExecuteNonQuery();
 
             BackfillSelectItemOptionKinds(connection);
+            SeedParentFamilyAliases(connection);
 
             if (refreshViews)
                 RefreshResolutionViews(connection);
@@ -1083,7 +1161,104 @@ JOIN elements AS archetype
 JOIN element_types AS archetype_type
     ON archetype_type.element_type_id = archetype.element_type_id
 WHERE archetype_meta.parent_support_text IS NOT NULL
-  AND archetype_meta.parent_class_element_id IS NULL;";
+  AND archetype_meta.parent_class_element_id IS NULL;
+
+DROP VIEW IF EXISTS v_unresolved_loader_link_diagnostics;
+CREATE VIEW v_unresolved_loader_link_diagnostics AS
+WITH background_file_counts AS
+(
+    SELECT
+        bg.source_file_id,
+        COUNT(*) AS background_count
+    FROM backgrounds AS b
+    JOIN elements AS bg
+        ON bg.element_id = b.element_id
+    GROUP BY bg.source_file_id
+),
+feature_parent_family_counts AS
+(
+    SELECT
+        unresolved_text,
+        COUNT(*) AS family_count
+    FROM v_unresolved_loader_links
+    WHERE link_kind = 'feature-parent'
+      AND unresolved_text IS NOT NULL
+    GROUP BY unresolved_text
+)
+SELECT
+    raw.link_kind,
+    raw.owner_element_id,
+    raw.owner_aurora_id,
+    raw.owner_name,
+    raw.owner_type_name,
+    raw.link_id,
+    raw.unresolved_key,
+    raw.unresolved_text,
+    CASE
+        WHEN raw.link_kind = 'feature-parent'
+         AND raw.unresolved_text = 'Background Feature'
+         AND COALESCE(background_file_counts.background_count, 0) = 0
+            THEN 'option-pool'
+        WHEN raw.link_kind = 'feature-parent'
+         AND
+         (
+             COALESCE(feature_parent_family_counts.family_count, 0) > 1
+             OR raw.unresolved_text LIKE '%Option%'
+             OR raw.unresolved_text LIKE 'PHB24 %'
+             OR raw.unresolved_text LIKE 'Starry Form %'
+             OR raw.unresolved_text LIKE 'Elemental Initiate %'
+             OR raw.unresolved_text IN
+                (
+                    'BH Variant',
+                    'MAgic of the Blade',
+                    'Monster Type',
+                    'Necromancer Variant Feature',
+                    'Pactd Boon',
+                    'vampire'
+                )
+         )
+            THEN 'option-pool'
+        WHEN raw.link_kind = 'archetype-parent'
+         AND raw.unresolved_text = 'Training Paradigm'
+            THEN 'missing-source'
+        ELSE 'actionable'
+    END AS diagnostic_status,
+    CASE
+        WHEN raw.link_kind = 'feature-parent'
+         AND raw.unresolved_text = 'Background Feature'
+         AND COALESCE(background_file_counts.background_count, 0) = 0
+            THEN 'background-feature-option-pool'
+        WHEN raw.link_kind = 'feature-parent'
+         AND
+         (
+             COALESCE(feature_parent_family_counts.family_count, 0) > 1
+             OR raw.unresolved_text LIKE '%Option%'
+             OR raw.unresolved_text LIKE 'PHB24 %'
+             OR raw.unresolved_text LIKE 'Starry Form %'
+             OR raw.unresolved_text LIKE 'Elemental Initiate %'
+             OR raw.unresolved_text IN
+                (
+                    'BH Variant',
+                    'MAgic of the Blade',
+                    'Monster Type',
+                    'Necromancer Variant Feature',
+                    'Pactd Boon',
+                    'vampire'
+                )
+         )
+            THEN 'feature-family-option-pool'
+        WHEN raw.link_kind = 'archetype-parent'
+         AND raw.unresolved_text = 'Training Paradigm'
+            THEN 'archetype-base-class-not-imported'
+        ELSE NULL
+    END AS diagnostic_reason
+FROM v_unresolved_loader_links AS raw
+LEFT JOIN elements AS owner
+    ON owner.element_id = raw.owner_element_id
+LEFT JOIN background_file_counts
+    ON background_file_counts.source_file_id = owner.source_file_id
+LEFT JOIN feature_parent_family_counts
+    ON feature_parent_family_counts.unresolved_text = raw.unresolved_text;";
             views.ExecuteNonQuery();
         }
 
@@ -1456,7 +1631,31 @@ SELECT element_id
 FROM features
 WHERE parent_element_id IN (SELECT element_id FROM temp.affected_winner_elements)
    OR parent_support_text IN (SELECT aurora_id FROM temp.affected_aurora_ids)
-   OR lower(trim(parent_support_text)) IN (SELECT normalized_name FROM temp.affected_normalized_names);
+   OR lower(trim(parent_support_text)) IN (SELECT normalized_name FROM temp.affected_normalized_names)
+   OR parent_support_text IN
+      (
+          SELECT alias_text
+          FROM parent_family_aliases
+          WHERE link_kind = 'feature-parent'
+            AND
+            (
+                target_aurora_id IN (SELECT aurora_id FROM temp.affected_aurora_ids)
+                OR lower(trim(target_name)) IN (SELECT normalized_name FROM temp.affected_normalized_names)
+            )
+      );
+
+INSERT OR IGNORE INTO temp.affected_owner_elements (element_id)
+SELECT f.element_id
+FROM features AS f
+JOIN elements AS owner
+    ON owner.element_id = f.element_id
+WHERE f.parent_support_text = 'Background Feature'
+  AND owner.source_file_id IN
+  (
+      SELECT DISTINCT source_file_id
+      FROM elements
+      WHERE element_id IN (SELECT element_id FROM temp.affected_winner_elements)
+  );
 
 INSERT OR IGNORE INTO temp.affected_owner_elements (element_id)
 SELECT element_id
@@ -1504,7 +1703,18 @@ WHERE parent_class_element_id IN (SELECT element_id FROM temp.affected_winner_el
    OR parent_support_text IN (SELECT aurora_id FROM temp.affected_aurora_ids)
    OR lower(trim(parent_support_text)) IN (SELECT normalized_name FROM temp.affected_normalized_names)
    OR lower(trim(parent_support_text)) IN
-      (SELECT normalized_name || ' subclass' FROM temp.affected_normalized_names);");
+      (SELECT normalized_name || ' subclass' FROM temp.affected_normalized_names)
+   OR parent_support_text IN
+      (
+          SELECT alias_text
+          FROM parent_family_aliases
+          WHERE link_kind = 'archetype-parent'
+            AND
+            (
+                target_aurora_id IN (SELECT aurora_id FROM temp.affected_aurora_ids)
+                OR lower(trim(target_name)) IN (SELECT normalized_name FROM temp.affected_normalized_names)
+            )
+      );");
 
             ExecuteSql(connection, transaction, @"
 UPDATE grants
@@ -1611,7 +1821,9 @@ SET race_element_id =
        OR subraces.parent_support_text = parent.name || ' Ancestry'
        OR subraces.parent_support_text LIKE '% ' || parent.name
 )
-WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements);");
+WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements)
+  AND parent_element_id IS NULL
+  AND parent_support_text IS NOT NULL;");
 
             ExecuteSql(connection, transaction, @"
 UPDATE race_variants
@@ -1647,6 +1859,120 @@ WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements);");
 UPDATE features
 SET parent_element_id =
 (
+    SELECT bg.element_id
+    FROM elements AS owner
+    JOIN backgrounds AS b
+        ON 1 = 1
+    JOIN elements AS bg
+        ON bg.element_id = b.element_id
+    WHERE owner.element_id = features.element_id
+      AND bg.source_file_id = owner.source_file_id
+      AND bg.element_id < owner.element_id
+    ORDER BY bg.element_id DESC
+    LIMIT 1
+)
+WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements)
+  AND parent_element_id IS NULL
+  AND parent_support_text = 'Background Feature';");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE features
+SET parent_element_id =
+(
+    SELECT bg.element_id
+    FROM elements AS owner
+    JOIN backgrounds AS b
+        ON 1 = 1
+    JOIN elements AS bg
+        ON bg.element_id = b.element_id
+    WHERE owner.element_id = features.element_id
+      AND bg.source_file_id = owner.source_file_id
+    ORDER BY bg.element_id ASC
+    LIMIT 1
+)
+WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements)
+  AND parent_element_id IS NULL
+  AND parent_support_text = 'Background Feature';");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE features
+SET parent_element_id =
+(
+    SELECT parent.element_id
+    FROM parent_family_aliases AS alias
+    JOIN elements AS owner
+        ON owner.element_id = features.element_id
+    LEFT JOIN source_files AS owner_file
+        ON owner_file.source_file_id = owner.source_file_id
+    JOIN elements AS parent
+        ON
+        (
+            (alias.target_aurora_id IS NOT NULL AND parent.aurora_id = alias.target_aurora_id)
+            OR (alias.target_name IS NOT NULL AND parent.name = alias.target_name)
+        )
+    JOIN element_types AS parent_type
+        ON parent_type.element_type_id = parent.element_type_id
+    LEFT JOIN source_files AS parent_file
+        ON parent_file.source_file_id = parent.source_file_id
+    LEFT JOIN resolved_elements_cache AS rec
+        ON rec.winning_element_id = parent.element_id
+    WHERE alias.link_kind = 'feature-parent'
+      AND alias.alias_text = features.parent_support_text
+      AND (alias.target_type_name IS NULL OR alias.target_type_name = parent_type.type_name)
+    ORDER BY
+        CASE WHEN owner.source_file_id = parent.source_file_id THEN 1 ELSE 0 END DESC,
+        CASE WHEN owner_file.content_package_id = parent_file.content_package_id THEN 1 ELSE 0 END DESC,
+        CASE WHEN rec.winning_element_id IS NOT NULL THEN 1 ELSE 0 END DESC,
+        COALESCE(rec.precedence_rank, -1) DESC,
+        alias.priority ASC,
+        parent.element_id ASC
+    LIMIT 1
+)
+WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements)
+  AND parent_element_id IS NULL
+  AND parent_support_text IS NOT NULL;");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE features
+SET parent_element_id =
+(
+    SELECT parent.element_id
+    FROM parent_family_aliases AS alias
+    JOIN elements AS owner
+        ON owner.element_id = features.element_id
+    LEFT JOIN source_files AS owner_file
+        ON owner_file.source_file_id = owner.source_file_id
+    JOIN elements AS parent
+        ON
+        (
+            (alias.target_aurora_id IS NOT NULL AND parent.aurora_id = alias.target_aurora_id)
+            OR (alias.target_name IS NOT NULL AND parent.name = alias.target_name)
+        )
+    JOIN element_types AS parent_type
+        ON parent_type.element_type_id = parent.element_type_id
+    LEFT JOIN source_files AS parent_file
+        ON parent_file.source_file_id = parent.source_file_id
+    LEFT JOIN resolved_elements_cache AS rec
+        ON rec.winning_element_id = parent.element_id
+    WHERE alias.link_kind = 'feature-parent'
+      AND alias.alias_text = features.parent_support_text
+      AND (alias.target_type_name IS NULL OR alias.target_type_name = parent_type.type_name)
+    ORDER BY
+        CASE WHEN owner.source_file_id = parent.source_file_id THEN 1 ELSE 0 END DESC,
+        CASE WHEN owner_file.content_package_id = parent_file.content_package_id THEN 1 ELSE 0 END DESC,
+        CASE WHEN rec.winning_element_id IS NOT NULL THEN 1 ELSE 0 END DESC,
+        COALESCE(rec.precedence_rank, -1) DESC,
+        alias.priority ASC,
+        parent.element_id ASC
+    LIMIT 1
+)
+WHERE parent_element_id IS NULL
+  AND parent_support_text IS NOT NULL;");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE features
+SET parent_element_id =
+(
     SELECT MIN(parent.element_id)
     FROM elements AS parent
     JOIN resolved_elements_cache AS rec
@@ -1654,7 +1980,47 @@ SET parent_element_id =
     WHERE parent.aurora_id = features.parent_support_text
        OR parent.name = features.parent_support_text
 )
-WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements);");
+WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements)
+  AND parent_element_id IS NULL
+  AND parent_support_text IS NOT NULL;");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE archetypes
+SET parent_class_element_id =
+(
+    SELECT class_element.element_id
+    FROM parent_family_aliases AS alias
+    JOIN elements AS owner
+        ON owner.element_id = archetypes.element_id
+    LEFT JOIN source_files AS owner_file
+        ON owner_file.source_file_id = owner.source_file_id
+    JOIN elements AS class_element
+        ON
+        (
+            (alias.target_aurora_id IS NOT NULL AND class_element.aurora_id = alias.target_aurora_id)
+            OR (alias.target_name IS NOT NULL AND class_element.name = alias.target_name)
+        )
+    JOIN element_types AS et
+        ON et.element_type_id = class_element.element_type_id
+    LEFT JOIN source_files AS class_file
+        ON class_file.source_file_id = class_element.source_file_id
+    LEFT JOIN resolved_elements_cache AS rec
+        ON rec.winning_element_id = class_element.element_id
+    WHERE alias.link_kind = 'archetype-parent'
+      AND alias.alias_text = archetypes.parent_support_text
+      AND (alias.target_type_name IS NULL OR alias.target_type_name = et.type_name)
+    ORDER BY
+        CASE WHEN owner.source_file_id = class_element.source_file_id THEN 1 ELSE 0 END DESC,
+        CASE WHEN owner_file.content_package_id = class_file.content_package_id THEN 1 ELSE 0 END DESC,
+        CASE WHEN rec.winning_element_id IS NOT NULL THEN 1 ELSE 0 END DESC,
+        COALESCE(rec.precedence_rank, -1) DESC,
+        alias.priority ASC,
+        class_element.element_id ASC
+    LIMIT 1
+)
+WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements)
+  AND parent_class_element_id IS NULL
+  AND parent_support_text IS NOT NULL;");
 
             ExecuteSql(connection, transaction, @"
 UPDATE archetypes
@@ -1684,7 +2050,9 @@ SET parent_class_element_id =
           OR (archetypes.parent_support_text = 'Primal Path' AND class_element.name = 'Barbarian')
       )
 )
-WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements);
+WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements)
+  AND parent_class_element_id IS NULL
+  AND parent_support_text IS NOT NULL;
 
 UPDATE archetypes
 SET parent_class_element_id =
@@ -3335,8 +3703,7 @@ SET linked_element_id =
         )
     )
 )
-WHERE option_kind <> 'text-choice'
-  AND linked_element_id IS NULL
+WHERE linked_element_id IS NULL
   AND (target_aurora_id IS NOT NULL OR item_text IS NOT NULL);");
 
             ExecuteSql(connection, transaction, @"
@@ -3356,7 +3723,8 @@ SET linked_element_id =
         )
     )
 )
-WHERE linked_element_id IS NULL
+WHERE option_kind <> 'text-choice'
+  AND linked_element_id IS NULL
   AND (target_aurora_id IS NOT NULL OR item_text IS NOT NULL);");
 
             ExecuteSql(connection, transaction, @"
@@ -3412,6 +3780,80 @@ WHERE background_element_id IS NULL
 UPDATE features
 SET parent_element_id =
 (
+    SELECT bg.element_id
+    FROM elements AS owner
+    JOIN backgrounds AS b
+        ON 1 = 1
+    JOIN elements AS bg
+        ON bg.element_id = b.element_id
+    WHERE owner.element_id = features.element_id
+      AND bg.source_file_id = owner.source_file_id
+      AND bg.element_id < owner.element_id
+    ORDER BY bg.element_id DESC
+    LIMIT 1
+)
+WHERE parent_element_id IS NULL
+  AND parent_support_text = 'Background Feature';");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE features
+SET parent_element_id =
+(
+    SELECT bg.element_id
+    FROM elements AS owner
+    JOIN backgrounds AS b
+        ON 1 = 1
+    JOIN elements AS bg
+        ON bg.element_id = b.element_id
+    WHERE owner.element_id = features.element_id
+      AND bg.source_file_id = owner.source_file_id
+    ORDER BY bg.element_id ASC
+    LIMIT 1
+)
+WHERE parent_element_id IS NULL
+  AND parent_support_text = 'Background Feature';");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE features
+SET parent_element_id =
+(
+    SELECT parent.element_id
+    FROM parent_family_aliases AS alias
+    JOIN elements AS owner
+        ON owner.element_id = features.element_id
+    LEFT JOIN source_files AS owner_file
+        ON owner_file.source_file_id = owner.source_file_id
+    JOIN elements AS parent
+        ON
+        (
+            (alias.target_aurora_id IS NOT NULL AND parent.aurora_id = alias.target_aurora_id)
+            OR (alias.target_name IS NOT NULL AND parent.name = alias.target_name)
+        )
+    JOIN element_types AS parent_type
+        ON parent_type.element_type_id = parent.element_type_id
+    LEFT JOIN source_files AS parent_file
+        ON parent_file.source_file_id = parent.source_file_id
+    LEFT JOIN resolved_elements_cache AS rec
+        ON rec.winning_element_id = parent.element_id
+    WHERE alias.link_kind = 'feature-parent'
+      AND alias.alias_text = features.parent_support_text
+      AND (alias.target_type_name IS NULL OR alias.target_type_name = parent_type.type_name)
+    ORDER BY
+        CASE WHEN owner.source_file_id = parent.source_file_id THEN 1 ELSE 0 END DESC,
+        CASE WHEN owner_file.content_package_id = parent_file.content_package_id THEN 1 ELSE 0 END DESC,
+        CASE WHEN rec.winning_element_id IS NOT NULL THEN 1 ELSE 0 END DESC,
+        COALESCE(rec.precedence_rank, -1) DESC,
+        alias.priority ASC,
+        parent.element_id ASC
+    LIMIT 1
+)
+WHERE parent_element_id IS NULL
+  AND parent_support_text IS NOT NULL;");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE features
+SET parent_element_id =
+(
     SELECT MIN(parent.element_id)
     FROM elements AS parent
     JOIN resolved_elements_cache AS rec
@@ -3420,6 +3862,43 @@ SET parent_element_id =
        OR parent.name = features.parent_support_text
 )
 WHERE parent_element_id IS NULL
+  AND parent_support_text IS NOT NULL;");
+
+            ExecuteSql(connection, transaction, @"
+UPDATE archetypes
+SET parent_class_element_id =
+(
+    SELECT class_element.element_id
+    FROM parent_family_aliases AS alias
+    JOIN elements AS owner
+        ON owner.element_id = archetypes.element_id
+    LEFT JOIN source_files AS owner_file
+        ON owner_file.source_file_id = owner.source_file_id
+    JOIN elements AS class_element
+        ON
+        (
+            (alias.target_aurora_id IS NOT NULL AND class_element.aurora_id = alias.target_aurora_id)
+            OR (alias.target_name IS NOT NULL AND class_element.name = alias.target_name)
+        )
+    JOIN element_types AS et
+        ON et.element_type_id = class_element.element_type_id
+    LEFT JOIN source_files AS class_file
+        ON class_file.source_file_id = class_element.source_file_id
+    LEFT JOIN resolved_elements_cache AS rec
+        ON rec.winning_element_id = class_element.element_id
+    WHERE alias.link_kind = 'archetype-parent'
+      AND alias.alias_text = archetypes.parent_support_text
+      AND (alias.target_type_name IS NULL OR alias.target_type_name = et.type_name)
+    ORDER BY
+        CASE WHEN owner.source_file_id = class_element.source_file_id THEN 1 ELSE 0 END DESC,
+        CASE WHEN owner_file.content_package_id = class_file.content_package_id THEN 1 ELSE 0 END DESC,
+        CASE WHEN rec.winning_element_id IS NOT NULL THEN 1 ELSE 0 END DESC,
+        COALESCE(rec.precedence_rank, -1) DESC,
+        alias.priority ASC,
+        class_element.element_id ASC
+    LIMIT 1
+)
+WHERE parent_class_element_id IS NULL
   AND parent_support_text IS NOT NULL;");
 
             ExecuteSql(connection, transaction, @"
@@ -3835,12 +4314,19 @@ WHERE support_kind = 'unclassified'
             string DisplayText,
             int Count,
             IReadOnlyList<string> SampleOwners);
+        internal sealed record UnresolvedLinkDeferredSummary(
+            string DiagnosticStatus,
+            string DiagnosticReason,
+            string LinkKind,
+            int Count);
         internal sealed record UnresolvedLinkKindSummary(
             string LinkKind,
             int TotalCount,
             IReadOnlyList<UnresolvedLinkPatternSummary> Patterns);
         internal sealed record UnresolvedLinkDiagnosticsReport(
             long TotalUnresolvedCount,
+            long ActionableUnresolvedCount,
+            IReadOnlyList<UnresolvedLinkDeferredSummary> DeferredSummaries,
             IReadOnlyList<UnresolvedLinkKindSummary> KindSummaries);
         internal sealed record PackageRefreshParityTableResult(
             string TableName,

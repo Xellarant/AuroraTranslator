@@ -481,6 +481,21 @@ CREATE TABLE IF NOT EXISTS features
 CREATE INDEX IF NOT EXISTS ix_features_parent ON features(parent_element_id, min_level);
 CREATE INDEX IF NOT EXISTS ix_features_kind ON features(feature_kind, min_level);
 
+CREATE TABLE IF NOT EXISTS parent_family_aliases
+(
+    alias_text TEXT NOT NULL,
+    link_kind TEXT NOT NULL CHECK (link_kind IN ('feature-parent', 'archetype-parent')),
+    target_name TEXT,
+    target_type_name TEXT,
+    target_aurora_id TEXT,
+    resolution_kind TEXT NOT NULL DEFAULT 'target-name',
+    priority INTEGER NOT NULL DEFAULT 100,
+    PRIMARY KEY (alias_text, link_kind)
+);
+
+CREATE INDEX IF NOT EXISTS ix_parent_family_aliases_target_name
+    ON parent_family_aliases(link_kind, target_name, target_type_name);
+
 -- Setter scopes mirror rule scopes so raw Aurora <set> entries can be preserved
 -- for normal elements and class multiclass blocks without polymorphic FKs.
 CREATE TABLE IF NOT EXISTS setter_scopes
@@ -941,6 +956,102 @@ JOIN element_types AS archetype_type
     ON archetype_type.element_type_id = archetype.element_type_id
 WHERE archetype_meta.parent_support_text IS NOT NULL
   AND archetype_meta.parent_class_element_id IS NULL;
+
+CREATE VIEW IF NOT EXISTS v_unresolved_loader_link_diagnostics AS
+WITH background_file_counts AS
+(
+    SELECT
+        bg.source_file_id,
+        COUNT(*) AS background_count
+    FROM backgrounds AS b
+    JOIN elements AS bg
+        ON bg.element_id = b.element_id
+    GROUP BY bg.source_file_id
+),
+feature_parent_family_counts AS
+(
+    SELECT
+        unresolved_text,
+        COUNT(*) AS family_count
+    FROM v_unresolved_loader_links
+    WHERE link_kind = 'feature-parent'
+      AND unresolved_text IS NOT NULL
+    GROUP BY unresolved_text
+)
+SELECT
+    raw.link_kind,
+    raw.owner_element_id,
+    raw.owner_aurora_id,
+    raw.owner_name,
+    raw.owner_type_name,
+    raw.link_id,
+    raw.unresolved_key,
+    raw.unresolved_text,
+    CASE
+        WHEN raw.link_kind = 'feature-parent'
+         AND raw.unresolved_text = 'Background Feature'
+         AND COALESCE(background_file_counts.background_count, 0) = 0
+            THEN 'option-pool'
+        WHEN raw.link_kind = 'feature-parent'
+         AND
+         (
+             COALESCE(feature_parent_family_counts.family_count, 0) > 1
+             OR raw.unresolved_text LIKE '%Option%'
+             OR raw.unresolved_text LIKE 'PHB24 %'
+             OR raw.unresolved_text LIKE 'Starry Form %'
+             OR raw.unresolved_text LIKE 'Elemental Initiate %'
+             OR raw.unresolved_text IN
+                (
+                    'BH Variant',
+                    'MAgic of the Blade',
+                    'Monster Type',
+                    'Necromancer Variant Feature',
+                    'Pactd Boon',
+                    'vampire'
+                )
+         )
+            THEN 'option-pool'
+        WHEN raw.link_kind = 'archetype-parent'
+         AND raw.unresolved_text = 'Training Paradigm'
+            THEN 'missing-source'
+        ELSE 'actionable'
+    END AS diagnostic_status,
+    CASE
+        WHEN raw.link_kind = 'feature-parent'
+         AND raw.unresolved_text = 'Background Feature'
+         AND COALESCE(background_file_counts.background_count, 0) = 0
+            THEN 'background-feature-option-pool'
+        WHEN raw.link_kind = 'feature-parent'
+         AND
+         (
+             COALESCE(feature_parent_family_counts.family_count, 0) > 1
+             OR raw.unresolved_text LIKE '%Option%'
+             OR raw.unresolved_text LIKE 'PHB24 %'
+             OR raw.unresolved_text LIKE 'Starry Form %'
+             OR raw.unresolved_text LIKE 'Elemental Initiate %'
+             OR raw.unresolved_text IN
+                (
+                    'BH Variant',
+                    'MAgic of the Blade',
+                    'Monster Type',
+                    'Necromancer Variant Feature',
+                    'Pactd Boon',
+                    'vampire'
+                )
+         )
+            THEN 'feature-family-option-pool'
+        WHEN raw.link_kind = 'archetype-parent'
+         AND raw.unresolved_text = 'Training Paradigm'
+            THEN 'archetype-base-class-not-imported'
+        ELSE NULL
+    END AS diagnostic_reason
+FROM v_unresolved_loader_links AS raw
+LEFT JOIN elements AS owner
+    ON owner.element_id = raw.owner_element_id
+LEFT JOIN background_file_counts
+    ON background_file_counts.source_file_id = owner.source_file_id
+LEFT JOIN feature_parent_family_counts
+    ON feature_parent_family_counts.unresolved_text = raw.unresolved_text;
 
 -- Aurora companion stat blocks.
 -- Populated from Aurora XML Companion elements (type="Companion").

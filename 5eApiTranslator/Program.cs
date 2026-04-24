@@ -471,10 +471,23 @@ namespace _5eApiTranslator
 
             Console.WriteLine($"Unresolved link diagnostics for {sqlitePath}:");
             Console.WriteLine($"Total unresolved rows: {report.TotalUnresolvedCount}");
+            Console.WriteLine($"Actionable unresolved rows: {report.ActionableUnresolvedCount}");
+
+            if (report.DeferredSummaries.Count > 0)
+            {
+                Console.WriteLine("Deferred/non-actionable rows:");
+                foreach (var deferred in report.DeferredSummaries)
+                {
+                    string reasonSuffix = string.IsNullOrWhiteSpace(deferred.DiagnosticReason)
+                        ? string.Empty
+                        : $" ({deferred.DiagnosticReason})";
+                    Console.WriteLine($"  - {deferred.LinkKind}: {deferred.Count} [{deferred.DiagnosticStatus}{reasonSuffix}]");
+                }
+            }
 
             if (report.KindSummaries.Count == 0)
             {
-                Console.WriteLine("No unresolved links were found.");
+                Console.WriteLine("No actionable unresolved links were found.");
                 return;
             }
 
