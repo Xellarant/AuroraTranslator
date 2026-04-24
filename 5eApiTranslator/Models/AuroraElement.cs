@@ -59,6 +59,7 @@ namespace _5eApiTranslator.Models
         public AuroraTextCollection requirements { get; set; }
         public bool inline { get; set; }
         public string alt { get; set; }
+        public string rawXml { get; set; }
     }
 
     public class Select
@@ -73,6 +74,7 @@ namespace _5eApiTranslator.Models
         public bool optional { get; set; }
         public string spellcasting { get; set; }
         public List<AuroraItemEntry> items { get; set; }
+        public string rawXml { get; set; }
     }
 
     public class Grant
@@ -84,6 +86,7 @@ namespace _5eApiTranslator.Models
         public string spellcasting { get; set; }
         public bool? prepared { get; set; }
         public AuroraTextCollection requirements { get; set; }
+        public string rawXml { get; set; }
     }
 
     public class Spellcasting

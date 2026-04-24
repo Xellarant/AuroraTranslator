@@ -585,6 +585,7 @@ CREATE TABLE IF NOT EXISTS grants
     target_semantic_key TEXT,
     target_semantic_kind TEXT,
     target_semantic_name TEXT,
+    raw_xml TEXT,
     name_text TEXT,
     grant_level INTEGER,
     spellcasting_name TEXT,
@@ -610,6 +611,7 @@ CREATE TABLE IF NOT EXISTS selects
     default_choice_text TEXT,
     is_optional INTEGER NOT NULL DEFAULT 0 CHECK (is_optional IN (0, 1)),
     spellcasting_profile_id INTEGER REFERENCES spellcasting_profiles(spellcasting_profile_id) ON DELETE SET NULL,
+    raw_xml TEXT,
     requirements_text TEXT,
     UNIQUE (rule_scope_id, ordinal)
 );
@@ -698,6 +700,7 @@ CREATE TABLE IF NOT EXISTS stats
     stat_level INTEGER,
     inline_display INTEGER NOT NULL DEFAULT 0 CHECK (inline_display IN (0, 1)),
     alt_text TEXT,
+    raw_xml TEXT,
     requirements_text TEXT,
     UNIQUE (rule_scope_id, ordinal)
 );
@@ -1064,6 +1067,133 @@ LEFT JOIN background_file_counts
 LEFT JOIN feature_parent_family_counts
     ON feature_parent_family_counts.unresolved_text = raw.unresolved_text;
 
+CREATE VIEW IF NOT EXISTS v_source_integrity_issues AS
+SELECT
+    'grant-target-id-in-name-attribute' AS issue_kind,
+    sf.source_file_id,
+    sf.relative_path,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(g.grant_id AS TEXT) AS issue_key,
+    COALESCE(
+        NULLIF(trim(g.raw_xml), ''),
+        '<grant type="' || COALESCE(g.grant_type, '') || '" name="' || COALESCE(g.name_text, '') || '" />'
+    ) AS issue_text
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN source_files AS sf
+    ON sf.source_file_id = owner.source_file_id
+WHERE COALESCE(trim(g.target_aurora_id), '') <> ''
+  AND COALESCE(trim(g.name_text), '') <> ''
+  AND upper(trim(g.name_text)) LIKE 'ID\_%' ESCAPE '\'
+  AND trim(g.target_aurora_id) = trim(g.name_text)
+
+UNION ALL
+
+SELECT
+    'blank-grant-target-id' AS issue_kind,
+    sf.source_file_id,
+    sf.relative_path,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(g.grant_id AS TEXT) AS issue_key,
+    COALESCE(
+        NULLIF(trim(g.raw_xml), ''),
+        '<grant type="' || COALESCE(g.grant_type, '') || '" id="" />'
+    ) AS issue_text
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN source_files AS sf
+    ON sf.source_file_id = owner.source_file_id
+WHERE COALESCE(trim(g.target_aurora_id), '') = ''
+  AND COALESCE(trim(g.grant_type), '') <> ''
+
+UNION ALL
+
+SELECT
+    'blank-select-type' AS issue_kind,
+    sf.source_file_id,
+    sf.relative_path,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(s.select_id AS TEXT) AS issue_key,
+    COALESCE(s.raw_xml, '<select />') AS issue_text
+FROM selects AS s
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = s.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN source_files AS sf
+    ON sf.source_file_id = owner.source_file_id
+WHERE COALESCE(trim(s.select_type), '') = ''
+
+UNION ALL
+
+SELECT
+    'blank-stat-name' AS issue_kind,
+    sf.source_file_id,
+    sf.relative_path,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(st.stat_id AS TEXT) AS issue_key,
+    COALESCE(st.raw_xml, '<stat />') AS issue_text
+FROM stats AS st
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = st.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN source_files AS sf
+    ON sf.source_file_id = owner.source_file_id
+WHERE COALESCE(trim(st.stat_name), '') = ''
+
+UNION ALL
+
+SELECT
+    'duplicate-element-id-in-file' AS issue_kind,
+    dup.source_file_id,
+    sf.relative_path,
+    NULL AS owner_element_id,
+    NULL AS owner_aurora_id,
+    NULL AS owner_name,
+    NULL AS owner_type_name,
+    dup.aurora_id AS issue_key,
+    'duplicate-count=' || dup.duplicate_count AS issue_text
+FROM
+(
+    SELECT
+        source_file_id,
+        aurora_id,
+        COUNT(*) AS duplicate_count
+    FROM elements
+    WHERE COALESCE(trim(aurora_id), '') <> ''
+    GROUP BY source_file_id, aurora_id
+    HAVING COUNT(*) > 1
+) AS dup
+JOIN source_files AS sf
+    ON sf.source_file_id = dup.source_file_id;
+
 -- Aurora companion stat blocks.
 -- Populated from Aurora XML Companion elements (type="Companion").
 -- ability scores are stored as integers; ac, hp, speed, skills, senses kept
@@ -1283,6 +1413,7 @@ SELECT
     g.target_semantic_key,
     g.target_semantic_kind,
     g.target_semantic_name,
+    g.raw_xml,
     g.grant_level,
     g.requirements_text,
     target.element_id AS target_element_id,

@@ -27,6 +27,14 @@ namespace _5eApiTranslator
             projectRootPath,
             "Data",
             "sqlite-character-loading.sql");
+        static string defaultDiagnosticsBaselinePath = Path.Combine(
+            projectRootPath,
+            "Data",
+            "diagnostics-regression-baseline.json");
+        static string defaultFirstPartyBaselineSqlitePath = Path.Combine(
+            projectRootPath,
+            "Data",
+            "aurora-first-party-regression.sqlite");
 
         static async Task Main(string[] args)
         {
@@ -165,6 +173,47 @@ namespace _5eApiTranslator
                 return;
             }
 
+            if (args.Length > 0
+                && string.Equals(args[0], "summarize-source-integrity", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
+                string topCountText = args.Length > 2 ? args[2] : null;
+
+                SummarizeSourceIntegrity(sqlitePath, topCountText);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "capture-diagnostics-baseline", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
+                string baselinePath = args.Length > 2 ? args[2] : defaultDiagnosticsBaselinePath;
+
+                CaptureDiagnosticsBaseline(sqlitePath, baselinePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "check-diagnostics-regression", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
+                string baselinePath = args.Length > 2 ? args[2] : defaultDiagnosticsBaselinePath;
+
+                CheckDiagnosticsRegression(sqlitePath, baselinePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "capture-first-party-diagnostics-baseline", StringComparison.OrdinalIgnoreCase))
+            {
+                string auroraRootPath = args.Length > 1 ? args[1] : defaultAuroraPath;
+                string sqlitePath = args.Length > 2 ? args[2] : defaultFirstPartyBaselineSqlitePath;
+                string baselinePath = args.Length > 3 ? args[3] : defaultDiagnosticsBaselinePath;
+
+                CaptureFirstPartyDiagnosticsBaseline(auroraRootPath, sqlitePath, baselinePath);
+                return;
+            }
+
             Console.WriteLine("Commands:");
             Console.WriteLine("  sqlite-import [auroraPath] [sqlitePath]              Import Aurora XML into the SQLite database.");
             Console.WriteLine("  srd-creatures [jsonPath] [sqlitePath]                Import SRD monsters and link to Aurora companions.");
@@ -178,8 +227,17 @@ namespace _5eApiTranslator
             Console.WriteLine("  check-package-refresh-parity [key] [rank|enabled] [value] [sqlitePath]");
             Console.WriteLine("                                                      Compare scoped package refresh against a full rebuild.");
             Console.WriteLine("  summarize-unresolved-links [sqlitePath] [topCount]  Show the biggest unresolved link patterns by kind.");
+            Console.WriteLine("  summarize-source-integrity [sqlitePath] [topCount]  Show likely upstream/source data integrity issues.");
+            Console.WriteLine("  capture-diagnostics-baseline [sqlitePath] [baselinePath]");
+            Console.WriteLine("                                                      Save unresolved/source-integrity counts as a regression baseline.");
+            Console.WriteLine("  check-diagnostics-regression [sqlitePath] [baselinePath]");
+            Console.WriteLine("                                                      Compare current diagnostics against a saved baseline.");
+            Console.WriteLine("  capture-first-party-diagnostics-baseline [auroraRoot] [sqlitePath] [baselinePath]");
+            Console.WriteLine("                                                      Rebuild a canonical baseline from only core + supplements.");
             Console.WriteLine($"Default Aurora path:  {defaultAuroraPath}");
             Console.WriteLine($"Default SQLite path:  {defaultSqlitePath}");
+            Console.WriteLine($"Default baseline:     {defaultDiagnosticsBaselinePath}");
+            Console.WriteLine($"Default 1P SQLite:    {defaultFirstPartyBaselineSqlitePath}");
             Console.WriteLine($"Default SRD JSON:     {defaultSrdMonstersPath}");
             Console.WriteLine($"Default XML output:   {defaultXellarantXmlPath}");
         }
@@ -275,6 +333,38 @@ namespace _5eApiTranslator
                 Console.Error.WriteLine();
                 Console.Error.WriteLine("Usage: summarize-unresolved-links [sqlitePath] [topCount]");
                 Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "summarize-source-integrity", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: summarize-source-integrity [sqlitePath] [topCount]");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "capture-diagnostics-baseline", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: capture-diagnostics-baseline [sqlitePath] [baselinePath]");
+                Console.Error.WriteLine($"Default SQLite path:   {defaultSqlitePath}");
+                Console.Error.WriteLine($"Default baseline path: {defaultDiagnosticsBaselinePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "check-diagnostics-regression", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: check-diagnostics-regression [sqlitePath] [baselinePath]");
+                Console.Error.WriteLine($"Default SQLite path:   {defaultSqlitePath}");
+                Console.Error.WriteLine($"Default baseline path: {defaultDiagnosticsBaselinePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "capture-first-party-diagnostics-baseline", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: capture-first-party-diagnostics-baseline [auroraRoot] [sqlitePath] [baselinePath]");
+                Console.Error.WriteLine($"Default Aurora path:   {defaultAuroraPath}");
+                Console.Error.WriteLine($"Default SQLite path:   {defaultFirstPartyBaselineSqlitePath}");
+                Console.Error.WriteLine($"Default baseline path: {defaultDiagnosticsBaselinePath}");
             }
         }
 
@@ -512,6 +602,278 @@ namespace _5eApiTranslator
             }
         }
 
+        private static void SummarizeSourceIntegrity(string sqlitePath, string topCountText)
+        {
+            int topCount = 10;
+            if (!string.IsNullOrWhiteSpace(topCountText) && !int.TryParse(topCountText, out topCount))
+                throw new ArgumentException($"Could not parse top count '{topCountText}'.");
+            if (topCount <= 0)
+                throw new ArgumentOutOfRangeException(nameof(topCountText), "Top count must be greater than zero.");
+
+            var report = AuroraSqliteImporter.GetSourceIntegrityDiagnostics(sqlitePath, topCount);
+
+            Console.WriteLine($"Source integrity diagnostics for {sqlitePath}:");
+            Console.WriteLine($"Total issues: {report.TotalIssueCount}");
+
+            if (report.KindSummaries.Count == 0)
+            {
+                Console.WriteLine("No source integrity issues were found.");
+                return;
+            }
+
+            foreach (var kindSummary in report.KindSummaries)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"[{kindSummary.IssueKind}] total={kindSummary.TotalCount}");
+
+                foreach (var pattern in kindSummary.Patterns)
+                {
+                    Console.WriteLine($"  - {pattern.DisplayKey} | count={pattern.Count}");
+
+                    if (!string.IsNullOrWhiteSpace(pattern.DisplayText)
+                        && !string.Equals(pattern.DisplayText, pattern.DisplayKey, StringComparison.Ordinal))
+                    {
+                        Console.WriteLine($"    text: {pattern.DisplayText}");
+                    }
+
+                    if (pattern.SampleRows.Count > 0)
+                        Console.WriteLine($"    samples: {string.Join("; ", pattern.SampleRows)}");
+                }
+            }
+        }
+
+        private static void CaptureDiagnosticsBaseline(string sqlitePath, string baselinePath)
+        {
+            var baseline = BuildDiagnosticsRegressionBaseline(sqlitePath, "Current SQLite content set");
+            string baselineDirectory = Path.GetDirectoryName(baselinePath);
+            if (!string.IsNullOrWhiteSpace(baselineDirectory))
+                Directory.CreateDirectory(baselineDirectory);
+
+            string json = JsonSerializer.Serialize(
+                baseline,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+
+            File.WriteAllText(baselinePath, json);
+            Console.WriteLine($"Captured diagnostics regression baseline to {baselinePath}.");
+            Console.WriteLine($"  actionable unresolved: {baseline.ActionableUnresolvedCount}");
+            Console.WriteLine($"  total source integrity issues: {baseline.TotalSourceIntegrityCount}");
+        }
+
+        private static void CaptureFirstPartyDiagnosticsBaseline(string auroraRootPath, string sqlitePath, string baselinePath)
+        {
+            if (!Directory.Exists(auroraRootPath))
+                throw new DirectoryNotFoundException($"Aurora root path was not found: {auroraRootPath}");
+
+            string[] requiredDirectories = { "core", "supplements" };
+            foreach (string directoryName in requiredDirectories)
+            {
+                string sourceDirectory = Path.Combine(auroraRootPath, directoryName);
+                if (!Directory.Exists(sourceDirectory))
+                    throw new DirectoryNotFoundException($"Required first-party directory was not found: {sourceDirectory}");
+            }
+
+            string stagingRoot = Path.Combine(Path.GetTempPath(), "AuroraTranslatorFirstParty", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(stagingRoot);
+
+            try
+            {
+                foreach (string directoryName in requiredDirectories)
+                {
+                    CopyDirectory(
+                        Path.Combine(auroraRootPath, directoryName),
+                        Path.Combine(stagingRoot, directoryName));
+
+                    string indexPath = Path.Combine(auroraRootPath, $"{directoryName}.index");
+                    if (File.Exists(indexPath))
+                    {
+                        File.Copy(indexPath, Path.Combine(stagingRoot, $"{directoryName}.index"), overwrite: true);
+                    }
+                }
+
+                string sqliteDirectory = Path.GetDirectoryName(sqlitePath);
+                if (!string.IsNullOrWhiteSpace(sqliteDirectory))
+                    Directory.CreateDirectory(sqliteDirectory);
+
+                if (File.Exists(sqlitePath))
+                    File.Delete(sqlitePath);
+
+                ImportAuroraToSqlite(stagingRoot, sqlitePath);
+                AuroraSqliteImporter.RefreshPackageResolution(sqlitePath, sqliteSchemaPath);
+
+                var baseline = BuildDiagnosticsRegressionBaseline(
+                    sqlitePath,
+                    "Wizards first-party core + supplements");
+
+                string baselineDirectory = Path.GetDirectoryName(baselinePath);
+                if (!string.IsNullOrWhiteSpace(baselineDirectory))
+                    Directory.CreateDirectory(baselineDirectory);
+
+                string json = JsonSerializer.Serialize(
+                    baseline,
+                    new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    });
+
+                File.WriteAllText(baselinePath, json);
+
+                Console.WriteLine($"Captured first-party diagnostics regression baseline to {baselinePath}.");
+                Console.WriteLine($"SQLite source: {sqlitePath}");
+                Console.WriteLine($"  actionable unresolved: {baseline.ActionableUnresolvedCount}");
+                Console.WriteLine($"  total source integrity issues: {baseline.TotalSourceIntegrityCount}");
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(stagingRoot))
+                        Directory.Delete(stagingRoot, recursive: true);
+                }
+                catch
+                {
+                    // Best-effort temp cleanup only.
+                }
+            }
+        }
+
+        private static void CheckDiagnosticsRegression(string sqlitePath, string baselinePath)
+        {
+            if (!File.Exists(baselinePath))
+                throw new FileNotFoundException($"Diagnostics baseline not found: {baselinePath}");
+
+            DiagnosticsRegressionBaseline baseline = JsonSerializer.Deserialize<DiagnosticsRegressionBaseline>(
+                File.ReadAllText(baselinePath))
+                ?? throw new InvalidDataException($"Could not deserialize diagnostics baseline: {baselinePath}");
+
+            DiagnosticsRegressionBaseline current = BuildDiagnosticsRegressionBaseline(
+                sqlitePath,
+                baseline.CorpusLabel ?? "Current SQLite content set");
+            List<string> failures = CompareDiagnosticsRegressionBaseline(baseline, current);
+
+            Console.WriteLine($"Diagnostics regression check for {sqlitePath}:");
+            Console.WriteLine($"Baseline: {baselinePath}");
+
+            if (failures.Count == 0)
+            {
+                Console.WriteLine("PASS");
+                Console.WriteLine($"  actionable unresolved: {current.ActionableUnresolvedCount}");
+                Console.WriteLine($"  total source integrity issues: {current.TotalSourceIntegrityCount}");
+                return;
+            }
+
+            Console.WriteLine("FAIL");
+            foreach (string failure in failures)
+                Console.WriteLine($"  - {failure}");
+
+            Environment.ExitCode = 1;
+        }
+
+        private static DiagnosticsRegressionBaseline BuildDiagnosticsRegressionBaseline(string sqlitePath, string corpusLabel)
+        {
+            var unresolved = AuroraSqliteImporter.GetUnresolvedLinkDiagnostics(sqlitePath, topPatternsPerKind: 1, sampleOwnersPerPattern: 1);
+            var sourceIntegrity = AuroraSqliteImporter.GetSourceIntegrityDiagnostics(sqlitePath, topPatternsPerKind: 1, sampleRowsPerPattern: 1);
+
+            var deferredCounts = unresolved.DeferredSummaries
+                .Select(summary => new DiagnosticsRegressionCount(
+                    $"{summary.LinkKind}|{summary.DiagnosticStatus}|{summary.DiagnosticReason}",
+                    summary.Count))
+                .OrderBy(x => x.Key, StringComparer.Ordinal)
+                .ToArray();
+
+            var unresolvedKindCounts = unresolved.KindSummaries
+                .Select(summary => new DiagnosticsRegressionCount(summary.LinkKind, summary.TotalCount))
+                .OrderBy(x => x.Key, StringComparer.Ordinal)
+                .ToArray();
+
+            var sourceIntegrityKindCounts = sourceIntegrity.KindSummaries
+                .Select(summary => new DiagnosticsRegressionCount(summary.IssueKind, summary.TotalCount))
+                .OrderBy(x => x.Key, StringComparer.Ordinal)
+                .ToArray();
+
+            return new DiagnosticsRegressionBaseline(
+                CapturedAtUtc: DateTime.UtcNow,
+                CorpusLabel: corpusLabel,
+                TotalUnresolvedCount: unresolved.TotalUnresolvedCount,
+                ActionableUnresolvedCount: unresolved.ActionableUnresolvedCount,
+                DeferredCounts: deferredCounts,
+                UnresolvedKindCounts: unresolvedKindCounts,
+                TotalSourceIntegrityCount: sourceIntegrity.TotalIssueCount,
+                SourceIntegrityKindCounts: sourceIntegrityKindCounts);
+        }
+
+        private static List<string> CompareDiagnosticsRegressionBaseline(
+            DiagnosticsRegressionBaseline expected,
+            DiagnosticsRegressionBaseline actual)
+        {
+            var failures = new List<string>();
+
+            if (expected.TotalUnresolvedCount != actual.TotalUnresolvedCount)
+                failures.Add($"Total unresolved count changed: expected {expected.TotalUnresolvedCount}, got {actual.TotalUnresolvedCount}.");
+
+            if (expected.ActionableUnresolvedCount != actual.ActionableUnresolvedCount)
+                failures.Add($"Actionable unresolved count changed: expected {expected.ActionableUnresolvedCount}, got {actual.ActionableUnresolvedCount}.");
+
+            if (expected.TotalSourceIntegrityCount != actual.TotalSourceIntegrityCount)
+                failures.Add($"Total source integrity count changed: expected {expected.TotalSourceIntegrityCount}, got {actual.TotalSourceIntegrityCount}.");
+
+            CompareCountSet("Deferred unresolved bucket", expected.DeferredCounts, actual.DeferredCounts, failures);
+            CompareCountSet("Unresolved kind", expected.UnresolvedKindCounts, actual.UnresolvedKindCounts, failures);
+            CompareCountSet("Source integrity kind", expected.SourceIntegrityKindCounts, actual.SourceIntegrityKindCounts, failures);
+
+            return failures;
+        }
+
+        private static void CompareCountSet(
+            string label,
+            IReadOnlyList<DiagnosticsRegressionCount> expected,
+            IReadOnlyList<DiagnosticsRegressionCount> actual,
+            List<string> failures)
+        {
+            var expectedMap = expected.ToDictionary(x => x.Key, x => x.Count, StringComparer.Ordinal);
+            var actualMap = actual.ToDictionary(x => x.Key, x => x.Count, StringComparer.Ordinal);
+
+            foreach (string key in expectedMap.Keys.Union(actualMap.Keys, StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal))
+            {
+                bool hasExpected = expectedMap.TryGetValue(key, out long expectedCount);
+                bool hasActual = actualMap.TryGetValue(key, out long actualCount);
+
+                if (!hasExpected)
+                {
+                    failures.Add($"{label} added: {key} => {actualCount}.");
+                    continue;
+                }
+
+                if (!hasActual)
+                {
+                    failures.Add($"{label} removed: {key} was {expectedCount}.");
+                    continue;
+                }
+
+                if (expectedCount != actualCount)
+                    failures.Add($"{label} changed: {key} expected {expectedCount}, got {actualCount}.");
+            }
+        }
+
+        private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+        {
+            Directory.CreateDirectory(destinationDirectory);
+
+            foreach (string filePath in Directory.GetFiles(sourceDirectory))
+            {
+                string destinationPath = Path.Combine(destinationDirectory, Path.GetFileName(filePath));
+                File.Copy(filePath, destinationPath, overwrite: true);
+            }
+
+            foreach (string childDirectory in Directory.GetDirectories(sourceDirectory))
+            {
+                string destinationChild = Path.Combine(destinationDirectory, Path.GetFileName(childDirectory));
+                CopyDirectory(childDirectory, destinationChild);
+            }
+        }
+
         private static bool TryParseBoolean(string value, out bool result)
         {
             switch (value?.Trim().ToLowerInvariant())
@@ -535,6 +897,18 @@ namespace _5eApiTranslator
                     return false;
             }
         }
+
+        private sealed record DiagnosticsRegressionCount(string Key, long Count);
+
+        private sealed record DiagnosticsRegressionBaseline(
+            DateTime CapturedAtUtc,
+            string CorpusLabel,
+            long TotalUnresolvedCount,
+            long ActionableUnresolvedCount,
+            IReadOnlyList<DiagnosticsRegressionCount> DeferredCounts,
+            IReadOnlyList<DiagnosticsRegressionCount> UnresolvedKindCounts,
+            int TotalSourceIntegrityCount,
+            IReadOnlyList<DiagnosticsRegressionCount> SourceIntegrityKindCounts);
 
         private static string DescribeExpressionNode(AuroraExpressionNode node)
         {
@@ -967,7 +1341,8 @@ namespace _5eApiTranslator
                         null,
                 spellcasting = grant.Attribute("spellcasting")?.Value,
                 prepared = grant.Attribute("prepared")?.Value is { } p ? p == "true" : null,
-                requirements = ParseAuroraTextCollection(grant.Attribute("requirements")?.Value)
+                requirements = ParseAuroraTextCollection(grant.Attribute("requirements")?.Value),
+                rawXml = grant.ToString(SaveOptions.DisableFormatting)
             };
         }
 
@@ -988,7 +1363,8 @@ namespace _5eApiTranslator
                 defaultChoice = select.Attribute("default")?.Value,
                 optional = ParseNullableBoolean(select.Attribute("optional")?.Value) ?? false,
                 spellcasting = select.Attribute("spellcasting")?.Value,
-                items = ParseAuroraItemEntries(select)
+                items = ParseAuroraItemEntries(select),
+                rawXml = select.ToString(SaveOptions.DisableFormatting)
             };
         }
 
@@ -1005,7 +1381,8 @@ namespace _5eApiTranslator
                     null,
                 requirements = ParseAuroraTextCollection(stat.Attribute("requirements")?.Value),
                 inline = ParseNullableBoolean(stat.Attribute("inline")?.Value) ?? false,
-                alt = stat.Attribute("alt")?.Value
+                alt = stat.Attribute("alt")?.Value,
+                rawXml = stat.ToString(SaveOptions.DisableFormatting)
             };
         }
 

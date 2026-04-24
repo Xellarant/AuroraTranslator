@@ -459,6 +459,52 @@ ORDER BY total_count DESC, link_kind ASC;";
             return new UnresolvedLinkDiagnosticsReport(totalUnresolvedCount, actionableUnresolvedCount, deferredSummaries, kindSummaries);
         }
 
+        public static SourceIntegrityDiagnosticsReport GetSourceIntegrityDiagnostics(
+            string sqlitePath,
+            int topPatternsPerKind = 10,
+            int sampleRowsPerPattern = 3)
+        {
+            if (!File.Exists(sqlitePath))
+                throw new FileNotFoundException($"SQLite database not found: {sqlitePath}");
+            if (topPatternsPerKind <= 0)
+                throw new ArgumentOutOfRangeException(nameof(topPatternsPerKind), "Top pattern count must be greater than zero.");
+            if (sampleRowsPerPattern <= 0)
+                throw new ArgumentOutOfRangeException(nameof(sampleRowsPerPattern), "Sample row count must be greater than zero.");
+
+            using var connection = OpenSqliteConnection(sqlitePath);
+            EnsurePackageAdministrationSchema(connection, refreshViews: true);
+
+            int totalIssueCount;
+            using (var totalCommand = connection.CreateCommand())
+            {
+                totalCommand.CommandText = "SELECT COUNT(*) FROM v_source_integrity_issues;";
+                totalIssueCount = Convert.ToInt32((long)(totalCommand.ExecuteScalar() ?? 0L));
+            }
+
+            var kindSummaries = new List<SourceIntegrityKindSummary>();
+            using (var kindCommand = connection.CreateCommand())
+            {
+                kindCommand.CommandText = @"
+SELECT
+    issue_kind,
+    COUNT(*) AS total_count
+FROM v_source_integrity_issues
+GROUP BY issue_kind
+ORDER BY total_count DESC, issue_kind ASC;";
+
+                using var kindReader = kindCommand.ExecuteReader();
+                while (kindReader.Read())
+                {
+                    string issueKind = kindReader.GetString(0);
+                    int totalCount = Convert.ToInt32(kindReader.GetInt64(1));
+                    var patterns = LoadSourceIntegrityPatterns(connection, issueKind, topPatternsPerKind, sampleRowsPerPattern);
+                    kindSummaries.Add(new SourceIntegrityKindSummary(issueKind, totalCount, patterns));
+                }
+            }
+
+            return new SourceIntegrityDiagnosticsReport(totalIssueCount, kindSummaries);
+        }
+
         // ── Schema / DB setup ────────────────────────────────────────────────────
 
         /// <summary>
@@ -711,6 +757,112 @@ LIMIT $sample_count;";
             return string.IsNullOrWhiteSpace(value) ? "(blank)" : value.Trim();
         }
 
+        private static List<SourceIntegrityPatternSummary> LoadSourceIntegrityPatterns(
+            SqliteConnection connection,
+            string issueKind,
+            int topPatternsPerKind,
+            int sampleRowsPerPattern)
+        {
+            var patterns = new List<SourceIntegrityPatternSummary>();
+
+            using var patternCommand = connection.CreateCommand();
+            patternCommand.CommandText = @"
+WITH ranked AS
+(
+    SELECT
+        issue_kind,
+        issue_key,
+        issue_text,
+        COUNT(*) AS issue_count,
+        ROW_NUMBER() OVER (
+            PARTITION BY issue_kind
+            ORDER BY COUNT(*) DESC,
+                     COALESCE(issue_key, issue_text, '') ASC,
+                     COALESCE(issue_text, issue_key, '') ASC
+        ) AS rank_in_kind
+    FROM v_source_integrity_issues
+    WHERE issue_kind = $issue_kind
+    GROUP BY issue_kind, issue_key, issue_text
+)
+SELECT
+    issue_key,
+    issue_text,
+    issue_count
+FROM ranked
+WHERE rank_in_kind <= $top_patterns
+ORDER BY issue_count DESC,
+         COALESCE(issue_key, issue_text, '') ASC,
+         COALESCE(issue_text, issue_key, '') ASC;";
+            patternCommand.Parameters.AddWithValue("$issue_kind", issueKind);
+            patternCommand.Parameters.AddWithValue("$top_patterns", topPatternsPerKind);
+
+            using var patternReader = patternCommand.ExecuteReader();
+            while (patternReader.Read())
+            {
+                string issueKey = patternReader.IsDBNull(0) ? null : patternReader.GetString(0);
+                string issueText = patternReader.IsDBNull(1) ? null : patternReader.GetString(1);
+                int count = Convert.ToInt32(patternReader.GetInt64(2));
+                var sampleRows = LoadSourceIntegritySampleRows(connection, issueKind, issueKey, issueText, sampleRowsPerPattern);
+                string displayText = NormalizeDiagnosticValue(string.IsNullOrWhiteSpace(issueText) ? issueKey : issueText);
+                string displayKey = string.IsNullOrWhiteSpace(issueKey)
+                    ? displayText
+                    : NormalizeDiagnosticValue(issueKey);
+
+                patterns.Add(new SourceIntegrityPatternSummary(
+                    issueKey,
+                    issueText,
+                    displayKey,
+                    displayText,
+                    count,
+                    sampleRows));
+            }
+
+            return patterns;
+        }
+
+        private static IReadOnlyList<string> LoadSourceIntegritySampleRows(
+            SqliteConnection connection,
+            string issueKind,
+            string issueKey,
+            string issueText,
+            int sampleRowsPerPattern)
+        {
+            var rows = new List<string>();
+
+            using var sampleCommand = connection.CreateCommand();
+            sampleCommand.CommandText = @"
+SELECT DISTINCT
+    relative_path,
+    owner_name,
+    owner_type_name,
+    owner_aurora_id
+FROM v_source_integrity_issues
+WHERE issue_kind = $issue_kind
+  AND ((issue_key = $issue_key) OR (issue_key IS NULL AND $issue_key IS NULL))
+  AND ((issue_text = $issue_text) OR (issue_text IS NULL AND $issue_text IS NULL))
+ORDER BY relative_path ASC, owner_name ASC, owner_aurora_id ASC
+LIMIT $sample_count;";
+            sampleCommand.Parameters.AddWithValue("$issue_kind", issueKind);
+            sampleCommand.Parameters.AddWithValue("$issue_key", (object)issueKey ?? DBNull.Value);
+            sampleCommand.Parameters.AddWithValue("$issue_text", (object)issueText ?? DBNull.Value);
+            sampleCommand.Parameters.AddWithValue("$sample_count", sampleRowsPerPattern);
+
+            using var sampleReader = sampleCommand.ExecuteReader();
+            while (sampleReader.Read())
+            {
+                string relativePath = sampleReader.IsDBNull(0) ? "(unknown file)" : sampleReader.GetString(0);
+                string ownerName = sampleReader.IsDBNull(1) ? null : sampleReader.GetString(1);
+                string ownerType = sampleReader.IsDBNull(2) ? null : sampleReader.GetString(2);
+                string ownerAuroraId = sampleReader.IsDBNull(3) ? null : sampleReader.GetString(3);
+
+                rows.Add(string.IsNullOrWhiteSpace(ownerName)
+                    ? relativePath
+                    : $"{relativePath} :: {ownerName} [{ownerType}] ({ownerAuroraId})");
+            }
+
+            return rows;
+        }
+
         private static List<PackageRefreshParityTableResult> CompareParityDatabases(
             string scopedPath,
             string fullPath)
@@ -896,6 +1048,18 @@ LIMIT $sample_count;";
             EnsureColumnExists(connection, "grants", "target_semantic_key", "TEXT");
             EnsureColumnExists(connection, "grants", "target_semantic_kind", "TEXT");
             EnsureColumnExists(connection, "grants", "target_semantic_name", "TEXT");
+            EnsureColumnExists(connection, "grants", "raw_xml", "TEXT");
+            EnsureColumnExists(connection, "selects", "raw_xml", "TEXT");
+            EnsureColumnExists(connection, "stats", "raw_xml", "TEXT");
+
+            using var backfillLegacyGrantTargets = connection.CreateCommand();
+            backfillLegacyGrantTargets.CommandText = @"
+UPDATE grants
+SET target_aurora_id = trim(name_text)
+WHERE COALESCE(trim(target_aurora_id), '') = ''
+  AND COALESCE(trim(name_text), '') <> ''
+  AND upper(trim(name_text)) LIKE 'ID\_%' ESCAPE '\';";
+            backfillLegacyGrantTargets.ExecuteNonQuery();
 
             using var cacheTables = connection.CreateCommand();
             cacheTables.CommandText = @"
@@ -975,6 +1139,20 @@ CREATE INDEX IF NOT EXISTS ix_parent_family_aliases_target_name
 CREATE INDEX IF NOT EXISTS ix_select_items_kind
     ON select_items(option_kind, linked_element_id);";
             selectItemKindIndex.ExecuteNonQuery();
+
+            using var rebindBackfilledGrantTargets = connection.CreateCommand();
+            rebindBackfilledGrantTargets.CommandText = @"
+UPDATE grants
+SET target_element_id =
+(
+    SELECT rec.winning_element_id
+    FROM resolved_elements_cache AS rec
+    WHERE rec.aurora_id = grants.target_aurora_id
+)
+WHERE target_element_id IS NULL
+  AND COALESCE(trim(target_aurora_id), '') <> ''
+  AND COALESCE(trim(target_semantic_key), '') = '';";
+            rebindBackfilledGrantTargets.ExecuteNonQuery();
 
             BackfillSelectItemOptionKinds(connection);
             SeedParentFamilyAliases(connection);
@@ -1323,6 +1501,136 @@ LEFT JOIN background_file_counts
     ON background_file_counts.source_file_id = owner.source_file_id
 LEFT JOIN feature_parent_family_counts
     ON feature_parent_family_counts.unresolved_text = raw.unresolved_text;";
+
+            views.CommandText += @"
+
+DROP VIEW IF EXISTS v_source_integrity_issues;
+CREATE VIEW v_source_integrity_issues AS
+SELECT
+    'grant-target-id-in-name-attribute' AS issue_kind,
+    sf.source_file_id,
+    sf.relative_path,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(g.grant_id AS TEXT) AS issue_key,
+    COALESCE(
+        NULLIF(trim(g.raw_xml), ''),
+        '<grant type=""' || COALESCE(g.grant_type, '') || '"" name=""' || COALESCE(g.name_text, '') || '"" />'
+    ) AS issue_text
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN source_files AS sf
+    ON sf.source_file_id = owner.source_file_id
+WHERE COALESCE(trim(g.target_aurora_id), '') <> ''
+  AND COALESCE(trim(g.name_text), '') <> ''
+  AND upper(trim(g.name_text)) LIKE 'ID\_%' ESCAPE '\'
+  AND trim(g.target_aurora_id) = trim(g.name_text)
+
+UNION ALL
+
+SELECT
+    'blank-grant-target-id' AS issue_kind,
+    sf.source_file_id,
+    sf.relative_path,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(g.grant_id AS TEXT) AS issue_key,
+    COALESCE(
+        NULLIF(trim(g.raw_xml), ''),
+        '<grant type=""' || COALESCE(g.grant_type, '') || '"" id="""" />'
+    ) AS issue_text
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN source_files AS sf
+    ON sf.source_file_id = owner.source_file_id
+WHERE COALESCE(trim(g.target_aurora_id), '') = ''
+  AND COALESCE(trim(g.grant_type), '') <> ''
+
+UNION ALL
+
+SELECT
+    'blank-select-type' AS issue_kind,
+    sf.source_file_id,
+    sf.relative_path,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(s.select_id AS TEXT) AS issue_key,
+    COALESCE(s.raw_xml, '<select />') AS issue_text
+FROM selects AS s
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = s.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN source_files AS sf
+    ON sf.source_file_id = owner.source_file_id
+WHERE COALESCE(trim(s.select_type), '') = ''
+
+UNION ALL
+
+SELECT
+    'blank-stat-name' AS issue_kind,
+    sf.source_file_id,
+    sf.relative_path,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(st.stat_id AS TEXT) AS issue_key,
+    COALESCE(st.raw_xml, '<stat />') AS issue_text
+FROM stats AS st
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = st.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN source_files AS sf
+    ON sf.source_file_id = owner.source_file_id
+WHERE COALESCE(trim(st.stat_name), '') = ''
+
+UNION ALL
+
+SELECT
+    'duplicate-element-id-in-file' AS issue_kind,
+    dup.source_file_id,
+    sf.relative_path,
+    NULL AS owner_element_id,
+    NULL AS owner_aurora_id,
+    NULL AS owner_name,
+    NULL AS owner_type_name,
+    dup.aurora_id AS issue_key,
+    'duplicate-count=' || dup.duplicate_count AS issue_text
+FROM
+(
+    SELECT
+        source_file_id,
+        aurora_id,
+        COUNT(*) AS duplicate_count
+    FROM elements
+    WHERE COALESCE(trim(aurora_id), '') <> ''
+    GROUP BY source_file_id, aurora_id
+    HAVING COUNT(*) > 1
+) AS dup
+JOIN source_files AS sf
+    ON sf.source_file_id = dup.source_file_id;";
             views.ExecuteNonQuery();
         }
 
@@ -3202,19 +3510,22 @@ VALUES
             int ordinal = 1;
             foreach (var grant in rules.grants ?? Enumerable.Empty<Grant>())
             {
+                string targetAuroraId = GetGrantTargetAuroraId(grant);
+
                 ExecuteInsert(connection, transaction,
                     @"INSERT INTO grants
-(rule_scope_id, ordinal, grant_type, target_aurora_id, name_text, grant_level, spellcasting_name, is_prepared, requirements_text)
+(rule_scope_id, ordinal, grant_type, target_aurora_id, name_text, grant_level, spellcasting_name, is_prepared, raw_xml, requirements_text)
 VALUES
-($rule_scope_id, $ordinal, $grant_type, $target_aurora_id, $name_text, $grant_level, $spellcasting_name, $is_prepared, $requirements_text);",
+($rule_scope_id, $ordinal, $grant_type, $target_aurora_id, $name_text, $grant_level, $spellcasting_name, $is_prepared, $raw_xml, $requirements_text);",
                     ("$rule_scope_id", ruleScopeId),
                     ("$ordinal", ordinal++),
                     ("$grant_type", grant.type ?? string.Empty),
-                    ("$target_aurora_id", (object)grant.id ?? DBNull.Value),
+                    ("$target_aurora_id", (object)targetAuroraId ?? DBNull.Value),
                     ("$name_text", (object)grant.name ?? DBNull.Value),
                     ("$grant_level", grant.level.HasValue ? grant.level.Value : DBNull.Value),
                     ("$spellcasting_name", (object)grant.spellcasting ?? DBNull.Value),
                     ("$is_prepared", grant.prepared.HasValue ? (grant.prepared.Value ? 1 : 0) : DBNull.Value),
+                    ("$raw_xml", (object)grant.rawXml ?? DBNull.Value),
                     ("$requirements_text", (object)grant.requirements?.raw ?? DBNull.Value));
             }
 
@@ -3223,9 +3534,9 @@ VALUES
             {
                 ExecuteInsert(connection, transaction,
                     @"INSERT INTO selects
-(rule_scope_id, ordinal, select_type, name_text, supports_text, select_level, number_to_choose, default_choice_text, is_optional, spellcasting_profile_id, requirements_text)
+(rule_scope_id, ordinal, select_type, name_text, supports_text, select_level, number_to_choose, default_choice_text, is_optional, spellcasting_profile_id, raw_xml, requirements_text)
 VALUES
-($rule_scope_id, $ordinal, $select_type, $name_text, $supports_text, $select_level, $number_to_choose, $default_choice_text, $is_optional, $spellcasting_profile_id, $requirements_text);",
+($rule_scope_id, $ordinal, $select_type, $name_text, $supports_text, $select_level, $number_to_choose, $default_choice_text, $is_optional, $spellcasting_profile_id, $raw_xml, $requirements_text);",
                     ("$rule_scope_id", ruleScopeId),
                     ("$ordinal", ordinal++),
                     ("$select_type", select.type ?? string.Empty),
@@ -3236,6 +3547,7 @@ VALUES
                     ("$default_choice_text", (object)select.defaultChoice ?? DBNull.Value),
                     ("$is_optional", select.optional ? 1 : 0),
                     ("$spellcasting_profile_id", ResolveSpellcastingProfileId(connection, transaction, elementId, select.spellcasting)),
+                    ("$raw_xml", (object)select.rawXml ?? DBNull.Value),
                     ("$requirements_text", (object)select.requirements?.raw ?? DBNull.Value));
 
                 long selectId = GetLastInsertRowId(connection, transaction);
@@ -3257,9 +3569,9 @@ VALUES
             {
                 ExecuteInsert(connection, transaction,
                     @"INSERT INTO stats
-(rule_scope_id, ordinal, stat_name, value_expression_text, bonus_expression_text, equipped_expression_text, stat_level, inline_display, alt_text, requirements_text)
+(rule_scope_id, ordinal, stat_name, value_expression_text, bonus_expression_text, equipped_expression_text, stat_level, inline_display, alt_text, raw_xml, requirements_text)
 VALUES
-($rule_scope_id, $ordinal, $stat_name, $value_expression_text, $bonus_expression_text, $equipped_expression_text, $stat_level, $inline_display, $alt_text, $requirements_text);",
+($rule_scope_id, $ordinal, $stat_name, $value_expression_text, $bonus_expression_text, $equipped_expression_text, $stat_level, $inline_display, $alt_text, $raw_xml, $requirements_text);",
                     ("$rule_scope_id", ruleScopeId),
                     ("$ordinal", ordinal++),
                     ("$stat_name", stat.name ?? string.Empty),
@@ -3269,6 +3581,7 @@ VALUES
                     ("$stat_level", stat.level.HasValue ? stat.level.Value : DBNull.Value),
                     ("$inline_display", stat.inline ? 1 : 0),
                     ("$alt_text", (object)stat.alt ?? DBNull.Value),
+                    ("$raw_xml", (object)stat.rawXml ?? DBNull.Value),
                     ("$requirements_text", (object)stat.requirements?.raw ?? DBNull.Value));
             }
         }
@@ -3362,19 +3675,34 @@ LIMIT 1;";
         private static string GetItemTargetAuroraId(AuroraItemEntry item)
         {
             string attributeId = item?.GetAttribute("id");
-            if (!string.IsNullOrWhiteSpace(attributeId)
-                && attributeId.StartsWith("ID_", StringComparison.OrdinalIgnoreCase))
+            if (LooksLikeAuroraId(attributeId))
             {
                 return attributeId;
             }
 
-            if (!string.IsNullOrWhiteSpace(item?.value)
-                && item.value.StartsWith("ID_", StringComparison.OrdinalIgnoreCase))
+            if (LooksLikeAuroraId(item?.value))
             {
                 return item.value;
             }
 
             return null;
+        }
+
+        private static string GetGrantTargetAuroraId(Grant grant)
+        {
+            if (LooksLikeAuroraId(grant?.id))
+                return grant.id;
+
+            if (LooksLikeAuroraId(grant?.name))
+                return grant.name;
+
+            return null;
+        }
+
+        private static bool LooksLikeAuroraId(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value)
+                && value.TrimStart().StartsWith("ID_", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string DetermineSelectItemOptionKind(Select select, AuroraItemEntry item, string targetAuroraId)
@@ -4842,6 +5170,20 @@ WHERE support_kind = 'unclassified'
             long ActionableUnresolvedCount,
             IReadOnlyList<UnresolvedLinkDeferredSummary> DeferredSummaries,
             IReadOnlyList<UnresolvedLinkKindSummary> KindSummaries);
+        internal sealed record SourceIntegrityPatternSummary(
+            string IssueKey,
+            string IssueText,
+            string DisplayKey,
+            string DisplayText,
+            int Count,
+            IReadOnlyList<string> SampleRows);
+        internal sealed record SourceIntegrityKindSummary(
+            string IssueKind,
+            int TotalCount,
+            IReadOnlyList<SourceIntegrityPatternSummary> Patterns);
+        internal sealed record SourceIntegrityDiagnosticsReport(
+            int TotalIssueCount,
+            IReadOnlyList<SourceIntegrityKindSummary> KindSummaries);
         internal sealed record PackageRefreshParityTableResult(
             string TableName,
             long ScopedRowCount,

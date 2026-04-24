@@ -1,0 +1,28 @@
+{
+  "CapturedAtUtc": "2026-04-24T13:01:13.5687828Z",
+  "CorpusLabel": "Wizards first-party core \u002B supplements",
+  "TotalUnresolvedCount": 469,
+  "ActionableUnresolvedCount": 0,
+  "DeferredCounts": [
+    {
+      "Key": "feature-parent|option-pool|background-feature-option-pool",
+      "Count": 24
+    },
+    {
+      "Key": "feature-parent|option-pool|feature-family-option-pool",
+      "Count": 445
+    }
+  ],
+  "UnresolvedKindCounts": [],
+  "TotalSourceIntegrityCount": 9,
+  "SourceIntegrityKindCounts": [
+    {
+      "Key": "duplicate-element-id-in-file",
+      "Count": 1
+    },
+    {
+      "Key": "grant-target-id-in-name-attribute",
+      "Count": 8
+    }
+  ]
+}
