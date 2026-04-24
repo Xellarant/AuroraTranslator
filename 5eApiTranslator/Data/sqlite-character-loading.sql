@@ -2,12 +2,12 @@ PRAGMA foreign_keys = ON;
 
 BEGIN TRANSACTION;
 
--- Proof of concept:
+-- Aurora character loading schema:
 -- This schema is optimized for character/feature loading first.
 -- It captures the highest-value Aurora element families and the shared
 -- grant/select/stat rule path that drives most character state.
 --
--- Deliberate tradeoffs for the PoC:
+-- Current tradeoffs:
 -- - Descriptions are stored as text blobs instead of a normalized content DOM.
 -- - Requirement/support expressions are preserved as raw text and a lightweight AST,
 --   but are not yet evaluated by the importer itself.
@@ -31,10 +31,37 @@ CREATE TABLE IF NOT EXISTS source_books
     name TEXT NOT NULL UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS content_packages
+(
+    content_package_id INTEGER PRIMARY KEY,
+    package_key TEXT NOT NULL UNIQUE,
+    package_name TEXT NOT NULL,
+    package_kind TEXT NOT NULL DEFAULT 'local' CHECK
+    (
+        package_kind IN
+        (
+            'core',
+            'official',
+            'third-party',
+            'homebrew',
+            'local'
+        )
+    ),
+    precedence_rank INTEGER NOT NULL DEFAULT 500,
+    is_enabled INTEGER NOT NULL DEFAULT 1 CHECK (is_enabled IN (0, 1)),
+    package_description TEXT,
+    source_url TEXT,
+    created_utc TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ix_content_packages_precedence
+    ON content_packages(is_enabled, precedence_rank DESC, package_kind, package_name);
+
 CREATE TABLE IF NOT EXISTS source_files
 (
     source_file_id  INTEGER PRIMARY KEY,
     relative_path   TEXT NOT NULL UNIQUE,
+    content_package_id INTEGER REFERENCES content_packages(content_package_id),
     package_name    TEXT,
     package_description TEXT,
     version_text    TEXT,
@@ -45,6 +72,37 @@ CREATE TABLE IF NOT EXISTS source_files
     -- MD5 of file contents; used to skip unchanged files on re-import.
     file_hash       TEXT
 );
+
+CREATE INDEX IF NOT EXISTS ix_source_files_package ON source_files(content_package_id, relative_path);
+
+CREATE TABLE IF NOT EXISTS resolved_elements_cache
+(
+    aurora_id TEXT NOT NULL PRIMARY KEY,
+    winning_element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
+    source_file_id INTEGER REFERENCES source_files(source_file_id) ON DELETE CASCADE,
+    content_package_id INTEGER REFERENCES content_packages(content_package_id),
+    package_key TEXT,
+    package_name TEXT,
+    package_kind TEXT,
+    precedence_rank INTEGER,
+    duplicate_count INTEGER NOT NULL,
+    resolution_rank INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_resolved_elements_cache_element
+    ON resolved_elements_cache(winning_element_id, content_package_id);
+CREATE INDEX IF NOT EXISTS ix_resolved_elements_cache_package
+    ON resolved_elements_cache(content_package_id, aurora_id);
+
+CREATE TABLE IF NOT EXISTS resolved_unique_element_names_cache
+(
+    normalized_name TEXT NOT NULL PRIMARY KEY,
+    winning_element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
+    name TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_resolved_unique_names_element
+    ON resolved_unique_element_names_cache(winning_element_id);
 
 CREATE TABLE IF NOT EXISTS element_types
 (
@@ -511,6 +569,8 @@ CREATE TABLE IF NOT EXISTS grants
     target_element_id INTEGER REFERENCES elements(element_id) ON DELETE SET NULL,
     name_text TEXT,
     grant_level INTEGER,
+    spellcasting_name TEXT,
+    is_prepared INTEGER CHECK (is_prepared IN (0, 1)),
     requirements_text TEXT,
     UNIQUE (rule_scope_id, ordinal)
 );
@@ -554,11 +614,21 @@ CREATE TABLE IF NOT EXISTS select_items
     ordinal INTEGER NOT NULL,
     item_text TEXT,
     target_aurora_id TEXT,
+    option_kind TEXT NOT NULL DEFAULT 'name-reference-candidate' CHECK
+    (
+        option_kind IN
+        (
+            'aurora-reference',
+            'name-reference-candidate',
+            'text-choice'
+        )
+    ),
     linked_element_id INTEGER REFERENCES elements(element_id) ON DELETE SET NULL,
     UNIQUE (select_id, ordinal)
 );
 
 CREATE INDEX IF NOT EXISTS ix_select_items_target ON select_items(target_aurora_id, linked_element_id);
+CREATE INDEX IF NOT EXISTS ix_select_items_kind ON select_items(option_kind, linked_element_id);
 
 CREATE TABLE IF NOT EXISTS select_item_attributes
 (
@@ -662,6 +732,215 @@ INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Support'
 INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Vision', 'reference');
 INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Weapon Group', 'item');
 INSERT OR IGNORE INTO element_types (type_name, loader_family) VALUES ('Weapon Property', 'item');
+
+CREATE VIEW IF NOT EXISTS v_resolved_elements AS
+SELECT
+    aurora_id,
+    winning_element_id,
+    source_file_id,
+    content_package_id,
+    package_key,
+    package_name,
+    package_kind,
+    precedence_rank,
+    duplicate_count,
+    resolution_rank
+FROM resolved_elements_cache;
+
+CREATE VIEW IF NOT EXISTS v_resolved_unique_element_names AS
+SELECT
+    normalized_name,
+    winning_element_id,
+    name
+FROM resolved_unique_element_names_cache;
+
+CREATE VIEW IF NOT EXISTS v_duplicate_aurora_ids AS
+WITH duplicate_ids AS
+(
+    SELECT
+        e.aurora_id,
+        COUNT(*) AS duplicate_count
+    FROM elements AS e
+    WHERE e.aurora_id IS NOT NULL
+      AND trim(e.aurora_id) <> ''
+    GROUP BY e.aurora_id
+    HAVING COUNT(*) > 1
+)
+SELECT
+    e.aurora_id,
+    e.element_id,
+    e.name,
+    et.type_name,
+    sf.relative_path,
+    cp.package_key,
+    cp.package_name,
+    cp.package_kind,
+    cp.precedence_rank,
+    COALESCE(cp.is_enabled, 1) AS is_enabled,
+    duplicate_ids.duplicate_count,
+    CASE
+        WHEN rec.winning_element_id = e.element_id THEN 1
+        ELSE 0
+    END AS is_winner
+FROM duplicate_ids
+JOIN elements AS e
+    ON e.aurora_id = duplicate_ids.aurora_id
+JOIN element_types AS et
+    ON et.element_type_id = e.element_type_id
+JOIN source_files AS sf
+    ON sf.source_file_id = e.source_file_id
+LEFT JOIN content_packages AS cp
+    ON cp.content_package_id = sf.content_package_id
+LEFT JOIN resolved_elements_cache AS rec
+    ON rec.aurora_id = e.aurora_id;
+
+CREATE VIEW IF NOT EXISTS v_package_resolution_summary AS
+WITH file_counts AS
+(
+    SELECT content_package_id, COUNT(*) AS file_count
+    FROM source_files
+    GROUP BY content_package_id
+),
+winner_counts AS
+(
+    SELECT content_package_id, COUNT(*) AS winning_element_count
+    FROM resolved_elements_cache
+    GROUP BY content_package_id
+),
+duplicate_counts AS
+(
+    SELECT
+        sf.content_package_id,
+        COUNT(*) AS duplicate_element_count,
+        SUM(CASE WHEN dup.is_winner = 1 THEN 1 ELSE 0 END) AS duplicate_winner_count,
+        SUM(CASE WHEN dup.is_winner = 0 THEN 1 ELSE 0 END) AS duplicate_loser_count
+    FROM v_duplicate_aurora_ids AS dup
+    JOIN source_files AS sf
+        ON sf.relative_path = dup.relative_path
+    GROUP BY sf.content_package_id
+)
+SELECT
+    cp.content_package_id,
+    cp.package_key,
+    cp.package_name,
+    cp.package_kind,
+    cp.precedence_rank,
+    cp.is_enabled,
+    COALESCE(file_counts.file_count, 0) AS file_count,
+    COALESCE(winner_counts.winning_element_count, 0) AS winning_element_count,
+    COALESCE(duplicate_counts.duplicate_element_count, 0) AS duplicate_element_count,
+    COALESCE(duplicate_counts.duplicate_winner_count, 0) AS duplicate_winner_count,
+    COALESCE(duplicate_counts.duplicate_loser_count, 0) AS duplicate_loser_count
+FROM content_packages AS cp
+LEFT JOIN file_counts
+    ON file_counts.content_package_id = cp.content_package_id
+LEFT JOIN winner_counts
+    ON winner_counts.content_package_id = cp.content_package_id
+LEFT JOIN duplicate_counts
+    ON duplicate_counts.content_package_id = cp.content_package_id;
+
+CREATE VIEW IF NOT EXISTS v_unresolved_loader_links AS
+SELECT
+    'grant' AS link_kind,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(g.grant_id AS TEXT) AS link_id,
+    g.target_aurora_id AS unresolved_key,
+    g.name_text AS unresolved_text
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+WHERE g.target_aurora_id IS NOT NULL
+  AND g.target_element_id IS NULL
+
+UNION ALL
+
+SELECT
+    'extract-item' AS link_kind,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(ei.extract_item_id AS TEXT) AS link_id,
+    ei.target_aurora_id AS unresolved_key,
+    ei.item_text AS unresolved_text
+FROM element_extract_items AS ei
+JOIN element_extracts AS ex
+    ON ex.element_id = ei.element_id
+JOIN elements AS owner
+    ON owner.element_id = ex.element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+WHERE ei.linked_element_id IS NULL
+  AND (ei.target_aurora_id IS NOT NULL OR ei.item_text IS NOT NULL)
+
+UNION ALL
+
+SELECT
+    'select-item' AS link_kind,
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    CAST(si.select_item_id AS TEXT) AS link_id,
+    si.target_aurora_id AS unresolved_key,
+    si.item_text AS unresolved_text
+FROM select_items AS si
+JOIN selects AS s
+    ON s.select_id = si.select_id
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = s.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+WHERE si.linked_element_id IS NULL
+  AND si.option_kind <> 'text-choice'
+  AND (si.target_aurora_id IS NOT NULL OR si.item_text IS NOT NULL)
+
+UNION ALL
+
+SELECT
+    'feature-parent' AS link_kind,
+    feature.element_id AS owner_element_id,
+    feature.aurora_id AS owner_aurora_id,
+    feature.name AS owner_name,
+    feature_type.type_name AS owner_type_name,
+    CAST(feature.element_id AS TEXT) AS link_id,
+    feature_meta.parent_support_text AS unresolved_key,
+    feature_meta.parent_support_text AS unresolved_text
+FROM features AS feature_meta
+JOIN elements AS feature
+    ON feature.element_id = feature_meta.element_id
+JOIN element_types AS feature_type
+    ON feature_type.element_type_id = feature.element_type_id
+WHERE feature_meta.parent_support_text IS NOT NULL
+  AND feature_meta.parent_element_id IS NULL
+
+UNION ALL
+
+SELECT
+    'archetype-parent' AS link_kind,
+    archetype.element_id AS owner_element_id,
+    archetype.aurora_id AS owner_aurora_id,
+    archetype.name AS owner_name,
+    archetype_type.type_name AS owner_type_name,
+    CAST(archetype.element_id AS TEXT) AS link_id,
+    archetype_meta.parent_support_text AS unresolved_key,
+    archetype_meta.parent_support_text AS unresolved_text
+FROM archetypes AS archetype_meta
+JOIN elements AS archetype
+    ON archetype.element_id = archetype_meta.element_id
+JOIN element_types AS archetype_type
+    ON archetype_type.element_type_id = archetype.element_type_id
+WHERE archetype_meta.parent_support_text IS NOT NULL
+  AND archetype_meta.parent_class_element_id IS NULL;
 
 -- Aurora companion stat blocks.
 -- Populated from Aurora XML Companion elements (type="Companion").

@@ -58,4 +58,34 @@ namespace _5eApiTranslator.Models
                 : null;
         }
     }
+
+    public class AuroraItemEntry
+    {
+        public string value { get; set; }
+        public Dictionary<string, string> attributes { get; set; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public string GetAttribute(string attributeName)
+        {
+            return attributes.TryGetValue(attributeName, out var value)
+                ? value
+                : null;
+        }
+    }
+
+    public class AuroraBlockEntry
+    {
+        public string name { get; set; }
+        public string value { get; set; }
+        public string rawXml { get; set; }
+        public Dictionary<string, string> attributes { get; set; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public string GetAttribute(string attributeName)
+        {
+            return attributes.TryGetValue(attributeName, out var value)
+                ? value
+                : null;
+        }
+    }
 }

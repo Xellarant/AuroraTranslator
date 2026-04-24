@@ -12,6 +12,7 @@ namespace _5eApiTranslator.Models
         public string aurora_id { get; set; }
         public string source_file_path { get; set; }
         public bool compendium_display { get; set; }
+        public string descriptionRawXml { get; set; }
         public AuroraSetters setters { get; set; }
     }
 }

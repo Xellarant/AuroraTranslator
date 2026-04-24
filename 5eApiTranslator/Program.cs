@@ -22,11 +22,11 @@ namespace _5eApiTranslator
         static string defaultSqlitePath = Path.Combine(
             projectRootPath,
             "Data",
-            "aurora-character-loading-poc.sqlite");
+            "aurora-character-loading.sqlite");
         static string sqliteSchemaPath = Path.Combine(
             projectRootPath,
             "Data",
-            "sqlite-character-loading-poc.sql");
+            "sqlite-character-loading.sql");
 
         static async Task Main(string[] args)
         {
@@ -72,7 +72,7 @@ namespace _5eApiTranslator
                 string jsonPath   = args.Length > 1 ? args[1] : defaultSrdMonstersPath;
                 string sqlitePath = args.Length > 2 ? args[2] : defaultSqlitePath;
 
-                AuroraSqlitePocImporter.ImportSrdCreatures(jsonPath, sqlitePath);
+                AuroraSqliteImporter.ImportSrdCreatures(jsonPath, sqlitePath);
                 return;
             }
 
@@ -97,11 +97,87 @@ namespace _5eApiTranslator
                 return;
             }
 
+            if (args.Length > 0
+                && string.Equals(args[0], "packages", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
+                ListContentPackages(sqlitePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "set-package-enabled", StringComparison.OrdinalIgnoreCase))
+            {
+                string packageKey = args.Length > 1 ? args[1] : null;
+                string enabledText = args.Length > 2 ? args[2] : null;
+                string sqlitePath = args.Length > 3 ? args[3] : defaultSqlitePath;
+
+                SetPackageEnabled(packageKey, enabledText, sqlitePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "set-package-rank", StringComparison.OrdinalIgnoreCase))
+            {
+                string packageKey = args.Length > 1 ? args[1] : null;
+                string rankText = args.Length > 2 ? args[2] : null;
+                string sqlitePath = args.Length > 3 ? args[3] : defaultSqlitePath;
+
+                SetPackageRank(packageKey, rankText, sqlitePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "refresh-package-resolution", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
+                RefreshPackageResolution(sqlitePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "refresh-package-admin-views", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
+                RefreshPackageAdministrationViews(sqlitePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "check-package-refresh-parity", StringComparison.OrdinalIgnoreCase))
+            {
+                string packageKey = args.Length > 1 ? args[1] : null;
+                string settingKind = args.Length > 2 ? args[2] : null;
+                string settingValue = args.Length > 3 ? args[3] : null;
+                string sqlitePath = args.Length > 4 ? args[4] : defaultSqlitePath;
+
+                CheckPackageRefreshParity(packageKey, settingKind, settingValue, sqlitePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "summarize-unresolved-links", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
+                string topCountText = args.Length > 2 ? args[2] : null;
+
+                SummarizeUnresolvedLinks(sqlitePath, topCountText);
+                return;
+            }
+
             Console.WriteLine("Commands:");
             Console.WriteLine("  sqlite-import [auroraPath] [sqlitePath]              Import Aurora XML into the SQLite database.");
             Console.WriteLine("  srd-creatures [jsonPath] [sqlitePath]                Import SRD monsters and link to Aurora companions.");
             Console.WriteLine("  generate-xellarant-xml [jsonPath] [sqlitePath] [out] Generate The Book of Xellarant creatures XML.");
             Console.WriteLine("  eval-expression [expressionText] [contextJson]       Parse and evaluate an Aurora expression.");
+            Console.WriteLine("  packages [sqlitePath]                                List content packages and current precedence settings.");
+            Console.WriteLine("  set-package-enabled [key] [true|false] [sqlitePath] Enable or disable a content package.");
+            Console.WriteLine("  set-package-rank [key] [rank] [sqlitePath]           Set a content package precedence rank.");
+            Console.WriteLine("  refresh-package-resolution [sqlitePath]              Recompute precedence-driven link resolution.");
+            Console.WriteLine("  refresh-package-admin-views [sqlitePath]             Recreate precedence/debug admin views.");
+            Console.WriteLine("  check-package-refresh-parity [key] [rank|enabled] [value] [sqlitePath]");
+            Console.WriteLine("                                                      Compare scoped package refresh against a full rebuild.");
+            Console.WriteLine("  summarize-unresolved-links [sqlitePath] [topCount]  Show the biggest unresolved link patterns by kind.");
             Console.WriteLine($"Default Aurora path:  {defaultAuroraPath}");
             Console.WriteLine($"Default SQLite path:  {defaultSqlitePath}");
             Console.WriteLine($"Default SRD JSON:     {defaultSrdMonstersPath}");
@@ -151,6 +227,55 @@ namespace _5eApiTranslator
                 Console.Error.WriteLine("Context JSON shape:");
                 Console.Error.WriteLine(@"  { ""tokens"": [], ""numericValues"": {}, ""scalarValues"": {}, ""macroValues"": {} }");
             }
+            else if (args.Length > 0
+                && string.Equals(args[0], "packages", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: packages [sqlitePath]");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "set-package-enabled", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: set-package-enabled [packageKey] [true|false] [sqlitePath]");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "set-package-rank", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: set-package-rank [packageKey] [rank] [sqlitePath]");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "refresh-package-resolution", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: refresh-package-resolution [sqlitePath]");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "refresh-package-admin-views", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: refresh-package-admin-views [sqlitePath]");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "check-package-refresh-parity", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: check-package-refresh-parity [packageKey] [rank|enabled] [value] [sqlitePath]");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "summarize-unresolved-links", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: summarize-unresolved-links [sqlitePath] [topCount]");
+                Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
+            }
         }
 
         private static string ResolveProjectRootPath()
@@ -193,7 +318,7 @@ namespace _5eApiTranslator
 
             AuroraImportCatalog catalog = BuildAuroraImportCatalog(auroraPath);
             string srdPath = File.Exists(defaultSrdMonstersPath) ? defaultSrdMonstersPath : null;
-            AuroraSqlitePocImporter.Import(catalog, sqliteSchemaPath, sqlitePath, srdPath);
+            AuroraSqliteImporter.Import(catalog, sqliteSchemaPath, sqlitePath, srdPath);
 
             Console.WriteLine($"Imported {catalog.Elements.Count} Aurora elements and {catalog.Spells.Count} Aurora spells into {sqlitePath}.");
         }
@@ -224,6 +349,178 @@ namespace _5eApiTranslator
 
             if (!string.IsNullOrWhiteSpace(contextJsonPath))
                 Console.WriteLine($"Context JSON: {contextJsonPath}");
+        }
+
+        private static void ListContentPackages(string sqlitePath)
+        {
+            var packages = AuroraSqliteImporter.ListContentPackages(sqlitePath, sqliteSchemaPath);
+
+            if (packages.Count == 0)
+            {
+                Console.WriteLine("No content packages were found in the SQLite database.");
+                return;
+            }
+
+            Console.WriteLine($"Content packages in {sqlitePath}:");
+            foreach (var package in packages)
+            {
+                Console.WriteLine(
+                    $"- {package.PackageKey} | {package.PackageName} | {package.PackageKind} | " +
+                    $"rank={package.PrecedenceRank} | enabled={(package.IsEnabled ? "yes" : "no")} | " +
+                    $"files={package.FileCount} | winners={package.WinningElementCount} | duplicates={package.DuplicateElementCount}");
+            }
+        }
+
+        private static void SetPackageEnabled(string packageKey, string enabledText, string sqlitePath)
+        {
+            if (string.IsNullOrWhiteSpace(packageKey))
+                throw new ArgumentException("Package key is required.", nameof(packageKey));
+            if (!TryParseBoolean(enabledText, out bool isEnabled))
+                throw new ArgumentException($"Could not parse package enabled value '{enabledText}'. Use true/false, yes/no, on/off, or 1/0.");
+
+            AuroraSqliteImporter.UpdateContentPackageSettings(sqlitePath, packageKey, isEnabled: isEnabled, schemaPath: sqliteSchemaPath);
+            Console.WriteLine($"Updated package '{packageKey}' enabled state to {(isEnabled ? "enabled" : "disabled")}.");
+        }
+
+        private static void SetPackageRank(string packageKey, string rankText, string sqlitePath)
+        {
+            if (string.IsNullOrWhiteSpace(packageKey))
+                throw new ArgumentException("Package key is required.", nameof(packageKey));
+            if (!int.TryParse(rankText, out int rank))
+                throw new ArgumentException($"Could not parse package rank '{rankText}'.");
+
+            AuroraSqliteImporter.UpdateContentPackageSettings(sqlitePath, packageKey, precedenceRank: rank, schemaPath: sqliteSchemaPath);
+            Console.WriteLine($"Updated package '{packageKey}' precedence rank to {rank}.");
+        }
+
+        private static void RefreshPackageResolution(string sqlitePath)
+        {
+            AuroraSqliteImporter.RefreshPackageResolution(sqlitePath, sqliteSchemaPath);
+            Console.WriteLine($"Refreshed precedence-driven link resolution in {sqlitePath}.");
+        }
+
+        private static void RefreshPackageAdministrationViews(string sqlitePath)
+        {
+            AuroraSqliteImporter.RefreshPackageAdministrationViews(sqlitePath);
+            Console.WriteLine($"Refreshed precedence/debug admin views in {sqlitePath}.");
+        }
+
+        private static void CheckPackageRefreshParity(
+            string packageKey,
+            string settingKind,
+            string settingValue,
+            string sqlitePath)
+        {
+            if (string.IsNullOrWhiteSpace(packageKey))
+                throw new ArgumentException("Package key is required.", nameof(packageKey));
+            if (string.IsNullOrWhiteSpace(settingKind))
+                throw new ArgumentException("Setting kind is required. Use 'rank' or 'enabled'.", nameof(settingKind));
+
+            int? precedenceRank = null;
+            bool? isEnabled = null;
+
+            switch (settingKind.Trim().ToLowerInvariant())
+            {
+                case "rank":
+                    if (!int.TryParse(settingValue, out int rank))
+                        throw new ArgumentException($"Could not parse package rank '{settingValue}'.");
+                    precedenceRank = rank;
+                    break;
+
+                case "enabled":
+                    if (!TryParseBoolean(settingValue, out bool enabled))
+                        throw new ArgumentException($"Could not parse package enabled value '{settingValue}'. Use true/false, yes/no, on/off, or 1/0.");
+                    isEnabled = enabled;
+                    break;
+
+                default:
+                    throw new ArgumentException($"Unsupported setting kind '{settingKind}'. Use 'rank' or 'enabled'.");
+            }
+
+            var parity = AuroraSqliteImporter.ValidatePackageRefreshParity(
+                sqlitePath,
+                packageKey,
+                precedenceRank: precedenceRank,
+                isEnabled: isEnabled);
+
+            Console.WriteLine($"Package refresh parity for '{packageKey}' in {sqlitePath}: {(parity.IsMatch ? "MATCH" : "MISMATCH")}");
+            foreach (var table in parity.TableResults)
+            {
+                Console.WriteLine(
+                    $"- {table.TableName} | scoped={table.ScopedRowCount} | full={table.FullRowCount} | " +
+                    $"scoped-only={table.ScopedOnlyRowCount} | full-only={table.FullOnlyRowCount} | " +
+                    $"status={(table.IsMatch ? "ok" : "diff")}");
+            }
+
+            if (!parity.IsMatch)
+            {
+                throw new InvalidOperationException(
+                    $"Scoped package refresh diverged from a full rebuild for package '{packageKey}'.");
+            }
+        }
+
+        private static void SummarizeUnresolvedLinks(string sqlitePath, string topCountText)
+        {
+            int topCount = 10;
+            if (!string.IsNullOrWhiteSpace(topCountText) && !int.TryParse(topCountText, out topCount))
+                throw new ArgumentException($"Could not parse top count '{topCountText}'.");
+            if (topCount <= 0)
+                throw new ArgumentOutOfRangeException(nameof(topCountText), "Top count must be greater than zero.");
+
+            var report = AuroraSqliteImporter.GetUnresolvedLinkDiagnostics(sqlitePath, topCount);
+
+            Console.WriteLine($"Unresolved link diagnostics for {sqlitePath}:");
+            Console.WriteLine($"Total unresolved rows: {report.TotalUnresolvedCount}");
+
+            if (report.KindSummaries.Count == 0)
+            {
+                Console.WriteLine("No unresolved links were found.");
+                return;
+            }
+
+            foreach (var kindSummary in report.KindSummaries)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"[{kindSummary.LinkKind}] total={kindSummary.TotalCount}");
+
+                foreach (var pattern in kindSummary.Patterns)
+                {
+                    Console.WriteLine($"  - {pattern.DisplayKey} | count={pattern.Count}");
+
+                    if (!string.IsNullOrWhiteSpace(pattern.DisplayText)
+                        && !string.Equals(pattern.DisplayText, pattern.DisplayKey, StringComparison.Ordinal))
+                    {
+                        Console.WriteLine($"    text: {pattern.DisplayText}");
+                    }
+
+                    if (pattern.SampleOwners.Count > 0)
+                        Console.WriteLine($"    owners: {string.Join("; ", pattern.SampleOwners)}");
+                }
+            }
+        }
+
+        private static bool TryParseBoolean(string value, out bool result)
+        {
+            switch (value?.Trim().ToLowerInvariant())
+            {
+                case "1":
+                case "true":
+                case "yes":
+                case "on":
+                case "enabled":
+                    result = true;
+                    return true;
+                case "0":
+                case "false":
+                case "no":
+                case "off":
+                case "disabled":
+                    result = false;
+                    return true;
+                default:
+                    result = false;
+                    return false;
+            }
         }
 
         private static string DescribeExpressionNode(AuroraExpressionNode node)
@@ -655,6 +952,8 @@ namespace _5eApiTranslator
                 level = grant.Attribute("level")?.Value != null ?
                         Convert.ToInt32(grant.Attribute("level")?.Value) :
                         null,
+                spellcasting = grant.Attribute("spellcasting")?.Value,
+                prepared = grant.Attribute("prepared")?.Value is { } p ? p == "true" : null,
                 requirements = ParseAuroraTextCollection(grant.Attribute("requirements")?.Value)
             };
         }

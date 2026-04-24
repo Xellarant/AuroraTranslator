@@ -20,8 +20,12 @@ namespace _5eApiTranslator.Models
         public Compendium compendium { get; set; } = new Compendium();
         public AuroraTextCollection supports { get; set; }
         public AuroraTextCollection requirements { get; set; }
+        public AuroraTextCollection prerequisites { get; set; }
         public string prerequisite { get; set; }
         public string description { get; set; }
+        public string descriptionRawXml { get; set; }
+        public AuroraExtract extract { get; set; }
+        public List<AuroraBlockEntry> additionalBlocks { get; set; }
         public AuroraSheet sheet { get; set; }
         public AuroraSetters setters { get; set; }
         public Spellcasting spellcasting { get; set; }
@@ -68,6 +72,7 @@ namespace _5eApiTranslator.Models
         public string defaultChoice { get; set; } // selected by default
         public bool optional { get; set; }
         public string spellcasting { get; set; }
+        public List<AuroraItemEntry> items { get; set; }
     }
 
     public class Grant
@@ -76,6 +81,8 @@ namespace _5eApiTranslator.Models
         public string id { get; set; }
         public string name { get; set; }
         public int? level { get; set; }
+        public string spellcasting { get; set; }
+        public bool? prepared { get; set; }
         public AuroraTextCollection requirements { get; set; }
     }
 
@@ -99,6 +106,7 @@ namespace _5eApiTranslator.Models
     {
         public bool display { get; set; } = true;
         public List<Description> description { get; set; }
+        public string rawXml { get; set; }
         public string alt { get; set; } // alternative name to appear on the sheet
         public string action { get; set; } // what kind of action it takes
         public string usage { get; set; } // how often a thing can be used.
@@ -108,5 +116,12 @@ namespace _5eApiTranslator.Models
     {
         public int? level { get; set; }
         public string text { get; set; }
+        public string rawXml { get; set; }
+    }
+
+    public class AuroraExtract
+    {
+        public string description { get; set; }
+        public List<AuroraItemEntry> items { get; set; } = new();
     }
 }

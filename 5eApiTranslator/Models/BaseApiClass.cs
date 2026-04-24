@@ -1,18 +1,9 @@
-﻿using System;
-
-/// <summary>
-/// Summary description for Class1
-/// </summary>
-public class BaseApiClass
+﻿namespace _5eApiTranslator.Models
 {
-	public BaseApiClass()
-	{
-		//
-		// TODO: Add constructor logic here
-		//				
-	}
-
-	public string index { get; set; }
-	public string name { get; set; }
-	public string url { get; set; }
+    public class BaseApiClass
+    {
+        public string index { get; set; }
+        public string name { get; set; }
+        public string url { get; set; }
+    }
 }

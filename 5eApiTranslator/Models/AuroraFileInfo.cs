@@ -9,6 +9,8 @@ namespace _5eApiTranslator.Models
     internal class AuroraFileInfo
     {
         public string RelativePath { get; set; }
+        /// <summary>Absolute path on disk — used for hash computation; not stored in the DB.</summary>
+        public string FullPath { get; set; }
         public string Name { get; set; }
         public string Description { get; set; }
         public Author Author { get; set; }
