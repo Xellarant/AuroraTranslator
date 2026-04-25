@@ -1,4 +1,4 @@
-﻿namespace _5eApiTranslator.Models
+namespace AuroraTranslator.Models
 {
     public class BaseApiClass
     {
@@ -7,3 +7,4 @@
         public string url { get; set; }
     }
 }
+

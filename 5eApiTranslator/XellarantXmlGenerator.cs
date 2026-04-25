@@ -1,4 +1,4 @@
-using _5eApiTranslator.Models;
+using AuroraTranslator.Models;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
@@ -9,7 +9,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml;
 
-namespace _5eApiTranslator
+namespace AuroraTranslator
 {
     /// <summary>
     /// Generates an Aurora Builder-compatible XML file for "The Book of Xellarant"
@@ -364,3 +364,4 @@ namespace _5eApiTranslator
         }
     }
 }
+

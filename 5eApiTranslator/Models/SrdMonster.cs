@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace _5eApiTranslator.Models
+namespace AuroraTranslator.Models
 {
     public class SrdMonster
     {
@@ -149,3 +149,4 @@ namespace _5eApiTranslator.Models
         public string Desc { get; set; }
     }
 }
+

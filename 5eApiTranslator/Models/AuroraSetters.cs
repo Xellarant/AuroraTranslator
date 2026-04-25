@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace _5eApiTranslator.Models
+namespace AuroraTranslator.Models
 {
     public class AuroraSetters
     {
@@ -82,3 +82,4 @@ namespace _5eApiTranslator.Models
         public List<string> names { get; set; }
     }
 }
+

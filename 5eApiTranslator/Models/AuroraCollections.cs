@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace _5eApiTranslator.Models
+namespace AuroraTranslator.Models
 {
     public class AuroraTextCollection : IEnumerable<string>
     {
@@ -89,3 +89,4 @@ namespace _5eApiTranslator.Models
         }
     }
 }
+

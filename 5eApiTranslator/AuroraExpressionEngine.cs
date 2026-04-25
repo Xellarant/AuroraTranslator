@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 
-namespace _5eApiTranslator
+namespace AuroraTranslator
 {
     internal sealed class AuroraExpressionParseResult
     {
@@ -533,3 +533,4 @@ namespace _5eApiTranslator
         }
     }
 }
+

@@ -1,4 +1,4 @@
-using _5eApiTranslator.Models;
+using AuroraTranslator.Models;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
@@ -7,7 +7,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace _5eApiTranslator
+namespace AuroraTranslator
 {
     internal static class AuroraSqliteImporter
     {
@@ -5453,7 +5453,7 @@ WHERE support_kind = 'unclassified'
             return monsters.Count;
         }
 
-        private static void InsertSrdCreature(SqliteConnection connection, SqliteTransaction transaction, _5eApiTranslator.Models.SrdMonster m)
+        private static void InsertSrdCreature(SqliteConnection connection, SqliteTransaction transaction, AuroraTranslator.Models.SrdMonster m)
         {
             var crText           = SrdHelpers.FormatCr(m.ChallengeRating);
             var acText           = SrdHelpers.FormatAc(m.ArmorClass);
@@ -5536,3 +5536,4 @@ WHERE et.type_name = 'Companion';");
 
     }
 }
+

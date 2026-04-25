@@ -1,4 +1,4 @@
-﻿using _5eApiTranslator.Models;
+using AuroraTranslator.Models;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using Microsoft.Data.Sqlite;
 
-namespace _5eApiTranslator
+namespace AuroraTranslator
 {
     class Program
     {
@@ -382,7 +382,7 @@ namespace _5eApiTranslator
 
                 while (directory != null)
                 {
-                    if (File.Exists(Path.Combine(directory.FullName, "5eDataGenerator.csproj")))
+                    if (File.Exists(Path.Combine(directory.FullName, "AuroraTranslator.csproj")))
                     {
                         return directory.FullName;
                     }
@@ -391,7 +391,7 @@ namespace _5eApiTranslator
                 }
             }
 
-            throw new DirectoryNotFoundException("Could not locate the project root containing 5eDataGenerator.csproj.");
+            throw new DirectoryNotFoundException("Could not locate the project root containing AuroraTranslator.csproj.");
         }
 
         private static void ImportAuroraToSqlite(string auroraPath, string sqlitePath)
@@ -1629,3 +1629,4 @@ namespace _5eApiTranslator
 
     }
 }
+

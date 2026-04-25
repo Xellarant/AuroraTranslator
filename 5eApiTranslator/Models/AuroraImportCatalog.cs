@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace _5eApiTranslator.Models
+namespace AuroraTranslator.Models
 {
     internal class AuroraImportCatalog
     {
@@ -9,3 +9,4 @@ namespace _5eApiTranslator.Models
         public List<AuroraSpell> Spells { get; set; } = new();
     }
 }
+

@@ -1,11 +1,11 @@
-using _5eApiTranslator.Models;
+using AuroraTranslator.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace _5eApiTranslator
+namespace AuroraTranslator
 {
     /// <summary>
     /// Shared helpers for formatting SRD JSON fields into human-readable strings
@@ -158,3 +158,4 @@ namespace _5eApiTranslator
             string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s[1..];
     }
 }
+
