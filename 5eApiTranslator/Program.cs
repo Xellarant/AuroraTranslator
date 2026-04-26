@@ -214,6 +214,16 @@ namespace AuroraTranslator
                 return;
             }
 
+            if (args.Length > 0
+                && string.Equals(args[0], "evaluate-character-state", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
+                string stateJsonPath = args.Length > 2 ? args[2] : null;
+
+                EvaluateCharacterState(sqlitePath, stateJsonPath);
+                return;
+            }
+
             Console.WriteLine("Commands:");
             Console.WriteLine("  sqlite-import [auroraPath] [sqlitePath]              Import Aurora XML into the SQLite database.");
             Console.WriteLine("  srd-creatures [jsonPath] [sqlitePath]                Import SRD monsters and link to Aurora companions.");
@@ -234,6 +244,8 @@ namespace AuroraTranslator
             Console.WriteLine("                                                      Compare current diagnostics against a saved baseline.");
             Console.WriteLine("  capture-first-party-diagnostics-baseline [auroraRoot] [sqlitePath] [baselinePath]");
             Console.WriteLine("                                                      Rebuild a canonical baseline from only core + supplements.");
+            Console.WriteLine("  evaluate-character-state [sqlitePath] [stateJson]");
+            Console.WriteLine("                                                      Resolve a character state into active features, grants, and selects.");
             Console.WriteLine($"Default Aurora path:  {defaultAuroraPath}");
             Console.WriteLine($"Default SQLite path:  {defaultSqlitePath}");
             Console.WriteLine($"Default baseline:     {defaultDiagnosticsBaselinePath}");
@@ -366,6 +378,20 @@ namespace AuroraTranslator
                 Console.Error.WriteLine($"Default SQLite path:   {defaultFirstPartyBaselineSqlitePath}");
                 Console.Error.WriteLine($"Default baseline path: {defaultDiagnosticsBaselinePath}");
             }
+            else if (args.Length > 0
+                && string.Equals(args[0], "evaluate-character-state", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: evaluate-character-state [sqlitePath] [stateJsonPath]");
+                Console.Error.WriteLine("State JSON example:");
+                Console.Error.WriteLine(@"  {");
+                Console.Error.WriteLine(@"    ""classes"": [{ ""name"": ""Fighter"", ""packageKey"": ""core-players-handbook"", ""level"": 5 }],");
+                Console.Error.WriteLine(@"    ""archetypes"": [{ ""name"": ""Champion"", ""packageKey"": ""core-players-handbook"" }],");
+                Console.Error.WriteLine(@"    ""race"": { ""name"": ""Human"", ""packageKey"": ""core-players-handbook"" },");
+                Console.Error.WriteLine(@"    ""background"": { ""name"": ""Acolyte"", ""packageKey"": ""core-players-handbook"" },");
+                Console.Error.WriteLine(@"    ""numericValues"": { ""str"": 16, ""dex"": 14, ""con"": 14, ""int"": 10, ""wis"": 12, ""cha"": 8 }");
+                Console.Error.WriteLine(@"  }");
+            }
         }
 
         private static string ResolveProjectRootPath()
@@ -439,6 +465,107 @@ namespace AuroraTranslator
 
             if (!string.IsNullOrWhiteSpace(contextJsonPath))
                 Console.WriteLine($"Context JSON: {contextJsonPath}");
+        }
+
+        private static void EvaluateCharacterState(string sqlitePath, string stateJsonPath)
+        {
+            if (string.IsNullOrWhiteSpace(stateJsonPath))
+                throw new ArgumentException("A character state JSON path is required.", nameof(stateJsonPath));
+
+            CharacterEvaluationResult result = AuroraCharacterStateEngine.Evaluate(sqlitePath, stateJsonPath);
+
+            Console.WriteLine("Character State Evaluation");
+            Console.WriteLine($"SQLite:     {sqlitePath}");
+            Console.WriteLine($"State JSON: {stateJsonPath}");
+            Console.WriteLine();
+
+            Console.WriteLine($"Direct selections: {result.DirectSelections.Count}");
+            foreach (ResolvedCharacterElement selection in result.DirectSelections)
+            {
+                string levelText = selection.Level.HasValue ? $" L{selection.Level.Value}" : string.Empty;
+                Console.WriteLine($"  - {selection.TypeName}: {selection.Name}{levelText} [{selection.PackageKey ?? "(no package)"}]");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"Active features: {result.ActiveFeatures.Count}");
+            foreach (IGrouping<string, ActiveCharacterFeature> ownerGroup in result.ActiveFeatures
+                         .GroupBy(x => $"{x.OwnerTypeName}: {x.OwnerName}")
+                         .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"  {ownerGroup.Key}");
+                foreach (ActiveCharacterFeature feature in ownerGroup
+                             .OrderBy(x => x.UnlockLevel)
+                             .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                             .Take(12))
+                {
+                    Console.WriteLine($"    - L{feature.UnlockLevel}: {feature.Name} [{feature.PackageKey ?? "(no package)"}]");
+                }
+
+                int remainingCount = ownerGroup.Count() - 12;
+                if (remainingCount > 0)
+                    Console.WriteLine($"    ... {remainingCount} more");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"Active grants: {result.ActiveGrants.Count}");
+            foreach (IGrouping<string, ActiveGrantResult> grantGroup in result.ActiveGrants
+                         .GroupBy(x => x.GrantType)
+                         .OrderByDescending(x => x.Count())
+                         .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"  {grantGroup.Key}: {grantGroup.Count()}");
+                foreach (ActiveGrantResult grant in grantGroup.Take(8))
+                {
+                    string targetText = !string.IsNullOrWhiteSpace(grant.TargetName)
+                        ? $"{grant.TargetName} [{grant.TargetPackageKey ?? "(no package)"}]"
+                        : (!string.IsNullOrWhiteSpace(grant.TargetSemanticName)
+                            ? grant.TargetSemanticName
+                            : grant.TargetSemanticKey ?? "(unresolved)");
+                    Console.WriteLine($"    - {grant.OwnerName}: {targetText}");
+                }
+
+                int remainingCount = grantGroup.Count() - 8;
+                if (remainingCount > 0)
+                    Console.WriteLine($"    ... {remainingCount} more");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"Available selects: {result.AvailableSelects.Count}");
+            foreach (CharacterSelectResult select in result.AvailableSelects
+                         .OrderBy(x => x.OwnerTypeName, StringComparer.OrdinalIgnoreCase)
+                         .ThenBy(x => x.OwnerName, StringComparer.OrdinalIgnoreCase)
+                         .ThenBy(x => x.SelectLevel ?? 0)
+                         .ThenBy(x => x.SelectName, StringComparer.OrdinalIgnoreCase))
+            {
+                int availableOptionCount = select.Options.Count(x => x.IsAvailable);
+                int ownedOptionCount = select.Options.Count(x => x.IsAlreadyOwned);
+                Console.WriteLine($"  - {select.OwnerTypeName}: {select.OwnerName} -> {select.SelectName} ({select.SelectType}, policy {select.SelectPolicy}, choose {select.NumberToChoose}, options {availableOptionCount}/{select.Options.Count})");
+
+                foreach (CharacterSelectOptionResult option in select.Options
+                             .Where(x => x.IsAvailable)
+                             .OrderBy(x => x.OptionName ?? x.OptionText, StringComparer.OrdinalIgnoreCase)
+                             .Take(8))
+                {
+                    string optionLabel = option.OptionName ?? option.OptionText ?? "(unnamed option)";
+                    string ownedSuffix = option.IsAlreadyOwned ? " [already owned]" : string.Empty;
+                    string packageSuffix = !string.IsNullOrWhiteSpace(option.OptionPackageKey)
+                        ? $" [{option.OptionPackageKey}]"
+                        : string.Empty;
+                    Console.WriteLine($"      * {optionLabel}{packageSuffix}{ownedSuffix}");
+                }
+
+                if (ownedOptionCount > 0)
+                    Console.WriteLine($"      already-owned options in pool: {ownedOptionCount}");
+
+                int remainingCount = availableOptionCount - 8;
+                if (remainingCount > 0)
+                    Console.WriteLine($"      ... {remainingCount} more available options");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"Evaluation tokens: {result.EvaluationContext.Tokens.Count}");
+            Console.WriteLine($"Evaluation numeric keys: {result.EvaluationContext.NumericValues.Count}");
+            Console.WriteLine($"Evaluation macros: {result.EvaluationContext.MacroValues.Count}");
         }
 
         private static void ListContentPackages(string sqlitePath)
