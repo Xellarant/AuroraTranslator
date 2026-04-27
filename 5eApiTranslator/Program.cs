@@ -552,6 +552,28 @@ namespace AuroraTranslator
                         ? $" [{option.OptionPackageKey}]"
                         : string.Empty;
                     Console.WriteLine($"      * {optionLabel}{packageSuffix}{ownedSuffix}");
+
+                    IReadOnlyList<CharacterSelectOptionResult> followUpOptions = option.FollowUpOptions
+                        ?.Where(x => x.IsAvailable)
+                        .ToList();
+
+                    if (followUpOptions?.Count > 0)
+                    {
+                        Console.WriteLine($"        follow-up ({option.FollowUpKind ?? "choices"}): {followUpOptions.Count}");
+                        foreach (CharacterSelectOptionResult followUp in followUpOptions.Take(12))
+                        {
+                            string followUpLabel = followUp.OptionName ?? followUp.OptionText ?? "(unnamed option)";
+                            string followUpOwnedSuffix = followUp.IsAlreadyOwned ? " [already owned]" : string.Empty;
+                            string followUpPackageSuffix = !string.IsNullOrWhiteSpace(followUp.OptionPackageKey)
+                                ? $" [{followUp.OptionPackageKey}]"
+                                : string.Empty;
+                            Console.WriteLine($"          - {followUpLabel}{followUpPackageSuffix}{followUpOwnedSuffix}");
+                        }
+
+                        int remainingFollowUpCount = followUpOptions.Count - 12;
+                        if (remainingFollowUpCount > 0)
+                            Console.WriteLine($"          ... {remainingFollowUpCount} more follow-up options");
+                    }
                 }
 
                 if (ownedOptionCount > 0)

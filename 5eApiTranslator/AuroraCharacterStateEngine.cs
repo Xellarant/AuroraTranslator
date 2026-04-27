@@ -93,7 +93,9 @@ namespace AuroraTranslator
         string OptionText,
         bool IsAvailable,
         bool IsAlreadyOwned,
-        string RequirementText);
+        string RequirementText,
+        string FollowUpKind = null,
+        IReadOnlyList<CharacterSelectOptionResult> FollowUpOptions = null);
 
     internal sealed record CharacterSelectResult(
         int SelectId,
@@ -884,6 +886,10 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             AuroraExpressionEvaluationContext context)
         {
             bool featAllowed = context.MatchesToken("ID_INTERNAL_OPTION_ALLOW_FEATS");
+            List<CharacterSelectOptionResult> asiFollowUps = BuildAsiFollowUpOptions(context);
+            List<CharacterSelectOptionResult> featFollowUps = featAllowed
+                ? BuildFeatFollowUpOptions(connection, context)
+                : new List<CharacterSelectOptionResult>();
 
             return new List<CharacterSelectOptionResult>
             {
@@ -897,7 +903,9 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     null,
                     true,
                     false,
-                    null),
+                    null,
+                    "ability-score-improvement",
+                    asiFollowUps),
                 new(
                     "semantic",
                     null,
@@ -908,8 +916,113 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     null,
                     featAllowed,
                     false,
-                    "ID_INTERNAL_OPTION_ALLOW_FEATS")
+                    "ID_INTERNAL_OPTION_ALLOW_FEATS",
+                    "feat-selection",
+                    featFollowUps)
             };
+        }
+
+        private static List<CharacterSelectOptionResult> BuildAsiFollowUpOptions(AuroraExpressionEvaluationContext context)
+        {
+            var options = new List<CharacterSelectOptionResult>();
+            string[] abilityKeys = { "str", "dex", "con", "int", "wis", "cha" };
+
+            foreach (string abilityKey in abilityKeys)
+            {
+                decimal currentValue = GetAbilityScore(context, abilityKey);
+                bool isAvailable = currentValue <= 18m;
+                string abilityName = GetAbilityDisplayName(abilityKey);
+
+                options.Add(new CharacterSelectOptionResult(
+                    "semantic",
+                    null,
+                    $"ASI_PLUS2_{abilityKey.ToUpperInvariant()}",
+                    $"+2 {abilityName}",
+                    "Ability Score Improvement",
+                    null,
+                    BuildAsiPayload("plus2", abilityKey),
+                    isAvailable,
+                    false,
+                    isAvailable ? null : "Ability score would exceed 20."));
+            }
+
+            for (int leftIndex = 0; leftIndex < abilityKeys.Length; leftIndex++)
+            {
+                for (int rightIndex = leftIndex + 1; rightIndex < abilityKeys.Length; rightIndex++)
+                {
+                    string leftAbility = abilityKeys[leftIndex];
+                    string rightAbility = abilityKeys[rightIndex];
+                    decimal leftValue = GetAbilityScore(context, leftAbility);
+                    decimal rightValue = GetAbilityScore(context, rightAbility);
+                    bool isAvailable = leftValue <= 19m && rightValue <= 19m;
+
+                    options.Add(new CharacterSelectOptionResult(
+                        "semantic",
+                        null,
+                        $"ASI_PLUS1_{leftAbility.ToUpperInvariant()}_{rightAbility.ToUpperInvariant()}",
+                        $"+1 {GetAbilityDisplayName(leftAbility)} / +1 {GetAbilityDisplayName(rightAbility)}",
+                        "Ability Score Improvement",
+                        null,
+                        BuildAsiPayload("plus1plus1", leftAbility, rightAbility),
+                        isAvailable,
+                        false,
+                        isAvailable ? null : "One or more ability scores would exceed 20."));
+                }
+            }
+
+            return options;
+        }
+
+        private static List<CharacterSelectOptionResult> BuildFeatFollowUpOptions(
+            SqliteConnection connection,
+            AuroraExpressionEvaluationContext context)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT
+    e.element_id,
+    e.aurora_id,
+    e.name,
+    rec.package_key
+FROM elements AS e
+JOIN element_types AS et
+    ON et.element_type_id = e.element_type_id
+JOIN resolved_elements_cache AS rec
+    ON rec.winning_element_id = e.element_id
+WHERE et.type_name = 'Feat'
+ORDER BY e.name ASC, rec.package_key ASC;";
+
+            var options = new List<CharacterSelectOptionResult>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                int elementId = reader.GetInt32(0);
+                string auroraId = reader.GetString(1);
+                string featName = reader.GetString(2);
+                string packageKey = reader.IsDBNull(3) ? null : reader.GetString(3);
+                string requirementText = LoadElementRequirementText(connection, elementId);
+                bool isAvailable = IsRequirementSatisfied(requirementText, context);
+                bool isAlreadyOwned = context.MatchesToken(auroraId) || context.MatchesToken(featName);
+
+                options.Add(new CharacterSelectOptionResult(
+                    "element",
+                    elementId,
+                    auroraId,
+                    featName,
+                    "Feat",
+                    packageKey,
+                    null,
+                    isAvailable,
+                    isAlreadyOwned,
+                    requirementText));
+            }
+
+            return options
+                .GroupBy(x => x.OptionElementId)
+                .Select(x => x.First())
+                .OrderBy(x => x.OptionName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.OptionPackageKey, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static List<CharacterSelectOptionResult> LoadProficiencyOptions(
@@ -1077,6 +1190,37 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             }
 
             return "fixed-element-pool";
+        }
+
+        private static decimal GetAbilityScore(AuroraExpressionEvaluationContext context, string abilityKey)
+        {
+            if (context.NumericValues.TryGetValue(abilityKey, out decimal value))
+                return value;
+
+            return 0m;
+        }
+
+        private static string GetAbilityDisplayName(string abilityKey)
+        {
+            return abilityKey?.ToLowerInvariant() switch
+            {
+                "str" => "Strength",
+                "dex" => "Dexterity",
+                "con" => "Constitution",
+                "int" => "Intelligence",
+                "wis" => "Wisdom",
+                "cha" => "Charisma",
+                _ => abilityKey ?? "Ability"
+            };
+        }
+
+        private static string BuildAsiPayload(string mode, params string[] abilities)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                mode,
+                abilities
+            });
         }
 
         private static string LoadElementRequirementText(SqliteConnection connection, int elementId)
