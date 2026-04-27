@@ -26,6 +26,7 @@
   "proficiencies": [],
   "languages": [],
   "elements": [],
+  "selectedChoices": [],
   "tokens": [
     "ID_INTERNAL_OPTION_ALLOW_FEATS"
   ],

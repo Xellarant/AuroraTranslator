@@ -19,6 +19,7 @@ namespace AuroraTranslator
         public List<AuroraCharacterStateSelection> Proficiencies { get; set; } = new();
         public List<AuroraCharacterStateSelection> Languages { get; set; } = new();
         public List<AuroraCharacterStateSelection> Elements { get; set; } = new();
+        public List<AuroraCharacterStateChoice> SelectedChoices { get; set; } = new();
         public List<string> Tokens { get; set; } = new();
         public Dictionary<string, decimal> NumericValues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, string> ScalarValues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -45,6 +46,23 @@ namespace AuroraTranslator
         public string Name { get; set; }
         public string PackageKey { get; set; }
         public int? Level { get; set; }
+    }
+
+    internal sealed class AuroraCharacterStateChoice
+    {
+        public int? SelectId { get; set; }
+        public string OwnerName { get; set; }
+        public string OwnerTypeName { get; set; }
+        public string SelectName { get; set; }
+        public string SelectType { get; set; }
+        public int? OptionElementId { get; set; }
+        public string OptionAuroraId { get; set; }
+        public string OptionName { get; set; }
+        public string OptionText { get; set; }
+        public int? FollowUpOptionElementId { get; set; }
+        public string FollowUpOptionAuroraId { get; set; }
+        public string FollowUpOptionName { get; set; }
+        public string FollowUpOptionText { get; set; }
     }
 
     internal sealed record ResolvedCharacterElement(
@@ -112,12 +130,27 @@ namespace AuroraTranslator
         string RequirementsText,
         IReadOnlyList<CharacterSelectOptionResult> Options);
 
+    internal sealed record AppliedCharacterChoiceResult(
+        int ChoiceIndex,
+        int? SelectId,
+        string OwnerName,
+        string OwnerTypeName,
+        string SelectName,
+        string SelectType,
+        string OptionName,
+        string OptionAuroraId,
+        string FollowUpOptionName,
+        string FollowUpOptionAuroraId,
+        string Status,
+        string Message);
+
     internal sealed record CharacterEvaluationResult(
         IReadOnlyList<ResolvedCharacterElement> DirectSelections,
         IReadOnlyList<ActiveCharacterFeature> ActiveFeatures,
         IReadOnlyList<ActiveGrantResult> ActiveGrants,
         IReadOnlyList<CharacterSelectResult> AvailableSelects,
-        AuroraExpressionEvaluationContext EvaluationContext);
+        AuroraExpressionEvaluationContext EvaluationContext,
+        IReadOnlyList<AppliedCharacterChoiceResult> AppliedChoices);
 
     internal static class AuroraCharacterStateEngine
     {
@@ -137,6 +170,72 @@ namespace AuroraTranslator
             }.ToString());
             connection.Open();
 
+            AuroraCharacterStateDocument workingDocument = CloneDocument(document);
+            var appliedChoiceResults = new Dictionary<int, AppliedCharacterChoiceResult>();
+            var completedChoices = new HashSet<int>();
+            CharacterEvaluationResult current = EvaluateCore(connection, workingDocument, Array.Empty<AppliedCharacterChoiceResult>());
+
+            for (int iteration = 0; iteration < 4; iteration++)
+            {
+                bool anyApplied = false;
+
+                for (int choiceIndex = 0; choiceIndex < workingDocument.SelectedChoices.Count; choiceIndex++)
+                {
+                    if (completedChoices.Contains(choiceIndex))
+                        continue;
+
+                    AuroraCharacterStateChoice choice = workingDocument.SelectedChoices[choiceIndex];
+                    AppliedCharacterChoiceResult result = ResolveAndApplySelectedChoice(
+                        connection,
+                        workingDocument,
+                        current,
+                        choiceIndex,
+                        choice);
+
+                    appliedChoiceResults[choiceIndex] = result;
+                    if (string.Equals(result.Status, "applied", StringComparison.OrdinalIgnoreCase))
+                        anyApplied = true;
+                    if (string.Equals(result.Status, "applied", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(result.Status, "already-applied", StringComparison.OrdinalIgnoreCase))
+                    {
+                        completedChoices.Add(choiceIndex);
+                    }
+                }
+
+                if (!anyApplied)
+                    break;
+
+                current = EvaluateCore(connection, workingDocument, appliedChoiceResults.Values.OrderBy(x => x.ChoiceIndex).ToList());
+            }
+
+            CharacterEvaluationResult final = EvaluateCore(connection, workingDocument, appliedChoiceResults.Values.OrderBy(x => x.ChoiceIndex).ToList());
+            for (int choiceIndex = 0; choiceIndex < workingDocument.SelectedChoices.Count; choiceIndex++)
+            {
+                if (!appliedChoiceResults.ContainsKey(choiceIndex))
+                {
+                    appliedChoiceResults[choiceIndex] = ResolveAndApplySelectedChoice(
+                        connection,
+                        workingDocument,
+                        final,
+                        choiceIndex,
+                        workingDocument.SelectedChoices[choiceIndex],
+                        applyChanges: false);
+                }
+            }
+
+            return final with
+            {
+                AppliedChoices = appliedChoiceResults.Values
+                    .OrderBy(x => x.ChoiceIndex)
+                    .ToList()
+            };
+        }
+
+        private static CharacterEvaluationResult EvaluateCore(
+            SqliteConnection connection,
+            AuroraCharacterStateDocument document,
+            IReadOnlyList<AppliedCharacterChoiceResult> appliedChoices)
+        {
             var directSelections = ResolveDirectSelections(connection, document);
             var activeFeatures = LoadActiveFeatures(connection, directSelections);
             var evaluationContext = BuildInitialContext(document, directSelections, activeFeatures, connection);
@@ -158,7 +257,7 @@ namespace AuroraTranslator
             }
 
             var availableSelects = LoadAvailableSelects(connection, ownerLevels, evaluationContext);
-            return new CharacterEvaluationResult(directSelections, activeFeatures, activeGrants, availableSelects, evaluationContext);
+            return new CharacterEvaluationResult(directSelections, activeFeatures, activeGrants, availableSelects, evaluationContext, appliedChoices);
         }
 
         private static List<ResolvedCharacterElement> ResolveDirectSelections(
@@ -193,6 +292,80 @@ namespace AuroraTranslator
                 yield break;
 
             yield return selection;
+        }
+
+        private static AuroraCharacterStateDocument CloneDocument(AuroraCharacterStateDocument source)
+        {
+            return new AuroraCharacterStateDocument
+            {
+                Classes = CloneSelections(source.Classes),
+                Archetypes = CloneSelections(source.Archetypes),
+                Race = CloneSelection(source.Race),
+                SubRace = CloneSelection(source.SubRace),
+                RaceVariants = CloneSelections(source.RaceVariants),
+                Background = CloneSelection(source.Background),
+                Feats = CloneSelections(source.Feats),
+                Proficiencies = CloneSelections(source.Proficiencies),
+                Languages = CloneSelections(source.Languages),
+                Elements = CloneSelections(source.Elements),
+                SelectedChoices = source.SelectedChoices?
+                    .Select(CloneChoice)
+                    .ToList()
+                    ?? new List<AuroraCharacterStateChoice>(),
+                Tokens = source.Tokens?.ToList() ?? new List<string>(),
+                NumericValues = source.NumericValues?.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase)
+                    ?? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase),
+                ScalarValues = source.ScalarValues?.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase)
+                    ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                MacroValues = source.MacroValues?.ToDictionary(
+                        x => x.Key,
+                        x => x.Value?.ToList() ?? new List<string>(),
+                        StringComparer.OrdinalIgnoreCase)
+                    ?? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
+            };
+        }
+
+        private static List<AuroraCharacterStateSelection> CloneSelections(List<AuroraCharacterStateSelection> selections)
+        {
+            return selections?.Select(CloneSelection).Where(x => x != null).ToList()
+                   ?? new List<AuroraCharacterStateSelection>();
+        }
+
+        private static AuroraCharacterStateSelection CloneSelection(AuroraCharacterStateSelection selection)
+        {
+            if (selection == null)
+                return null;
+
+            return new AuroraCharacterStateSelection
+            {
+                AuroraId = selection.AuroraId,
+                Name = selection.Name,
+                PackageKey = selection.PackageKey,
+                Level = selection.Level
+            };
+        }
+
+        private static AuroraCharacterStateChoice CloneChoice(AuroraCharacterStateChoice choice)
+        {
+            if (choice == null)
+                return null;
+
+            return new AuroraCharacterStateChoice
+            {
+                SelectId = choice.SelectId,
+                OwnerName = choice.OwnerName,
+                OwnerTypeName = choice.OwnerTypeName,
+                SelectName = choice.SelectName,
+                SelectType = choice.SelectType,
+                OptionElementId = choice.OptionElementId,
+                OptionAuroraId = choice.OptionAuroraId,
+                OptionName = choice.OptionName,
+                OptionText = choice.OptionText,
+                FollowUpOptionElementId = choice.FollowUpOptionElementId,
+                FollowUpOptionAuroraId = choice.FollowUpOptionAuroraId,
+                FollowUpOptionName = choice.FollowUpOptionName,
+                FollowUpOptionText = choice.FollowUpOptionText
+            };
         }
 
         private static List<ResolvedCharacterElement> ResolveSelections(
@@ -260,6 +433,314 @@ ORDER BY rec.package_key ASC, e.name ASC;";
             }
 
             return resolved;
+        }
+
+        private static AppliedCharacterChoiceResult ResolveAndApplySelectedChoice(
+            SqliteConnection connection,
+            AuroraCharacterStateDocument workingDocument,
+            CharacterEvaluationResult evaluation,
+            int choiceIndex,
+            AuroraCharacterStateChoice choice,
+            bool applyChanges = true)
+        {
+            CharacterSelectResult select = MatchSelect(evaluation.AvailableSelects, choice);
+            if (select == null)
+            {
+                return BuildChoiceResult(choiceIndex, choice, null, null, null, "select-not-available", "The targeted select is not currently available.");
+            }
+
+            CharacterSelectOptionResult option = MatchOption(select.Options, choice.OptionElementId, choice.OptionAuroraId, choice.OptionName, choice.OptionText);
+            if (option == null)
+            {
+                return BuildChoiceResult(choiceIndex, choice, select, null, null, "option-not-found", "The targeted option was not found in the available option pool.");
+            }
+
+            if (!option.IsAvailable)
+            {
+                return BuildChoiceResult(choiceIndex, choice, select, option, null, "option-unavailable", "The targeted option is present but not currently available.");
+            }
+
+            CharacterSelectOptionResult followUp = null;
+            bool requestedFollowUp = choice.FollowUpOptionElementId.HasValue
+                                     || !string.IsNullOrWhiteSpace(choice.FollowUpOptionAuroraId)
+                                     || !string.IsNullOrWhiteSpace(choice.FollowUpOptionName)
+                                     || !string.IsNullOrWhiteSpace(choice.FollowUpOptionText);
+
+            if (requestedFollowUp)
+            {
+                followUp = MatchOption(
+                    option.FollowUpOptions ?? Array.Empty<CharacterSelectOptionResult>(),
+                    choice.FollowUpOptionElementId,
+                    choice.FollowUpOptionAuroraId,
+                    choice.FollowUpOptionName,
+                    choice.FollowUpOptionText);
+
+                if (followUp == null)
+                {
+                    return BuildChoiceResult(choiceIndex, choice, select, option, null, "follow-up-not-found", "The requested follow-up option was not found.");
+                }
+
+                if (!followUp.IsAvailable)
+                {
+                    return BuildChoiceResult(choiceIndex, choice, select, option, followUp, "follow-up-unavailable", "The requested follow-up option is present but not currently available.");
+                }
+            }
+            else if (RequiresFollowUpToApply(option))
+            {
+                return BuildChoiceResult(choiceIndex, choice, select, option, null, "follow-up-required", "This option requires a follow-up choice before it can be applied.");
+            }
+
+            if (!applyChanges)
+            {
+                return BuildChoiceResult(choiceIndex, choice, select, option, followUp, "ready", "The choice is available and ready to apply.");
+            }
+
+            bool changed = false;
+            string message = "Choice already reflected in the current state.";
+
+            if (followUp != null)
+            {
+                changed = ApplyOptionToDocument(connection, workingDocument, followUp);
+                message = changed
+                    ? "Applied selected follow-up choice."
+                    : "Follow-up choice was already reflected in the current state.";
+            }
+            else
+            {
+                changed = ApplyOptionToDocument(connection, workingDocument, option);
+                message = changed
+                    ? "Applied selected choice."
+                    : "Choice was already reflected in the current state.";
+            }
+
+            return BuildChoiceResult(choiceIndex, choice, select, option, followUp, changed ? "applied" : "already-applied", message);
+        }
+
+        private static CharacterSelectResult MatchSelect(
+            IReadOnlyList<CharacterSelectResult> availableSelects,
+            AuroraCharacterStateChoice choice)
+        {
+            IEnumerable<CharacterSelectResult> candidates = availableSelects;
+
+            if (choice.SelectId.HasValue)
+            {
+                CharacterSelectResult select = candidates.FirstOrDefault(x => x.SelectId == choice.SelectId.Value);
+                if (select != null)
+                    return select;
+            }
+
+            candidates = candidates.Where(select =>
+                (string.IsNullOrWhiteSpace(choice.OwnerName)
+                 || string.Equals(select.OwnerName, choice.OwnerName, StringComparison.OrdinalIgnoreCase))
+                && (string.IsNullOrWhiteSpace(choice.OwnerTypeName)
+                    || string.Equals(select.OwnerTypeName, choice.OwnerTypeName, StringComparison.OrdinalIgnoreCase))
+                && (string.IsNullOrWhiteSpace(choice.SelectName)
+                    || string.Equals(select.SelectName, choice.SelectName, StringComparison.OrdinalIgnoreCase))
+                && (string.IsNullOrWhiteSpace(choice.SelectType)
+                    || string.Equals(select.SelectType, choice.SelectType, StringComparison.OrdinalIgnoreCase)));
+
+            return candidates
+                .OrderBy(select => select.SelectId)
+                .FirstOrDefault();
+        }
+
+        private static CharacterSelectOptionResult MatchOption(
+            IEnumerable<CharacterSelectOptionResult> options,
+            int? optionElementId,
+            string optionAuroraId,
+            string optionName,
+            string optionText)
+        {
+            IEnumerable<CharacterSelectOptionResult> candidates = options ?? Enumerable.Empty<CharacterSelectOptionResult>();
+
+            if (optionElementId.HasValue)
+            {
+                CharacterSelectOptionResult option = candidates.FirstOrDefault(x => x.OptionElementId == optionElementId.Value);
+                if (option != null)
+                    return option;
+            }
+
+            if (!string.IsNullOrWhiteSpace(optionAuroraId))
+            {
+                CharacterSelectOptionResult option = candidates.FirstOrDefault(x =>
+                    string.Equals(x.OptionAuroraId, optionAuroraId, StringComparison.OrdinalIgnoreCase));
+                if (option != null)
+                    return option;
+            }
+
+            if (!string.IsNullOrWhiteSpace(optionName))
+            {
+                CharacterSelectOptionResult option = candidates.FirstOrDefault(x =>
+                    string.Equals(x.OptionName, optionName, StringComparison.OrdinalIgnoreCase));
+                if (option != null)
+                    return option;
+            }
+
+            if (!string.IsNullOrWhiteSpace(optionText))
+            {
+                CharacterSelectOptionResult option = candidates.FirstOrDefault(x =>
+                    string.Equals(x.OptionText, optionText, StringComparison.OrdinalIgnoreCase));
+                if (option != null)
+                    return option;
+            }
+
+            return null;
+        }
+
+        private static bool RequiresFollowUpToApply(CharacterSelectOptionResult option)
+        {
+            if ((option?.FollowUpOptions?.Count ?? 0) == 0)
+                return false;
+
+            return string.Equals(option.OptionKind, "semantic", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(option.FollowUpKind, "ability-score-improvement", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(option.FollowUpKind, "feat-selection", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static AppliedCharacterChoiceResult BuildChoiceResult(
+            int choiceIndex,
+            AuroraCharacterStateChoice choice,
+            CharacterSelectResult select,
+            CharacterSelectOptionResult option,
+            CharacterSelectOptionResult followUp,
+            string status,
+            string message)
+        {
+            return new AppliedCharacterChoiceResult(
+                choiceIndex,
+                select?.SelectId ?? choice.SelectId,
+                select?.OwnerName ?? choice.OwnerName,
+                select?.OwnerTypeName ?? choice.OwnerTypeName,
+                select?.SelectName ?? choice.SelectName,
+                select?.SelectType ?? choice.SelectType,
+                option?.OptionName ?? option?.OptionText ?? choice.OptionName ?? choice.OptionText,
+                option?.OptionAuroraId ?? choice.OptionAuroraId,
+                followUp?.OptionName ?? followUp?.OptionText ?? choice.FollowUpOptionName ?? choice.FollowUpOptionText,
+                followUp?.OptionAuroraId ?? choice.FollowUpOptionAuroraId,
+                status,
+                message);
+        }
+
+        private static bool ApplyOptionToDocument(
+            SqliteConnection connection,
+            AuroraCharacterStateDocument document,
+            CharacterSelectOptionResult option)
+        {
+            if (option == null)
+                return false;
+
+            if (string.Equals(option.OptionKind, "semantic", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.Equals(option.OptionAuroraId, "SEMANTIC_ASI", StringComparison.OrdinalIgnoreCase)
+                    || option.OptionAuroraId?.StartsWith("ASI_", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    return ApplyAsiOptionToDocument(document, option);
+                }
+
+                return false;
+            }
+
+            if (!option.OptionElementId.HasValue)
+                return false;
+
+            var selection = new AuroraCharacterStateSelection
+            {
+                AuroraId = option.OptionAuroraId,
+                Name = option.OptionName,
+                PackageKey = option.OptionPackageKey
+            };
+
+            string optionTypeName = option.OptionTypeName?.Trim();
+            if (string.Equals(optionTypeName, "Archetype", StringComparison.OrdinalIgnoreCase))
+                return AddSelection(document.Archetypes, selection);
+            if (string.Equals(optionTypeName, "Race Variant", StringComparison.OrdinalIgnoreCase))
+                return AddSelection(document.RaceVariants, selection);
+            if (string.Equals(optionTypeName, "Feat", StringComparison.OrdinalIgnoreCase))
+                return AddSelection(document.Feats, selection);
+            if (string.Equals(optionTypeName, "Language", StringComparison.OrdinalIgnoreCase))
+                return AddSelection(document.Languages, selection);
+            if (string.Equals(optionTypeName, "Proficiency", StringComparison.OrdinalIgnoreCase))
+                return AddSelection(document.Proficiencies, selection);
+            if (string.Equals(optionTypeName, "Sub Race", StringComparison.OrdinalIgnoreCase))
+            {
+                if (MatchesSelection(document.SubRace, selection))
+                    return false;
+                document.SubRace = selection;
+                return true;
+            }
+            if (string.Equals(optionTypeName, "Background", StringComparison.OrdinalIgnoreCase))
+            {
+                if (MatchesSelection(document.Background, selection))
+                    return false;
+                document.Background = selection;
+                return true;
+            }
+            if (string.Equals(optionTypeName, "Race", StringComparison.OrdinalIgnoreCase))
+            {
+                if (MatchesSelection(document.Race, selection))
+                    return false;
+                document.Race = selection;
+                return true;
+            }
+
+            return AddSelection(document.Elements, selection);
+        }
+
+        private static bool ApplyAsiOptionToDocument(AuroraCharacterStateDocument document, CharacterSelectOptionResult option)
+        {
+            string payload = option.OptionText;
+            if (string.IsNullOrWhiteSpace(payload))
+                return false;
+
+            using JsonDocument jsonDocument = JsonDocument.Parse(payload);
+            string mode = jsonDocument.RootElement.TryGetProperty("mode", out JsonElement modeElement)
+                ? modeElement.GetString()
+                : null;
+            JsonElement abilitiesElement = jsonDocument.RootElement.GetProperty("abilities");
+            List<string> abilities = abilitiesElement.EnumerateArray()
+                .Select(x => x.GetString())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+
+            if (abilities.Count == 0)
+                return false;
+
+            decimal delta = string.Equals(mode, "plus2", StringComparison.OrdinalIgnoreCase) ? 2m : 1m;
+            bool changed = false;
+            foreach (string ability in abilities)
+            {
+                decimal current = document.NumericValues.TryGetValue(ability, out decimal value) ? value : 0m;
+                decimal updated = current + delta;
+                if (updated != current)
+                {
+                    document.NumericValues[ability] = updated;
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
+        private static bool AddSelection(List<AuroraCharacterStateSelection> selections, AuroraCharacterStateSelection candidate)
+        {
+            selections ??= new List<AuroraCharacterStateSelection>();
+            if (selections.Any(existing => MatchesSelection(existing, candidate)))
+                return false;
+
+            selections.Add(candidate);
+            return true;
+        }
+
+        private static bool MatchesSelection(AuroraCharacterStateSelection existing, AuroraCharacterStateSelection candidate)
+        {
+            if (existing == null || candidate == null)
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(existing.AuroraId) && !string.IsNullOrWhiteSpace(candidate.AuroraId))
+                return string.Equals(existing.AuroraId, candidate.AuroraId, StringComparison.OrdinalIgnoreCase);
+
+            return string.Equals(existing.Name, candidate.Name, StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(existing.PackageKey, candidate.PackageKey, StringComparison.OrdinalIgnoreCase);
         }
 
         private static List<ActiveCharacterFeature> LoadActiveFeatures(

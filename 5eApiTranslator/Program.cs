@@ -577,6 +577,22 @@ namespace AuroraTranslator
                     Console.WriteLine($"      ... {remainingCount} more available options");
             }
 
+            if (result.AppliedChoices?.Count > 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"Applied choices: {result.AppliedChoices.Count}");
+                foreach (AppliedCharacterChoiceResult appliedChoice in result.AppliedChoices)
+                {
+                    string optionText = appliedChoice.FollowUpOptionName
+                        ?? appliedChoice.OptionName
+                        ?? "(unspecified option)";
+                    Console.WriteLine(
+                        $"  - [{appliedChoice.Status}] {appliedChoice.OwnerTypeName}: {appliedChoice.OwnerName} -> {appliedChoice.SelectName} => {optionText}");
+                    if (!string.IsNullOrWhiteSpace(appliedChoice.Message))
+                        Console.WriteLine($"      {appliedChoice.Message}");
+                }
+            }
+
             Console.WriteLine();
             Console.WriteLine($"Evaluation tokens: {result.EvaluationContext.Tokens.Count}");
             Console.WriteLine($"Evaluation numeric keys: {result.EvaluationContext.NumericValues.Count}");
@@ -666,6 +682,21 @@ namespace AuroraTranslator
                     grant.TargetSemanticKey,
                     grant.TargetSemanticKind,
                     grant.TargetSemanticName
+                }).ToList(),
+                appliedChoices = result.AppliedChoices.Select(choice => new
+                {
+                    choice.ChoiceIndex,
+                    choice.SelectId,
+                    choice.OwnerName,
+                    choice.OwnerTypeName,
+                    choice.SelectName,
+                    choice.SelectType,
+                    choice.OptionName,
+                    choice.OptionAuroraId,
+                    choice.FollowUpOptionName,
+                    choice.FollowUpOptionAuroraId,
+                    choice.Status,
+                    choice.Message
                 }).ToList(),
                 availableSelects = result.AvailableSelects.Select(select => new
                 {
