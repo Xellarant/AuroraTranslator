@@ -224,6 +224,17 @@ namespace AuroraTranslator
                 return;
             }
 
+            if (args.Length > 0
+                && string.Equals(args[0], "evaluate-character-state-json", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
+                string stateJsonPath = args.Length > 2 ? args[2] : null;
+                string outputPath = args.Length > 3 ? args[3] : null;
+
+                EvaluateCharacterStateJson(sqlitePath, stateJsonPath, outputPath);
+                return;
+            }
+
             Console.WriteLine("Commands:");
             Console.WriteLine("  sqlite-import [auroraPath] [sqlitePath]              Import Aurora XML into the SQLite database.");
             Console.WriteLine("  srd-creatures [jsonPath] [sqlitePath]                Import SRD monsters and link to Aurora companions.");
@@ -246,6 +257,8 @@ namespace AuroraTranslator
             Console.WriteLine("                                                      Rebuild a canonical baseline from only core + supplements.");
             Console.WriteLine("  evaluate-character-state [sqlitePath] [stateJson]");
             Console.WriteLine("                                                      Resolve a character state into active features, grants, and selects.");
+            Console.WriteLine("  evaluate-character-state-json [sqlitePath] [stateJson] [outputPath]");
+            Console.WriteLine("                                                      Emit a structured JSON character-state evaluation payload.");
             Console.WriteLine($"Default Aurora path:  {defaultAuroraPath}");
             Console.WriteLine($"Default SQLite path:  {defaultSqlitePath}");
             Console.WriteLine($"Default baseline:     {defaultDiagnosticsBaselinePath}");
@@ -391,6 +404,13 @@ namespace AuroraTranslator
                 Console.Error.WriteLine(@"    ""background"": { ""name"": ""Acolyte"", ""packageKey"": ""core-players-handbook"" },");
                 Console.Error.WriteLine(@"    ""numericValues"": { ""str"": 16, ""dex"": 14, ""con"": 14, ""int"": 10, ""wis"": 12, ""cha"": 8 }");
                 Console.Error.WriteLine(@"  }");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "evaluate-character-state-json", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: evaluate-character-state-json [sqlitePath] [stateJsonPath] [outputPath]");
+                Console.Error.WriteLine("If outputPath is omitted, JSON is written to stdout.");
             }
         }
 
@@ -546,34 +566,7 @@ namespace AuroraTranslator
                              .OrderBy(x => x.OptionName ?? x.OptionText, StringComparer.OrdinalIgnoreCase)
                              .Take(8))
                 {
-                    string optionLabel = option.OptionName ?? option.OptionText ?? "(unnamed option)";
-                    string ownedSuffix = option.IsAlreadyOwned ? " [already owned]" : string.Empty;
-                    string packageSuffix = !string.IsNullOrWhiteSpace(option.OptionPackageKey)
-                        ? $" [{option.OptionPackageKey}]"
-                        : string.Empty;
-                    Console.WriteLine($"      * {optionLabel}{packageSuffix}{ownedSuffix}");
-
-                    IReadOnlyList<CharacterSelectOptionResult> followUpOptions = option.FollowUpOptions
-                        ?.Where(x => x.IsAvailable)
-                        .ToList();
-
-                    if (followUpOptions?.Count > 0)
-                    {
-                        Console.WriteLine($"        follow-up ({option.FollowUpKind ?? "choices"}): {followUpOptions.Count}");
-                        foreach (CharacterSelectOptionResult followUp in followUpOptions.Take(12))
-                        {
-                            string followUpLabel = followUp.OptionName ?? followUp.OptionText ?? "(unnamed option)";
-                            string followUpOwnedSuffix = followUp.IsAlreadyOwned ? " [already owned]" : string.Empty;
-                            string followUpPackageSuffix = !string.IsNullOrWhiteSpace(followUp.OptionPackageKey)
-                                ? $" [{followUp.OptionPackageKey}]"
-                                : string.Empty;
-                            Console.WriteLine($"          - {followUpLabel}{followUpPackageSuffix}{followUpOwnedSuffix}");
-                        }
-
-                        int remainingFollowUpCount = followUpOptions.Count - 12;
-                        if (remainingFollowUpCount > 0)
-                            Console.WriteLine($"          ... {remainingFollowUpCount} more follow-up options");
-                    }
+                    WriteCharacterSelectOption(option, 3, "*", 12);
                 }
 
                 if (ownedOptionCount > 0)
@@ -588,6 +581,194 @@ namespace AuroraTranslator
             Console.WriteLine($"Evaluation tokens: {result.EvaluationContext.Tokens.Count}");
             Console.WriteLine($"Evaluation numeric keys: {result.EvaluationContext.NumericValues.Count}");
             Console.WriteLine($"Evaluation macros: {result.EvaluationContext.MacroValues.Count}");
+        }
+
+        private static void EvaluateCharacterStateJson(string sqlitePath, string stateJsonPath, string outputPath)
+        {
+            if (string.IsNullOrWhiteSpace(stateJsonPath))
+                throw new ArgumentException("A character state JSON path is required.", nameof(stateJsonPath));
+
+            CharacterEvaluationResult result = AuroraCharacterStateEngine.Evaluate(sqlitePath, stateJsonPath);
+            object export = BuildCharacterEvaluationExport(sqlitePath, stateJsonPath, result);
+            string json = JsonSerializer.Serialize(
+                export,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
+
+            if (!string.IsNullOrWhiteSpace(outputPath))
+            {
+                File.WriteAllText(outputPath, json);
+                Console.WriteLine($"Wrote character-state JSON evaluation to {outputPath}");
+                return;
+            }
+
+            Console.WriteLine(json);
+        }
+
+        private static object BuildCharacterEvaluationExport(
+            string sqlitePath,
+            string stateJsonPath,
+            CharacterEvaluationResult result)
+        {
+            return new
+            {
+                sqlitePath,
+                stateJsonPath,
+                generatedAtUtc = DateTime.UtcNow,
+                summary = new
+                {
+                    directSelectionCount = result.DirectSelections.Count,
+                    activeFeatureCount = result.ActiveFeatures.Count,
+                    activeGrantCount = result.ActiveGrants.Count,
+                    availableSelectCount = result.AvailableSelects.Count,
+                    evaluationTokenCount = result.EvaluationContext.Tokens.Count,
+                    evaluationNumericKeyCount = result.EvaluationContext.NumericValues.Count,
+                    evaluationMacroCount = result.EvaluationContext.MacroValues.Count
+                },
+                directSelections = result.DirectSelections.Select(selection => new
+                {
+                    selection.ElementId,
+                    selection.AuroraId,
+                    selection.Name,
+                    selection.TypeName,
+                    selection.PackageKey,
+                    selection.SourcePath,
+                    selection.Level
+                }).ToList(),
+                activeFeatures = result.ActiveFeatures.Select(feature => new
+                {
+                    feature.ElementId,
+                    feature.AuroraId,
+                    feature.Name,
+                    feature.TypeName,
+                    feature.PackageKey,
+                    feature.SourcePath,
+                    feature.UnlockLevel,
+                    feature.OwnerName,
+                    feature.OwnerTypeName
+                }).ToList(),
+                activeGrants = result.ActiveGrants.Select(grant => new
+                {
+                    grant.GrantId,
+                    grant.OwnerName,
+                    grant.OwnerTypeName,
+                    grant.GrantType,
+                    grant.GrantLevel,
+                    grant.RequirementsText,
+                    grant.TargetElementId,
+                    grant.TargetAuroraId,
+                    grant.TargetName,
+                    grant.TargetTypeName,
+                    grant.TargetPackageKey,
+                    grant.TargetSemanticKey,
+                    grant.TargetSemanticKind,
+                    grant.TargetSemanticName
+                }).ToList(),
+                availableSelects = result.AvailableSelects.Select(select => new
+                {
+                    select.SelectId,
+                    select.OwnerName,
+                    select.OwnerTypeName,
+                    select.OwnerPackageKey,
+                    select.SelectName,
+                    select.SelectType,
+                    select.SelectPolicy,
+                    select.SupportsText,
+                    select.SelectLevel,
+                    select.NumberToChoose,
+                    select.IsOptional,
+                    select.RequirementsText,
+                    availableOptionCount = select.Options.Count(option => option.IsAvailable),
+                    alreadyOwnedOptionCount = select.Options.Count(option => option.IsAlreadyOwned),
+                    options = select.Options.Select(BuildCharacterSelectOptionExport).ToList()
+                }).ToList(),
+                evaluationContext = new
+                {
+                    tokens = result.EvaluationContext.Tokens
+                        .OrderBy(token => token, StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
+                    numericValues = result.EvaluationContext.NumericValues
+                        .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(pair => pair.Key, pair => pair.Value),
+                    scalarValues = result.EvaluationContext.ScalarValues
+                        .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(pair => pair.Key, pair => pair.Value),
+                    macroValues = result.EvaluationContext.MacroValues
+                        .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(
+                            pair => pair.Key,
+                            pair => pair.Value.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList())
+                }
+            };
+        }
+
+        private static object BuildCharacterSelectOptionExport(CharacterSelectOptionResult option)
+        {
+            return new
+            {
+                option.OptionKind,
+                option.OptionElementId,
+                option.OptionAuroraId,
+                option.OptionName,
+                option.OptionTypeName,
+                option.OptionPackageKey,
+                option.OptionText,
+                option.IsAvailable,
+                option.IsAlreadyOwned,
+                option.RequirementText,
+                option.FollowUpKind,
+                followUpOptionCount = option.FollowUpOptions?.Count ?? 0,
+                followUpOptions = option.FollowUpOptions?.Select(BuildCharacterSelectOptionExport).ToList()
+                    ?? new List<object>()
+            };
+        }
+
+        private static void WriteCharacterSelectOption(
+            CharacterSelectOptionResult option,
+            int indentLevel,
+            string bullet,
+            int maxItemsPerLevel)
+        {
+            string indent = new string(' ', indentLevel * 2);
+            string optionLabel = option.OptionName ?? option.OptionText ?? "(unnamed option)";
+            string ownedSuffix = option.IsAlreadyOwned ? " [already owned]" : string.Empty;
+            string packageSuffix = !string.IsNullOrWhiteSpace(option.OptionPackageKey)
+                ? $" [{option.OptionPackageKey}]"
+                : string.Empty;
+            Console.WriteLine($"{indent}{bullet} {optionLabel}{packageSuffix}{ownedSuffix}");
+
+            IReadOnlyList<CharacterSelectOptionResult> followUpOptions = option.FollowUpOptions
+                ?.Where(x => x.IsAvailable)
+                .OrderBy(x => x.OptionName ?? x.OptionText, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (option.IsAlreadyOwned && followUpOptions?.Count > 0)
+            {
+                string followUpIndent = new string(' ', (indentLevel + 1) * 2);
+                Console.WriteLine($"{followUpIndent}follow-up preview hidden for already-owned option");
+                return;
+            }
+
+            if (followUpOptions?.Count > 0)
+            {
+                string followUpIndent = new string(' ', (indentLevel + 1) * 2);
+                Console.WriteLine($"{followUpIndent}follow-up ({option.FollowUpKind ?? "choices"}): {followUpOptions.Count}");
+
+                foreach (CharacterSelectOptionResult followUp in followUpOptions.Take(maxItemsPerLevel))
+                {
+                    WriteCharacterSelectOption(followUp, indentLevel + 2, "-", maxItemsPerLevel);
+                }
+
+                int remainingFollowUpCount = followUpOptions.Count - maxItemsPerLevel;
+                if (remainingFollowUpCount > 0)
+                {
+                    string overflowIndent = new string(' ', (indentLevel + 2) * 2);
+                    Console.WriteLine($"{overflowIndent}... {remainingFollowUpCount} more follow-up options");
+                }
+            }
         }
 
         private static void ListContentPackages(string sqlitePath)

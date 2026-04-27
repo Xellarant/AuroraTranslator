@@ -363,6 +363,22 @@ JOIN source_files AS sf
 JOIN element_types AS feature_type
     ON feature_type.element_type_id = feature_element.element_type_id
 WHERE f.parent_element_id = $parent_element_id
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM v_selectable_options AS selectable
+      WHERE selectable.owner_element_id = $parent_element_id
+        AND selectable.option_kind = 'element'
+        AND
+        (
+            selectable.option_element_id = feature_element.element_id
+            OR
+            (
+                selectable.option_name IS NOT NULL
+                AND selectable.option_name = feature_element.name
+            )
+        )
+  )
 ORDER BY unlock_level ASC, feature_element.name ASC;";
                 command.Parameters.AddWithValue("$parent_element_id", parentSelection.ElementId);
 
@@ -706,25 +722,33 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
             string selectType,
             string selectPolicy,
             string supportsText,
-            AuroraExpressionEvaluationContext context)
+            AuroraExpressionEvaluationContext context,
+            bool includeElementOptionFollowUps = true)
         {
+            selectType = selectType?.Trim();
+            selectPolicy = selectPolicy?.Trim();
+
             if (string.Equals(selectPolicy, "broad-language-pool", StringComparison.OrdinalIgnoreCase))
                 return LoadLanguageOptions(connection, supportsText, context);
 
             if (string.Equals(selectPolicy, "broad-proficiency-pool", StringComparison.OrdinalIgnoreCase))
                 return LoadProficiencyOptions(connection, supportsText, context);
 
+            if (string.Equals(selectPolicy, "broad-feat-pool", StringComparison.OrdinalIgnoreCase))
+                return BuildFeatFollowUpOptions(connection, context);
+
             if (string.Equals(selectPolicy, "asi-feature-pool", StringComparison.OrdinalIgnoreCase))
                 return LoadAsiFeatureOptions(connection, selectId, supportsText, context);
 
-            return LoadGenericSelectableOptions(connection, selectId, selectType, context);
+            return LoadGenericSelectableOptions(connection, selectId, selectType, context, includeElementOptionFollowUps);
         }
 
         private static List<CharacterSelectOptionResult> LoadGenericSelectableOptions(
             SqliteConnection connection,
             int selectId,
             string selectType,
-            AuroraExpressionEvaluationContext context)
+            AuroraExpressionEvaluationContext context,
+            bool includeElementOptionFollowUps)
         {
             using var command = connection.CreateCommand();
             command.CommandText = @"
@@ -773,6 +797,15 @@ ORDER BY
                                      || (!string.IsNullOrWhiteSpace(optionName) && context.MatchesToken(optionName));
                 }
 
+                IReadOnlyList<CharacterSelectOptionResult> followUpOptions = null;
+                string followUpKind = null;
+                if (includeElementOptionFollowUps && optionElementId.HasValue && isAvailable)
+                {
+                    followUpOptions = LoadDirectSelectPreviewOptions(connection, optionElementId.Value, context);
+                    if (followUpOptions.Count > 0)
+                        followUpKind = "unlocked-selects";
+                }
+
                 options.Add(new CharacterSelectOptionResult(
                     optionKind,
                     optionElementId,
@@ -783,7 +816,9 @@ ORDER BY
                     optionText,
                     isAvailable,
                     isAlreadyOwned,
-                    requirementText));
+                    requirementText,
+                    followUpKind,
+                    followUpOptions));
             }
 
             return options
@@ -792,8 +827,107 @@ ORDER BY
                 .ToList();
         }
 
+        private static List<CharacterSelectOptionResult> LoadDirectSelectPreviewOptions(
+            SqliteConnection connection,
+            int ownerElementId,
+            AuroraExpressionEvaluationContext baseContext)
+        {
+            AuroraExpressionEvaluationContext context = CloneContext(baseContext);
+            string ownerAuroraId = null;
+            string ownerName = null;
+
+            using (var ownerCommand = connection.CreateCommand())
+            {
+                ownerCommand.CommandText = @"
+SELECT aurora_id, name
+FROM elements
+WHERE element_id = $element_id;";
+                ownerCommand.Parameters.AddWithValue("$element_id", ownerElementId);
+
+                using var ownerReader = ownerCommand.ExecuteReader();
+                if (ownerReader.Read())
+                {
+                    ownerAuroraId = ownerReader.IsDBNull(0) ? null : ownerReader.GetString(0);
+                    ownerName = ownerReader.IsDBNull(1) ? null : ownerReader.GetString(1);
+                }
+            }
+
+            AddElementTokensToContext(context, connection, ownerElementId, ownerAuroraId, ownerName);
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT
+    s.select_id,
+    s.name_text,
+    s.select_type,
+    s.supports_text,
+    s.select_level,
+    s.number_to_choose,
+    s.is_optional,
+    s.requirements_text
+FROM selects AS s
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = s.rule_scope_id
+WHERE rs.owner_kind = 'element'
+  AND rs.owner_element_id = $owner_element_id
+ORDER BY s.ordinal ASC;";
+            command.Parameters.AddWithValue("$owner_element_id", ownerElementId);
+
+            var previews = new List<CharacterSelectOptionResult>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                int selectId = reader.GetInt32(0);
+                string selectName = reader.IsDBNull(1) ? null : reader.GetString(1);
+                string selectType = reader.GetString(2);
+                string supportsText = reader.IsDBNull(3) ? null : reader.GetString(3);
+                int? selectLevel = reader.IsDBNull(4) ? null : reader.GetInt32(4);
+                string requirementsText = reader.IsDBNull(7) ? null : reader.GetString(7);
+
+                if (selectLevel.HasValue && selectLevel.Value > 1)
+                    continue;
+
+                bool isAvailable = IsRequirementSatisfied(requirementsText, context);
+                if (!isAvailable)
+                    continue;
+
+                string selectPolicy = ClassifySelectPolicy(selectType, selectName, supportsText);
+                List<CharacterSelectOptionResult> options = LoadSelectOptions(
+                    connection,
+                    selectId,
+                    selectType,
+                    selectPolicy,
+                    supportsText,
+                    context,
+                    includeElementOptionFollowUps: false);
+
+                int availableOptionCount = options.Count(x => x.IsAvailable);
+                if (availableOptionCount == 0)
+                    continue;
+
+                previews.Add(new CharacterSelectOptionResult(
+                    "select-preview",
+                    null,
+                    $"SELECT_PREVIEW_{selectId}",
+                    $"{selectName ?? selectType} ({selectType})",
+                    selectType,
+                    null,
+                    null,
+                    true,
+                    false,
+                    requirementsText,
+                    $"select-preview:{selectPolicy}",
+                    options));
+            }
+
+            return previews;
+        }
+
         private static bool OptionMatchesSelectType(string selectType, string optionTypeName)
         {
+            selectType = selectType?.Trim();
+            optionTypeName = optionTypeName?.Trim();
+
             if (string.IsNullOrWhiteSpace(selectType) || string.IsNullOrWhiteSpace(optionTypeName))
                 return true;
 
@@ -1173,11 +1307,17 @@ ORDER BY e.name ASC, rec.package_key ASC;";
 
         private static string ClassifySelectPolicy(string selectType, string selectName, string supportsText)
         {
+            selectType = selectType?.Trim();
+            selectName = selectName?.Trim();
+
             if (string.Equals(selectType, "Language", StringComparison.OrdinalIgnoreCase))
                 return "broad-language-pool";
 
             if (string.Equals(selectType, "Proficiency", StringComparison.OrdinalIgnoreCase))
                 return "broad-proficiency-pool";
+
+            if (string.Equals(selectType, "Feat", StringComparison.OrdinalIgnoreCase))
+                return "broad-feat-pool";
 
             if (string.Equals(selectType, "List", StringComparison.OrdinalIgnoreCase))
                 return "text-choice-pool";
@@ -1198,6 +1338,25 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 return value;
 
             return 0m;
+        }
+
+        private static AuroraExpressionEvaluationContext CloneContext(AuroraExpressionEvaluationContext source)
+        {
+            var clone = new AuroraExpressionEvaluationContext();
+
+            foreach (string token in source.Tokens)
+                clone.AddToken(token);
+
+            foreach (KeyValuePair<string, decimal> pair in source.NumericValues)
+                clone.AddNumericValue(pair.Key, pair.Value);
+
+            foreach (KeyValuePair<string, string> pair in source.ScalarValues)
+                clone.AddScalarValue(pair.Key, pair.Value);
+
+            foreach (KeyValuePair<string, HashSet<string>> pair in source.MacroValues)
+                clone.AddMacroValues(pair.Key, pair.Value);
+
+            return clone;
         }
 
         private static string GetAbilityDisplayName(string abilityKey)
