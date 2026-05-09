@@ -9,6 +9,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - first-pass character-state evaluation
 - second-stage ASI/feat choice expansion
 - structured computed-character output with pending-choice and provenance reporting
+- repeatable character-state regression baselines for the first-party example fixture
 
 ## Completed Foundations
 
@@ -104,12 +105,13 @@ Likely target families:
 ### 3. Add regression coverage for runtime evaluation
 
 - commit targeted character-state smoke cases
-- check expected active features for canonical first-party examples
-- check expected select surfaces for:
-  - Fighter ASI
+- keep expanding beyond the current committed first-party example baseline
+- add more fixtures for:
+  - Fighter ASI with an applied choice
   - Fighter Fighting Style
   - archetype selection
   - language/proficiency selections
+  - Human Variant feat flow
 - add guardrails for semantic expansion counts if useful
 - add guardrails for computed-character outputs such as:
   - final ability score totals

@@ -80,9 +80,12 @@ dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- summarize-sour
 dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- capture-diagnostics-baseline [sqlitePath] [baselinePath]
 dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- check-diagnostics-regression [sqlitePath] [baselinePath]
 dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- capture-first-party-diagnostics-baseline [auroraRoot] [sqlitePath] [baselinePath]
+dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- capture-character-state-baseline [sqlitePath] [stateJsonPath] [baselinePath]
+dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- check-character-state-regression [sqlitePath] [stateJsonPath] [baselinePath]
 ```
 
 The committed baseline is meant to represent Wizards first-party `core` + `supplements`, not an arbitrary custom content directory.
+The committed character-state baseline is meant to represent the example first-party fixture at [character-state-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-example.json) evaluated against the first-party regression DB.
 
 ### Expression and character-state evaluation
 
@@ -116,6 +119,12 @@ The current character-state evaluator is intentionally builder-oriented rather t
   - pending choices
   - warnings
   - provenance for explainability
+- capture/check runtime regression baselines for:
+  - direct selections
+  - active features
+  - computed ability scores
+  - derived traits/proficiencies/languages/features
+  - pending choices and warnings
 
 This is the beginning of a builder backend, not the finished app runtime. More choice families still need second-stage resolution over time.
 

@@ -31,6 +31,14 @@ namespace AuroraTranslator
             projectRootPath,
             "Data",
             "diagnostics-regression-baseline.json");
+        static string defaultCharacterStatePath = Path.Combine(
+            projectRootPath,
+            "Data",
+            "character-state-example.json");
+        static string defaultCharacterStateBaselinePath = Path.Combine(
+            projectRootPath,
+            "Data",
+            "character-state-regression-baseline.json");
         static string defaultFirstPartyBaselineSqlitePath = Path.Combine(
             projectRootPath,
             "Data",
@@ -215,6 +223,28 @@ namespace AuroraTranslator
             }
 
             if (args.Length > 0
+                && string.Equals(args[0], "capture-character-state-baseline", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultFirstPartyBaselineSqlitePath;
+                string stateJsonPath = args.Length > 2 ? args[2] : defaultCharacterStatePath;
+                string baselinePath = args.Length > 3 ? args[3] : defaultCharacterStateBaselinePath;
+
+                CaptureCharacterStateBaseline(sqlitePath, stateJsonPath, baselinePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "check-character-state-regression", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultFirstPartyBaselineSqlitePath;
+                string stateJsonPath = args.Length > 2 ? args[2] : defaultCharacterStatePath;
+                string baselinePath = args.Length > 3 ? args[3] : defaultCharacterStateBaselinePath;
+
+                CheckCharacterStateRegression(sqlitePath, stateJsonPath, baselinePath);
+                return;
+            }
+
+            if (args.Length > 0
                 && string.Equals(args[0], "evaluate-character-state", StringComparison.OrdinalIgnoreCase))
             {
                 string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
@@ -255,6 +285,10 @@ namespace AuroraTranslator
             Console.WriteLine("                                                      Compare current diagnostics against a saved baseline.");
             Console.WriteLine("  capture-first-party-diagnostics-baseline [auroraRoot] [sqlitePath] [baselinePath]");
             Console.WriteLine("                                                      Rebuild a canonical baseline from only core + supplements.");
+            Console.WriteLine("  capture-character-state-baseline [sqlitePath] [stateJson] [baselinePath]");
+            Console.WriteLine("                                                      Save a computed-character regression baseline for a state fixture.");
+            Console.WriteLine("  check-character-state-regression [sqlitePath] [stateJson] [baselinePath]");
+            Console.WriteLine("                                                      Compare computed-character output against a saved baseline.");
             Console.WriteLine("  evaluate-character-state [sqlitePath] [stateJson]");
             Console.WriteLine("                                                      Resolve a character state into active features, grants, and selects.");
             Console.WriteLine("  evaluate-character-state-json [sqlitePath] [stateJson] [outputPath]");
@@ -262,6 +296,8 @@ namespace AuroraTranslator
             Console.WriteLine($"Default Aurora path:  {defaultAuroraPath}");
             Console.WriteLine($"Default SQLite path:  {defaultSqlitePath}");
             Console.WriteLine($"Default baseline:     {defaultDiagnosticsBaselinePath}");
+            Console.WriteLine($"Default state JSON:   {defaultCharacterStatePath}");
+            Console.WriteLine($"Default state base:   {defaultCharacterStateBaselinePath}");
             Console.WriteLine($"Default 1P SQLite:    {defaultFirstPartyBaselineSqlitePath}");
             Console.WriteLine($"Default SRD JSON:     {defaultSrdMonstersPath}");
             Console.WriteLine($"Default XML output:   {defaultXellarantXmlPath}");
@@ -390,6 +426,24 @@ namespace AuroraTranslator
                 Console.Error.WriteLine($"Default Aurora path:   {defaultAuroraPath}");
                 Console.Error.WriteLine($"Default SQLite path:   {defaultFirstPartyBaselineSqlitePath}");
                 Console.Error.WriteLine($"Default baseline path: {defaultDiagnosticsBaselinePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "capture-character-state-baseline", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: capture-character-state-baseline [sqlitePath] [stateJsonPath] [baselinePath]");
+                Console.Error.WriteLine($"Default SQLite path:   {defaultFirstPartyBaselineSqlitePath}");
+                Console.Error.WriteLine($"Default state path:    {defaultCharacterStatePath}");
+                Console.Error.WriteLine($"Default baseline path: {defaultCharacterStateBaselinePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "check-character-state-regression", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: check-character-state-regression [sqlitePath] [stateJsonPath] [baselinePath]");
+                Console.Error.WriteLine($"Default SQLite path:   {defaultFirstPartyBaselineSqlitePath}");
+                Console.Error.WriteLine($"Default state path:    {defaultCharacterStatePath}");
+                Console.Error.WriteLine($"Default baseline path: {defaultCharacterStateBaselinePath}");
             }
             else if (args.Length > 0
                 && string.Equals(args[0], "evaluate-character-state", StringComparison.OrdinalIgnoreCase))
@@ -1209,6 +1263,151 @@ namespace AuroraTranslator
             Environment.ExitCode = 1;
         }
 
+        private static void CaptureCharacterStateBaseline(string sqlitePath, string stateJsonPath, string baselinePath)
+        {
+            CharacterStateRegressionBaseline baseline = BuildCharacterStateRegressionBaseline(sqlitePath, stateJsonPath);
+            string baselineDirectory = Path.GetDirectoryName(baselinePath);
+            if (!string.IsNullOrWhiteSpace(baselineDirectory))
+                Directory.CreateDirectory(baselineDirectory);
+
+            string json = JsonSerializer.Serialize(
+                baseline,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+
+            File.WriteAllText(baselinePath, json);
+            Console.WriteLine($"Captured character-state regression baseline to {baselinePath}.");
+            Console.WriteLine($"  direct selections: {baseline.DirectSelectionCount}");
+            Console.WriteLine($"  active features:   {baseline.ActiveFeatureCount}");
+            Console.WriteLine($"  pending choices:   {baseline.PendingChoiceCount}");
+            Console.WriteLine($"  warnings:          {baseline.WarningCount}");
+        }
+
+        private static void CheckCharacterStateRegression(string sqlitePath, string stateJsonPath, string baselinePath)
+        {
+            if (!File.Exists(baselinePath))
+                throw new FileNotFoundException($"Character-state baseline not found: {baselinePath}");
+
+            CharacterStateRegressionBaseline expected = JsonSerializer.Deserialize<CharacterStateRegressionBaseline>(
+                File.ReadAllText(baselinePath))
+                ?? throw new InvalidDataException($"Could not deserialize character-state baseline: {baselinePath}");
+
+            CharacterStateRegressionBaseline actual = BuildCharacterStateRegressionBaseline(sqlitePath, stateJsonPath);
+            List<string> failures = CompareCharacterStateRegressionBaseline(expected, actual);
+
+            Console.WriteLine($"Character-state regression check for {sqlitePath}:");
+            Console.WriteLine($"State JSON: {stateJsonPath}");
+            Console.WriteLine($"Baseline:   {baselinePath}");
+
+            if (failures.Count == 0)
+            {
+                Console.WriteLine("PASS");
+                Console.WriteLine($"  direct selections: {actual.DirectSelectionCount}");
+                Console.WriteLine($"  active features:   {actual.ActiveFeatureCount}");
+                Console.WriteLine($"  pending choices:   {actual.PendingChoiceCount}");
+                Console.WriteLine($"  warnings:          {actual.WarningCount}");
+                return;
+            }
+
+            Console.WriteLine("FAIL");
+            foreach (string failure in failures)
+                Console.WriteLine($"  - {failure}");
+
+            Environment.ExitCode = 1;
+        }
+
+        private static CharacterStateRegressionBaseline BuildCharacterStateRegressionBaseline(string sqlitePath, string stateJsonPath)
+        {
+            CharacterEvaluationResult result = AuroraCharacterStateEngine.Evaluate(sqlitePath, stateJsonPath);
+            ComputedCharacterResult computed = result.ComputedCharacter
+                ?? throw new InvalidOperationException("Computed character output was unexpectedly null.");
+
+            return new CharacterStateRegressionBaseline(
+                CapturedAtUtc: DateTime.UtcNow,
+                StateLabel: Path.GetFileName(stateJsonPath),
+                DirectSelectionCount: result.DirectSelections.Count,
+                DirectSelections: result.DirectSelections
+                    .Select(x => $"{x.TypeName}|{x.Name}|{x.PackageKey}|{x.Level?.ToString() ?? string.Empty}")
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                ActiveFeatureCount: result.ActiveFeatures.Count,
+                ActiveFeatures: result.ActiveFeatures
+                    .Select(x => $"{x.OwnerTypeName}|{x.OwnerName}|{x.Name}|{x.UnlockLevel}")
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                ActiveGrantCount: result.ActiveGrants.Count,
+                AvailableSelectCount: result.AvailableSelects.Count,
+                PendingChoiceCount: computed.PendingChoices.Count,
+                BlockingPendingChoiceCount: computed.PendingChoices.Count(x => x.IsBlocking),
+                WarningCount: computed.Warnings.Count,
+                WarningKindCounts: BuildDiagnosticsCountList(computed.Warnings.GroupBy(x => $"{x.WarningKind}|{x.Severity}")),
+                AbilityScores: computed.AbilityScores
+                    .OrderBy(x => x.AbilityKey, StringComparer.OrdinalIgnoreCase)
+                    .Select(x => new CharacterStateAbilityScoreBaseline(x.AbilityKey, x.FinalValue))
+                    .ToArray(),
+                ProficiencyKeys: computed.Proficiencies
+                    .Select(x => x.Key)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                LanguageKeys: computed.Languages
+                    .Select(x => x.Key)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                FeatKeys: computed.Feats
+                    .Select(x => x.Key)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                FeatureKeys: computed.Features
+                    .Select(x => x.Key)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                TraitKeys: computed.Traits
+                    .Select(x => x.Key)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                PendingChoiceKeys: computed.PendingChoices
+                    .Select(x => $"{x.OwnerTypeName}|{x.OwnerName}|{x.SelectName}|remaining={x.RemainingCount}|blocking={x.IsBlocking}")
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                ProvenanceKindCounts: BuildDiagnosticsCountList(computed.Provenance.GroupBy(x => $"{x.Category}|{x.SourceKind}")),
+                AppliedChoiceStates: result.AppliedChoices
+                    .Select(x => $"{x.ChoiceIndex}|{x.Status}|{x.OwnerTypeName}|{x.OwnerName}|{x.SelectName}|{x.FollowUpOptionName ?? x.OptionName}")
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray());
+        }
+
+        private static List<string> CompareCharacterStateRegressionBaseline(
+            CharacterStateRegressionBaseline expected,
+            CharacterStateRegressionBaseline actual)
+        {
+            var failures = new List<string>();
+
+            CompareScalar(expected.StateLabel, actual.StateLabel, "StateLabel", failures);
+            CompareScalar(expected.DirectSelectionCount, actual.DirectSelectionCount, "DirectSelectionCount", failures);
+            CompareScalar(expected.ActiveFeatureCount, actual.ActiveFeatureCount, "ActiveFeatureCount", failures);
+            CompareScalar(expected.ActiveGrantCount, actual.ActiveGrantCount, "ActiveGrantCount", failures);
+            CompareScalar(expected.AvailableSelectCount, actual.AvailableSelectCount, "AvailableSelectCount", failures);
+            CompareScalar(expected.PendingChoiceCount, actual.PendingChoiceCount, "PendingChoiceCount", failures);
+            CompareScalar(expected.BlockingPendingChoiceCount, actual.BlockingPendingChoiceCount, "BlockingPendingChoiceCount", failures);
+            CompareScalar(expected.WarningCount, actual.WarningCount, "WarningCount", failures);
+            CompareStringList(expected.DirectSelections, actual.DirectSelections, "DirectSelections", failures);
+            CompareStringList(expected.ActiveFeatures, actual.ActiveFeatures, "ActiveFeatures", failures);
+            CompareCountSet("Warning kind", expected.WarningKindCounts, actual.WarningKindCounts, failures);
+            CompareAbilityScores(expected.AbilityScores, actual.AbilityScores, failures);
+            CompareStringList(expected.ProficiencyKeys, actual.ProficiencyKeys, "ProficiencyKeys", failures);
+            CompareStringList(expected.LanguageKeys, actual.LanguageKeys, "LanguageKeys", failures);
+            CompareStringList(expected.FeatKeys, actual.FeatKeys, "FeatKeys", failures);
+            CompareStringList(expected.FeatureKeys, actual.FeatureKeys, "FeatureKeys", failures);
+            CompareStringList(expected.TraitKeys, actual.TraitKeys, "TraitKeys", failures);
+            CompareStringList(expected.PendingChoiceKeys, actual.PendingChoiceKeys, "PendingChoiceKeys", failures);
+            CompareCountSet("Provenance kind", expected.ProvenanceKindCounts, actual.ProvenanceKindCounts, failures);
+            CompareStringList(expected.AppliedChoiceStates, actual.AppliedChoiceStates, "AppliedChoiceStates", failures);
+
+            return failures;
+        }
+
         private static DiagnosticsRegressionBaseline BuildDiagnosticsRegressionBaseline(string sqlitePath, string corpusLabel)
         {
             var unresolved = AuroraSqliteImporter.GetUnresolvedLinkDiagnostics(sqlitePath, topPatternsPerKind: 1, sampleOwnersPerPattern: 1);
@@ -1295,6 +1494,73 @@ namespace AuroraTranslator
             }
         }
 
+        private static DiagnosticsRegressionCount[] BuildDiagnosticsCountList<T>(IEnumerable<IGrouping<string, T>> groups)
+        {
+            return groups
+                .Select(group => new DiagnosticsRegressionCount(group.Key, group.LongCount()))
+                .OrderBy(x => x.Key, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static void CompareScalar<T>(T expected, T actual, string label, List<string> failures)
+        {
+            if (!EqualityComparer<T>.Default.Equals(expected, actual))
+                failures.Add($"{label} changed: expected '{expected}', got '{actual}'.");
+        }
+
+        private static void CompareStringList(
+            IReadOnlyList<string> expected,
+            IReadOnlyList<string> actual,
+            string label,
+            List<string> failures)
+        {
+            string[] expectedValues = expected?.ToArray() ?? Array.Empty<string>();
+            string[] actualValues = actual?.ToArray() ?? Array.Empty<string>();
+
+            if (expectedValues.SequenceEqual(actualValues, StringComparer.OrdinalIgnoreCase))
+                return;
+
+            failures.Add($"{label} changed: expected {expectedValues.Length} item(s), got {actualValues.Length}.");
+
+            foreach (string missing in expectedValues.Except(actualValues, StringComparer.OrdinalIgnoreCase).Take(5))
+                failures.Add($"{label} missing: {missing}");
+            foreach (string added in actualValues.Except(expectedValues, StringComparer.OrdinalIgnoreCase).Take(5))
+                failures.Add($"{label} added: {added}");
+        }
+
+        private static void CompareAbilityScores(
+            IReadOnlyList<CharacterStateAbilityScoreBaseline> expected,
+            IReadOnlyList<CharacterStateAbilityScoreBaseline> actual,
+            List<string> failures)
+        {
+            Dictionary<string, decimal> expectedMap = (expected ?? Array.Empty<CharacterStateAbilityScoreBaseline>())
+                .ToDictionary(x => x.AbilityKey, x => x.FinalValue, StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, decimal> actualMap = (actual ?? Array.Empty<CharacterStateAbilityScoreBaseline>())
+                .ToDictionary(x => x.AbilityKey, x => x.FinalValue, StringComparer.OrdinalIgnoreCase);
+
+            foreach (string abilityKey in expectedMap.Keys.Union(actualMap.Keys, StringComparer.OrdinalIgnoreCase)
+                         .OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+            {
+                bool hasExpected = expectedMap.TryGetValue(abilityKey, out decimal expectedValue);
+                bool hasActual = actualMap.TryGetValue(abilityKey, out decimal actualValue);
+
+                if (!hasExpected)
+                {
+                    failures.Add($"AbilityScores added: {abilityKey} => {actualValue}");
+                    continue;
+                }
+
+                if (!hasActual)
+                {
+                    failures.Add($"AbilityScores missing: {abilityKey}");
+                    continue;
+                }
+
+                if (expectedValue != actualValue)
+                    failures.Add($"AbilityScores changed: {abilityKey} expected {expectedValue}, got {actualValue}.");
+            }
+        }
+
         private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
         {
             Directory.CreateDirectory(destinationDirectory);
@@ -1337,6 +1603,31 @@ namespace AuroraTranslator
         }
 
         private sealed record DiagnosticsRegressionCount(string Key, long Count);
+
+        private sealed record CharacterStateAbilityScoreBaseline(string AbilityKey, decimal FinalValue);
+
+        private sealed record CharacterStateRegressionBaseline(
+            DateTime CapturedAtUtc,
+            string StateLabel,
+            int DirectSelectionCount,
+            IReadOnlyList<string> DirectSelections,
+            int ActiveFeatureCount,
+            IReadOnlyList<string> ActiveFeatures,
+            int ActiveGrantCount,
+            int AvailableSelectCount,
+            int PendingChoiceCount,
+            int BlockingPendingChoiceCount,
+            int WarningCount,
+            IReadOnlyList<DiagnosticsRegressionCount> WarningKindCounts,
+            IReadOnlyList<CharacterStateAbilityScoreBaseline> AbilityScores,
+            IReadOnlyList<string> ProficiencyKeys,
+            IReadOnlyList<string> LanguageKeys,
+            IReadOnlyList<string> FeatKeys,
+            IReadOnlyList<string> FeatureKeys,
+            IReadOnlyList<string> TraitKeys,
+            IReadOnlyList<string> PendingChoiceKeys,
+            IReadOnlyList<DiagnosticsRegressionCount> ProvenanceKindCounts,
+            IReadOnlyList<string> AppliedChoiceStates);
 
         private sealed record DiagnosticsRegressionBaseline(
             DateTime CapturedAtUtc,
