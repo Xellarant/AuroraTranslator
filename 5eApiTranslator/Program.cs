@@ -638,12 +638,14 @@ namespace AuroraTranslator
                 {
                     directSelectionCount = result.DirectSelections.Count,
                     activeFeatureCount = result.ActiveFeatures.Count,
-                    activeGrantCount = result.ActiveGrants.Count,
-                    availableSelectCount = result.AvailableSelects.Count,
-                    evaluationTokenCount = result.EvaluationContext.Tokens.Count,
-                    evaluationNumericKeyCount = result.EvaluationContext.NumericValues.Count,
-                    evaluationMacroCount = result.EvaluationContext.MacroValues.Count
-                },
+                activeGrantCount = result.ActiveGrants.Count,
+                availableSelectCount = result.AvailableSelects.Count,
+                pendingChoiceCount = result.ComputedCharacter?.PendingChoices.Count ?? 0,
+                warningCount = result.ComputedCharacter?.Warnings.Count ?? 0,
+                evaluationTokenCount = result.EvaluationContext.Tokens.Count,
+                evaluationNumericKeyCount = result.EvaluationContext.NumericValues.Count,
+                evaluationMacroCount = result.EvaluationContext.MacroValues.Count
+            },
                 directSelections = result.DirectSelections.Select(selection => new
                 {
                     selection.ElementId,
@@ -698,6 +700,51 @@ namespace AuroraTranslator
                     choice.Status,
                     choice.Message
                 }).ToList(),
+                computedCharacter = result.ComputedCharacter == null
+                    ? null
+                    : new
+                    {
+                        abilityScores = result.ComputedCharacter.AbilityScores.Select(score => new
+                        {
+                            score.AbilityKey,
+                            score.AbilityName,
+                            score.BaseValue,
+                            score.ModifierTotal,
+                            score.FinalValue,
+                            provenance = score.Provenance.Select(BuildCharacterProvenanceExport).ToList()
+                        }).ToList(),
+                        proficiencies = result.ComputedCharacter.Proficiencies.Select(BuildComputedCharacterItemExport).ToList(),
+                        languages = result.ComputedCharacter.Languages.Select(BuildComputedCharacterItemExport).ToList(),
+                        feats = result.ComputedCharacter.Feats.Select(BuildComputedCharacterItemExport).ToList(),
+                        features = result.ComputedCharacter.Features.Select(BuildComputedCharacterItemExport).ToList(),
+                        traits = result.ComputedCharacter.Traits.Select(BuildComputedCharacterItemExport).ToList(),
+                        pendingChoices = result.ComputedCharacter.PendingChoices.Select(choice => new
+                        {
+                            choice.SelectId,
+                            choice.OwnerName,
+                            choice.OwnerTypeName,
+                            choice.OwnerPackageKey,
+                            choice.SelectName,
+                            choice.SelectType,
+                            choice.SelectPolicy,
+                            choice.NumberToChoose,
+                            choice.AlreadyOwnedCount,
+                            choice.RemainingCount,
+                            choice.AvailableOptionCount,
+                            choice.IsOptional,
+                            choice.IsBlocking
+                        }).ToList(),
+                        warnings = result.ComputedCharacter.Warnings.Select(warning => new
+                        {
+                            warning.WarningKind,
+                            warning.Severity,
+                            warning.Message,
+                            warning.OwnerName,
+                            warning.OwnerTypeName,
+                            warning.SelectName
+                        }).ToList(),
+                        provenance = result.ComputedCharacter.Provenance.Select(BuildCharacterProvenanceExport).ToList()
+                    },
                 availableSelects = result.AvailableSelects.Select(select => new
                 {
                     select.SelectId,
@@ -733,6 +780,36 @@ namespace AuroraTranslator
                             pair => pair.Key,
                             pair => pair.Value.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList())
                 }
+            };
+        }
+
+        private static object BuildComputedCharacterItemExport(ComputedCharacterItemResult item)
+        {
+            return new
+            {
+                item.Category,
+                item.Key,
+                item.Name,
+                item.TypeName,
+                item.PackageKey,
+                item.IsDirectSelection,
+                provenance = item.Provenance.Select(BuildCharacterProvenanceExport).ToList()
+            };
+        }
+
+        private static object BuildCharacterProvenanceExport(CharacterProvenanceEntry provenance)
+        {
+            return new
+            {
+                provenance.Category,
+                provenance.Key,
+                provenance.SourceKind,
+                provenance.OwnerName,
+                provenance.OwnerTypeName,
+                provenance.PackageKey,
+                provenance.ElementAuroraId,
+                provenance.ElementName,
+                provenance.Detail
             };
         }
 

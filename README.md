@@ -29,6 +29,7 @@ Notable runtime capabilities already in place:
 - package precedence can be inspected, changed, parity-checked, and refreshed from the CLI
 - character-state evaluation can resolve active features, grants, and select pools
 - ASI/feat selects now expand into second-stage builder choices
+- character-state JSON output now includes a `computedCharacter` section with derived scores, traits, pending choices, warnings, and provenance
 
 ## Repository Layout
 
@@ -106,6 +107,15 @@ The current character-state evaluator is intentionally builder-oriented rather t
   - `+2` to one ability
   - `+1/+1` to two abilities
 - expand feat-enabled ASI choices into a filtered feat pool
+- apply selected choices back into the working state and re-evaluate iteratively
+- emit a structured `computedCharacter` view for application consumption, including:
+  - final ability scores
+  - derived proficiencies and languages
+  - active feats and features
+  - semantic traits such as size
+  - pending choices
+  - warnings
+  - provenance for explainability
 
 This is the beginning of a builder backend, not the finished app runtime. More choice families still need second-stage resolution over time.
 

@@ -8,6 +8,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - builder-facing SQLite views
 - first-pass character-state evaluation
 - second-stage ASI/feat choice expansion
+- structured computed-character output with pending-choice and provenance reporting
 
 ## Completed Foundations
 
@@ -53,6 +54,15 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Second-stage semantic expansion for:
   - `Ability Score Improvement`
   - `Feat`
+- Iterative choice application and re-evaluation
+- Derived character output for:
+  - computed ability scores
+  - proficiencies and languages
+  - feats and features
+  - semantic traits
+  - pending choices
+  - warnings
+  - provenance / explainability
 
 ## Current Milestone
 
@@ -75,6 +85,7 @@ High priority:
   - surface unavailable reasons more explicitly
 - add more semantic choice families where raw support links are too broad
 - distinguish follow-up actions from follow-up element picks more clearly if the consumer needs it
+- broaden choice application beyond the current ASI / feat-first flows
 
 Likely target families:
 
@@ -88,6 +99,7 @@ Likely target families:
 - widen support for dynamic Aurora macros/tokens in runtime evaluation
 - add richer owner-context-aware filtering for selects
 - decide where hard validation belongs for caps, exclusivity, and replacement rules
+- continue tightening computed-character aggregation so the app can rely on it as a runtime summary
 
 ### 3. Add regression coverage for runtime evaluation
 
@@ -99,6 +111,10 @@ Likely target families:
   - archetype selection
   - language/proficiency selections
 - add guardrails for semantic expansion counts if useful
+- add guardrails for computed-character outputs such as:
+  - final ability score totals
+  - pending blocking choice counts
+  - key provenance expectations for canonical first-party states
 
 ### 4. Continue builder-facing query refinement
 
@@ -109,7 +125,16 @@ Likely target families:
   - runtime query projections
   - live character-state evaluation
 
-### 5. Eventually add profile-aware precedence
+### 5. Improve trust / app integration surfaces
+
+- align the evaluator output with Aurora App correctness goals
+- expose enough metadata and provenance that the app can explain:
+  - where a computed trait came from
+  - why a choice is pending or blocked
+  - which package/source contributed a resolved item
+- use the computed-character contract to inform future loader-oriented projection views
+
+### 6. Eventually add profile-aware precedence
 
 Current precedence is global/package-based. A later phase should support multiple active content profiles such as:
 

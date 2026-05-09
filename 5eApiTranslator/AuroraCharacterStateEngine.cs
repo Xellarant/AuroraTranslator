@@ -144,13 +144,76 @@ namespace AuroraTranslator
         string Status,
         string Message);
 
+    internal sealed record CharacterProvenanceEntry(
+        string Category,
+        string Key,
+        string SourceKind,
+        string OwnerName,
+        string OwnerTypeName,
+        string PackageKey,
+        string ElementAuroraId,
+        string ElementName,
+        string Detail);
+
+    internal sealed record ComputedAbilityScoreResult(
+        string AbilityKey,
+        string AbilityName,
+        decimal BaseValue,
+        decimal ModifierTotal,
+        decimal FinalValue,
+        IReadOnlyList<CharacterProvenanceEntry> Provenance);
+
+    internal sealed record ComputedCharacterItemResult(
+        string Category,
+        string Key,
+        string Name,
+        string TypeName,
+        string PackageKey,
+        bool IsDirectSelection,
+        IReadOnlyList<CharacterProvenanceEntry> Provenance);
+
+    internal sealed record PendingCharacterChoiceResult(
+        int SelectId,
+        string OwnerName,
+        string OwnerTypeName,
+        string OwnerPackageKey,
+        string SelectName,
+        string SelectType,
+        string SelectPolicy,
+        int NumberToChoose,
+        int AlreadyOwnedCount,
+        int RemainingCount,
+        int AvailableOptionCount,
+        bool IsOptional,
+        bool IsBlocking);
+
+    internal sealed record CharacterWarningResult(
+        string WarningKind,
+        string Severity,
+        string Message,
+        string OwnerName,
+        string OwnerTypeName,
+        string SelectName);
+
+    internal sealed record ComputedCharacterResult(
+        IReadOnlyList<ComputedAbilityScoreResult> AbilityScores,
+        IReadOnlyList<ComputedCharacterItemResult> Proficiencies,
+        IReadOnlyList<ComputedCharacterItemResult> Languages,
+        IReadOnlyList<ComputedCharacterItemResult> Feats,
+        IReadOnlyList<ComputedCharacterItemResult> Features,
+        IReadOnlyList<ComputedCharacterItemResult> Traits,
+        IReadOnlyList<PendingCharacterChoiceResult> PendingChoices,
+        IReadOnlyList<CharacterWarningResult> Warnings,
+        IReadOnlyList<CharacterProvenanceEntry> Provenance);
+
     internal sealed record CharacterEvaluationResult(
         IReadOnlyList<ResolvedCharacterElement> DirectSelections,
         IReadOnlyList<ActiveCharacterFeature> ActiveFeatures,
         IReadOnlyList<ActiveGrantResult> ActiveGrants,
         IReadOnlyList<CharacterSelectResult> AvailableSelects,
         AuroraExpressionEvaluationContext EvaluationContext,
-        IReadOnlyList<AppliedCharacterChoiceResult> AppliedChoices);
+        IReadOnlyList<AppliedCharacterChoiceResult> AppliedChoices,
+        ComputedCharacterResult ComputedCharacter);
 
     internal static class AuroraCharacterStateEngine
     {
@@ -223,11 +286,18 @@ namespace AuroraTranslator
                 }
             }
 
+            IReadOnlyList<AppliedCharacterChoiceResult> finalizedChoices = appliedChoiceResults.Values
+                .OrderBy(x => x.ChoiceIndex)
+                .ToList();
+            ComputedCharacterResult computedCharacter = BuildComputedCharacter(document, workingDocument, final with
+            {
+                AppliedChoices = finalizedChoices
+            });
+
             return final with
             {
-                AppliedChoices = appliedChoiceResults.Values
-                    .OrderBy(x => x.ChoiceIndex)
-                    .ToList()
+                AppliedChoices = finalizedChoices,
+                ComputedCharacter = computedCharacter
             };
         }
 
@@ -257,7 +327,14 @@ namespace AuroraTranslator
             }
 
             var availableSelects = LoadAvailableSelects(connection, ownerLevels, evaluationContext);
-            return new CharacterEvaluationResult(directSelections, activeFeatures, activeGrants, availableSelects, evaluationContext, appliedChoices);
+            return new CharacterEvaluationResult(
+                directSelections,
+                activeFeatures,
+                activeGrants,
+                availableSelects,
+                evaluationContext,
+                appliedChoices,
+                null);
         }
 
         private static List<ResolvedCharacterElement> ResolveDirectSelections(
@@ -1784,6 +1861,513 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 "Saving Throw" => string.Equals(proficiencyGroup, "Saving Throw", StringComparison.OrdinalIgnoreCase),
                 _ => true
             };
+        }
+
+        private static ComputedCharacterResult BuildComputedCharacter(
+            AuroraCharacterStateDocument originalDocument,
+            AuroraCharacterStateDocument workingDocument,
+            CharacterEvaluationResult evaluation)
+        {
+            var provenance = new List<CharacterProvenanceEntry>();
+            List<ComputedAbilityScoreResult> abilityScores = BuildComputedAbilityScores(originalDocument, evaluation, provenance);
+            List<ComputedCharacterItemResult> proficiencies = BuildComputedProficiencies(evaluation, provenance);
+            List<ComputedCharacterItemResult> languages = BuildComputedLanguages(evaluation, provenance);
+            List<ComputedCharacterItemResult> feats = BuildComputedFeats(evaluation, provenance);
+            List<ComputedCharacterItemResult> features = BuildComputedFeatures(evaluation, provenance);
+            List<ComputedCharacterItemResult> traits = BuildComputedTraits(evaluation, provenance);
+            List<PendingCharacterChoiceResult> pendingChoices = BuildPendingChoices(evaluation.AvailableSelects);
+            List<CharacterWarningResult> warnings = BuildCharacterWarnings(evaluation.AppliedChoices, pendingChoices);
+
+            return new ComputedCharacterResult(
+                abilityScores,
+                proficiencies,
+                languages,
+                feats,
+                features,
+                traits,
+                pendingChoices,
+                warnings,
+                provenance
+                    .Distinct()
+                    .OrderBy(x => x.Category, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => x.SourceKind, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => x.ElementName, StringComparer.OrdinalIgnoreCase)
+                    .ToList());
+        }
+
+        private static List<ComputedAbilityScoreResult> BuildComputedAbilityScores(
+            AuroraCharacterStateDocument originalDocument,
+            CharacterEvaluationResult evaluation,
+            List<CharacterProvenanceEntry> provenanceSink)
+        {
+            string[] abilityKeys = { "str", "dex", "con", "int", "wis", "cha" };
+            var results = new List<ComputedAbilityScoreResult>();
+
+            foreach (string abilityKey in abilityKeys)
+            {
+                decimal baseValue = originalDocument.NumericValues.TryGetValue(abilityKey, out decimal originalValue)
+                    ? originalValue
+                    : 0m;
+                decimal finalValue = evaluation.EvaluationContext.NumericValues.TryGetValue(abilityKey, out decimal currentValue)
+                    ? currentValue
+                    : baseValue;
+
+                if (baseValue == 0m
+                    && finalValue == 0m
+                    && !originalDocument.NumericValues.ContainsKey(abilityKey)
+                    && !evaluation.EvaluationContext.NumericValues.ContainsKey(abilityKey))
+                {
+                    continue;
+                }
+
+                string abilityName = GetAbilityDisplayName(abilityKey);
+                string key = $"ability:{abilityKey}";
+                List<CharacterProvenanceEntry> itemProvenance = BuildAbilityProvenance(
+                    abilityKey,
+                    abilityName,
+                    baseValue,
+                    finalValue,
+                    evaluation.AppliedChoices);
+                provenanceSink.AddRange(itemProvenance);
+
+                results.Add(new ComputedAbilityScoreResult(
+                    abilityKey,
+                    abilityName,
+                    baseValue,
+                    finalValue - baseValue,
+                    finalValue,
+                    itemProvenance));
+            }
+
+            return results;
+        }
+
+        private static List<CharacterProvenanceEntry> BuildAbilityProvenance(
+            string abilityKey,
+            string abilityName,
+            decimal baseValue,
+            decimal finalValue,
+            IReadOnlyList<AppliedCharacterChoiceResult> appliedChoices)
+        {
+            string key = $"ability:{abilityKey}";
+            var provenance = new List<CharacterProvenanceEntry>
+            {
+                new(
+                    "ability-score",
+                    key,
+                    "base-state",
+                    null,
+                    null,
+                    null,
+                    null,
+                    abilityName,
+                    $"Base value {baseValue}")
+            };
+
+            foreach (AppliedCharacterChoiceResult choice in appliedChoices
+                         .Where(x => string.Equals(x.Status, "applied", StringComparison.OrdinalIgnoreCase))
+                         .Where(x => !string.IsNullOrWhiteSpace(x.FollowUpOptionAuroraId))
+                         .Where(x => x.FollowUpOptionAuroraId.IndexOf(abilityKey, StringComparison.OrdinalIgnoreCase) >= 0))
+            {
+                provenance.Add(new CharacterProvenanceEntry(
+                    "ability-score",
+                    key,
+                    "semantic-choice",
+                    choice.OwnerName,
+                    choice.OwnerTypeName,
+                    null,
+                    choice.FollowUpOptionAuroraId,
+                    choice.FollowUpOptionName ?? abilityName,
+                    choice.SelectName));
+            }
+
+            if (provenance.Count == 1 && finalValue != baseValue)
+            {
+                provenance.Add(new CharacterProvenanceEntry(
+                    "ability-score",
+                    key,
+                    "derived-state",
+                    null,
+                    null,
+                    null,
+                    null,
+                    abilityName,
+                    $"Final value {finalValue} differs from base but no explicit semantic choice was recorded."));
+            }
+
+            return provenance;
+        }
+
+        private static List<ComputedCharacterItemResult> BuildComputedProficiencies(
+            CharacterEvaluationResult evaluation,
+            List<CharacterProvenanceEntry> provenanceSink)
+        {
+            var items = new List<ComputedCharacterItemResult>();
+
+            foreach (ResolvedCharacterElement selection in evaluation.DirectSelections
+                         .Where(x => string.Equals(x.TypeName, "Proficiency", StringComparison.OrdinalIgnoreCase)))
+            {
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "proficiency",
+                        selection.AuroraId ?? selection.Name,
+                        "direct-selection",
+                        selection.Name,
+                        selection.TypeName,
+                        selection.PackageKey,
+                        selection.AuroraId,
+                        selection.Name,
+                        selection.SourcePath)
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "proficiency",
+                    selection.AuroraId ?? selection.Name,
+                    selection.Name,
+                    selection.TypeName,
+                    selection.PackageKey,
+                    true,
+                    provenance));
+            }
+
+            foreach (ActiveGrantResult grant in evaluation.ActiveGrants
+                         .Where(x => string.Equals(x.TargetTypeName, "Proficiency", StringComparison.OrdinalIgnoreCase)))
+            {
+                string key = grant.TargetAuroraId ?? grant.TargetName ?? $"grant:{grant.GrantId}";
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "proficiency",
+                        key,
+                        "grant",
+                        grant.OwnerName,
+                        grant.OwnerTypeName,
+                        grant.TargetPackageKey,
+                        grant.TargetAuroraId,
+                        grant.TargetName,
+                        grant.RequirementsText)
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "proficiency",
+                    key,
+                    grant.TargetName ?? key,
+                    grant.TargetTypeName ?? "Proficiency",
+                    grant.TargetPackageKey,
+                    false,
+                    provenance));
+            }
+
+            return MergeComputedItems(items);
+        }
+
+        private static List<ComputedCharacterItemResult> BuildComputedLanguages(
+            CharacterEvaluationResult evaluation,
+            List<CharacterProvenanceEntry> provenanceSink)
+        {
+            var items = new List<ComputedCharacterItemResult>();
+
+            foreach (ResolvedCharacterElement selection in evaluation.DirectSelections
+                         .Where(x => string.Equals(x.TypeName, "Language", StringComparison.OrdinalIgnoreCase)))
+            {
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "language",
+                        selection.AuroraId ?? selection.Name,
+                        "direct-selection",
+                        selection.Name,
+                        selection.TypeName,
+                        selection.PackageKey,
+                        selection.AuroraId,
+                        selection.Name,
+                        selection.SourcePath)
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "language",
+                    selection.AuroraId ?? selection.Name,
+                    selection.Name,
+                    selection.TypeName,
+                    selection.PackageKey,
+                    true,
+                    provenance));
+            }
+
+            foreach (ActiveGrantResult grant in evaluation.ActiveGrants
+                         .Where(x => string.Equals(x.TargetTypeName, "Language", StringComparison.OrdinalIgnoreCase)))
+            {
+                string key = grant.TargetAuroraId ?? grant.TargetName ?? $"grant:{grant.GrantId}";
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "language",
+                        key,
+                        "grant",
+                        grant.OwnerName,
+                        grant.OwnerTypeName,
+                        grant.TargetPackageKey,
+                        grant.TargetAuroraId,
+                        grant.TargetName,
+                        grant.RequirementsText)
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "language",
+                    key,
+                    grant.TargetName ?? key,
+                    grant.TargetTypeName ?? "Language",
+                    grant.TargetPackageKey,
+                    false,
+                    provenance));
+            }
+
+            return MergeComputedItems(items);
+        }
+
+        private static List<ComputedCharacterItemResult> BuildComputedFeats(
+            CharacterEvaluationResult evaluation,
+            List<CharacterProvenanceEntry> provenanceSink)
+        {
+            var items = new List<ComputedCharacterItemResult>();
+
+            foreach (ResolvedCharacterElement selection in evaluation.DirectSelections
+                         .Where(x => string.Equals(x.TypeName, "Feat", StringComparison.OrdinalIgnoreCase)))
+            {
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "feat",
+                        selection.AuroraId ?? selection.Name,
+                        "direct-selection",
+                        selection.Name,
+                        selection.TypeName,
+                        selection.PackageKey,
+                        selection.AuroraId,
+                        selection.Name,
+                        selection.SourcePath)
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "feat",
+                    selection.AuroraId ?? selection.Name,
+                    selection.Name,
+                    selection.TypeName,
+                    selection.PackageKey,
+                    true,
+                    provenance));
+            }
+
+            foreach (ActiveGrantResult grant in evaluation.ActiveGrants
+                         .Where(x => string.Equals(x.TargetTypeName, "Feat", StringComparison.OrdinalIgnoreCase)))
+            {
+                string key = grant.TargetAuroraId ?? grant.TargetName ?? $"grant:{grant.GrantId}";
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "feat",
+                        key,
+                        "grant",
+                        grant.OwnerName,
+                        grant.OwnerTypeName,
+                        grant.TargetPackageKey,
+                        grant.TargetAuroraId,
+                        grant.TargetName,
+                        grant.RequirementsText)
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "feat",
+                    key,
+                    grant.TargetName ?? key,
+                    grant.TargetTypeName ?? "Feat",
+                    grant.TargetPackageKey,
+                    false,
+                    provenance));
+            }
+
+            return MergeComputedItems(items);
+        }
+
+        private static List<ComputedCharacterItemResult> BuildComputedFeatures(
+            CharacterEvaluationResult evaluation,
+            List<CharacterProvenanceEntry> provenanceSink)
+        {
+            var items = new List<ComputedCharacterItemResult>();
+
+            foreach (ActiveCharacterFeature feature in evaluation.ActiveFeatures)
+            {
+                string key = feature.AuroraId ?? $"{feature.OwnerTypeName}:{feature.OwnerName}:{feature.Name}";
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "feature",
+                        key,
+                        "active-feature",
+                        feature.OwnerName,
+                        feature.OwnerTypeName,
+                        feature.PackageKey,
+                        feature.AuroraId,
+                        feature.Name,
+                        $"Unlock level {feature.UnlockLevel}")
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "feature",
+                    key,
+                    feature.Name,
+                    feature.TypeName,
+                    feature.PackageKey,
+                    false,
+                    provenance));
+            }
+
+            return MergeComputedItems(items);
+        }
+
+        private static List<ComputedCharacterItemResult> BuildComputedTraits(
+            CharacterEvaluationResult evaluation,
+            List<CharacterProvenanceEntry> provenanceSink)
+        {
+            var items = new List<ComputedCharacterItemResult>();
+
+            foreach (ActiveGrantResult grant in evaluation.ActiveGrants
+                         .Where(x => !string.IsNullOrWhiteSpace(x.TargetSemanticKind)
+                                     || !string.IsNullOrWhiteSpace(x.TargetSemanticName)))
+            {
+                string key = grant.TargetSemanticKey ?? grant.TargetSemanticName ?? $"semantic:{grant.GrantId}";
+                string name = grant.TargetSemanticName ?? key;
+                string typeName = grant.TargetSemanticKind ?? "Semantic Trait";
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "trait",
+                        key,
+                        "semantic-grant",
+                        grant.OwnerName,
+                        grant.OwnerTypeName,
+                        grant.TargetPackageKey,
+                        grant.TargetAuroraId,
+                        name,
+                        grant.RequirementsText)
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "trait",
+                    key,
+                    name,
+                    typeName,
+                    grant.TargetPackageKey,
+                    false,
+                    provenance));
+            }
+
+            return MergeComputedItems(items);
+        }
+
+        private static List<ComputedCharacterItemResult> MergeComputedItems(IEnumerable<ComputedCharacterItemResult> items)
+        {
+            return items
+                .GroupBy(item => $"{item.Category}|{item.Key}", StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    ComputedCharacterItemResult first = group.First();
+                    IReadOnlyList<CharacterProvenanceEntry> provenance = group
+                        .SelectMany(x => x.Provenance)
+                        .Distinct()
+                        .OrderBy(x => x.SourceKind, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(x => x.OwnerTypeName, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(x => x.OwnerName, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    return new ComputedCharacterItemResult(
+                        first.Category,
+                        first.Key,
+                        first.Name,
+                        first.TypeName,
+                        first.PackageKey,
+                        group.Any(x => x.IsDirectSelection),
+                        provenance);
+                })
+                .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.PackageKey, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static List<PendingCharacterChoiceResult> BuildPendingChoices(IReadOnlyList<CharacterSelectResult> availableSelects)
+        {
+            return availableSelects
+                .Select(select =>
+                {
+                    int alreadyOwnedCount = select.Options.Count(x => x.IsAlreadyOwned);
+                    int remainingCount = Math.Max(0, select.NumberToChoose - alreadyOwnedCount);
+                    int availableOptionCount = select.Options.Count(x => x.IsAvailable && !x.IsAlreadyOwned);
+                    return new PendingCharacterChoiceResult(
+                        select.SelectId,
+                        select.OwnerName,
+                        select.OwnerTypeName,
+                        select.OwnerPackageKey,
+                        select.SelectName,
+                        select.SelectType,
+                        select.SelectPolicy,
+                        select.NumberToChoose,
+                        alreadyOwnedCount,
+                        remainingCount,
+                        availableOptionCount,
+                        select.IsOptional,
+                        remainingCount > 0 && !select.IsOptional);
+                })
+                .Where(x => x.RemainingCount > 0)
+                .OrderByDescending(x => x.IsBlocking)
+                .ThenBy(x => x.OwnerTypeName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.OwnerName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.SelectName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static List<CharacterWarningResult> BuildCharacterWarnings(
+            IReadOnlyList<AppliedCharacterChoiceResult> appliedChoices,
+            IReadOnlyList<PendingCharacterChoiceResult> pendingChoices)
+        {
+            var warnings = new List<CharacterWarningResult>();
+
+            foreach (AppliedCharacterChoiceResult choice in appliedChoices
+                         .Where(x => !string.Equals(x.Status, "applied", StringComparison.OrdinalIgnoreCase)
+                                     && !string.Equals(x.Status, "already-applied", StringComparison.OrdinalIgnoreCase)))
+            {
+                warnings.Add(new CharacterWarningResult(
+                    "choice-application",
+                    string.Equals(choice.Status, "blocked", StringComparison.OrdinalIgnoreCase) ? "error" : "warning",
+                    choice.Message ?? $"Choice status was {choice.Status}.",
+                    choice.OwnerName,
+                    choice.OwnerTypeName,
+                    choice.SelectName));
+            }
+
+            foreach (PendingCharacterChoiceResult pendingChoice in pendingChoices.Where(x => x.IsBlocking))
+            {
+                string severity = pendingChoice.AvailableOptionCount == 0 ? "error" : "warning";
+                string message = pendingChoice.AvailableOptionCount == 0
+                    ? "This required choice has no currently available options."
+                    : $"This required choice still needs {pendingChoice.RemainingCount} selection(s).";
+
+                warnings.Add(new CharacterWarningResult(
+                    "pending-choice",
+                    severity,
+                    message,
+                    pendingChoice.OwnerName,
+                    pendingChoice.OwnerTypeName,
+                    pendingChoice.SelectName));
+            }
+
+            return warnings
+                .OrderByDescending(x => string.Equals(x.Severity, "error", StringComparison.OrdinalIgnoreCase))
+                .ThenBy(x => x.WarningKind, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.OwnerTypeName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.OwnerName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static string ClassifySelectPolicy(string selectType, string selectName, string supportsText)
