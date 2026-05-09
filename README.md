@@ -115,6 +115,7 @@ The current character-state evaluator is intentionally builder-oriented rather t
   - final ability scores
   - derived proficiencies and languages
   - active feats and features
+  - applied text/list choices
   - semantic traits such as size
   - pending choices
   - warnings

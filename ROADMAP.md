@@ -60,6 +60,7 @@ This roadmap reflects the project state as of the current `master` branch after:
   - computed ability scores
   - proficiencies and languages
   - feats and features
+  - applied text/list selections
   - semantic traits
   - pending choices
   - warnings

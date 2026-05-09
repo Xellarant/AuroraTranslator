@@ -771,6 +771,7 @@ namespace AuroraTranslator
                         languages = result.ComputedCharacter.Languages.Select(BuildComputedCharacterItemExport).ToList(),
                         feats = result.ComputedCharacter.Feats.Select(BuildComputedCharacterItemExport).ToList(),
                         features = result.ComputedCharacter.Features.Select(BuildComputedCharacterItemExport).ToList(),
+                        choiceSelections = result.ComputedCharacter.ChoiceSelections.Select(BuildComputedCharacterItemExport).ToList(),
                         traits = result.ComputedCharacter.Traits.Select(BuildComputedCharacterItemExport).ToList(),
                         pendingChoices = result.ComputedCharacter.PendingChoices.Select(choice => new
                         {
@@ -1363,6 +1364,10 @@ namespace AuroraTranslator
                     .Select(x => x.Key)
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                     .ToArray(),
+                ChoiceSelectionKeys: computed.ChoiceSelections
+                    .Select(x => x.Key)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
                 TraitKeys: computed.Traits
                     .Select(x => x.Key)
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
@@ -1400,6 +1405,7 @@ namespace AuroraTranslator
             CompareStringList(expected.LanguageKeys, actual.LanguageKeys, "LanguageKeys", failures);
             CompareStringList(expected.FeatKeys, actual.FeatKeys, "FeatKeys", failures);
             CompareStringList(expected.FeatureKeys, actual.FeatureKeys, "FeatureKeys", failures);
+            CompareStringList(expected.ChoiceSelectionKeys, actual.ChoiceSelectionKeys, "ChoiceSelectionKeys", failures);
             CompareStringList(expected.TraitKeys, actual.TraitKeys, "TraitKeys", failures);
             CompareStringList(expected.PendingChoiceKeys, actual.PendingChoiceKeys, "PendingChoiceKeys", failures);
             CompareCountSet("Provenance kind", expected.ProvenanceKindCounts, actual.ProvenanceKindCounts, failures);
@@ -1624,6 +1630,7 @@ namespace AuroraTranslator
             IReadOnlyList<string> LanguageKeys,
             IReadOnlyList<string> FeatKeys,
             IReadOnlyList<string> FeatureKeys,
+            IReadOnlyList<string> ChoiceSelectionKeys,
             IReadOnlyList<string> TraitKeys,
             IReadOnlyList<string> PendingChoiceKeys,
             IReadOnlyList<DiagnosticsRegressionCount> ProvenanceKindCounts,

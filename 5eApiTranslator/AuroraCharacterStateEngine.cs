@@ -201,6 +201,7 @@ namespace AuroraTranslator
         IReadOnlyList<ComputedCharacterItemResult> Languages,
         IReadOnlyList<ComputedCharacterItemResult> Feats,
         IReadOnlyList<ComputedCharacterItemResult> Features,
+        IReadOnlyList<ComputedCharacterItemResult> ChoiceSelections,
         IReadOnlyList<ComputedCharacterItemResult> Traits,
         IReadOnlyList<PendingCharacterChoiceResult> PendingChoices,
         IReadOnlyList<CharacterWarningResult> Warnings,
@@ -577,14 +578,14 @@ ORDER BY rec.package_key ASC, e.name ASC;";
 
             if (followUp != null)
             {
-                changed = ApplyOptionToDocument(connection, workingDocument, followUp);
+                changed = ApplyOptionToDocument(connection, workingDocument, select, followUp);
                 message = changed
                     ? "Applied selected follow-up choice."
                     : "Follow-up choice was already reflected in the current state.";
             }
             else
             {
-                changed = ApplyOptionToDocument(connection, workingDocument, option);
+                changed = ApplyOptionToDocument(connection, workingDocument, select, option);
                 message = changed
                     ? "Applied selected choice."
                     : "Choice was already reflected in the current state.";
@@ -701,6 +702,7 @@ ORDER BY rec.package_key ASC, e.name ASC;";
         private static bool ApplyOptionToDocument(
             SqliteConnection connection,
             AuroraCharacterStateDocument document,
+            CharacterSelectResult select,
             CharacterSelectOptionResult option)
         {
             if (option == null)
@@ -718,7 +720,7 @@ ORDER BY rec.package_key ASC, e.name ASC;";
             }
 
             if (!option.OptionElementId.HasValue)
-                return false;
+                return ApplyTextChoiceToDocument(document, select, option);
 
             var selection = new AuroraCharacterStateSelection
             {
@@ -796,6 +798,35 @@ ORDER BY rec.package_key ASC, e.name ASC;";
             }
 
             return changed;
+        }
+
+        private static bool ApplyTextChoiceToDocument(
+            AuroraCharacterStateDocument document,
+            CharacterSelectResult select,
+            CharacterSelectOptionResult option)
+        {
+            if (select == null)
+                return false;
+
+            string selectedValue = option.OptionText?.Trim();
+            if (string.IsNullOrWhiteSpace(selectedValue))
+                selectedValue = option.OptionName?.Trim();
+
+            if (string.IsNullOrWhiteSpace(selectedValue))
+                return false;
+
+            string macroName = BuildChoiceMacroName(select.OwnerTypeName, select.OwnerName, select.SelectName);
+            if (!document.MacroValues.TryGetValue(macroName, out List<string> values) || values == null)
+            {
+                values = new List<string>();
+                document.MacroValues[macroName] = values;
+            }
+
+            if (values.Any(x => string.Equals(x, selectedValue, StringComparison.OrdinalIgnoreCase)))
+                return false;
+
+            values.Add(selectedValue);
+            return true;
         }
 
         private static bool AddSelection(List<AuroraCharacterStateSelection> selections, AuroraCharacterStateSelection candidate)
@@ -1254,13 +1285,25 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
                 int selectId = reader.GetInt32(0);
                 string selectType = reader.GetString(6);
                 string selectPolicy = ClassifySelectPolicy(selectType, reader.IsDBNull(5) ? null : reader.GetString(5), supportsText);
-                List<CharacterSelectOptionResult> options = LoadSelectOptions(connection, selectId, selectType, selectPolicy, supportsText, context);
+                string ownerName = reader.GetString(2);
+                string ownerTypeName = reader.GetString(3);
+                string selectName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                List<CharacterSelectOptionResult> options = LoadSelectOptions(
+                    connection,
+                    selectId,
+                    selectType,
+                    selectPolicy,
+                    supportsText,
+                    context,
+                    ownerName,
+                    ownerTypeName,
+                    selectName);
                 selects.Add(new CharacterSelectResult(
                     selectId,
-                    reader.GetString(2),
-                    reader.GetString(3),
+                    ownerName,
+                    ownerTypeName,
                     reader.IsDBNull(4) ? null : reader.GetString(4),
-                    reader.IsDBNull(5) ? null : reader.GetString(5),
+                    selectName,
                     selectType,
                     selectPolicy,
                     supportsText,
@@ -1281,6 +1324,9 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
             string selectPolicy,
             string supportsText,
             AuroraExpressionEvaluationContext context,
+            string ownerName,
+            string ownerTypeName,
+            string selectName,
             bool includeElementOptionFollowUps = true)
         {
             selectType = selectType?.Trim();
@@ -1298,7 +1344,15 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
             if (string.Equals(selectPolicy, "asi-feature-pool", StringComparison.OrdinalIgnoreCase))
                 return LoadAsiFeatureOptions(connection, selectId, supportsText, context);
 
-            return LoadGenericSelectableOptions(connection, selectId, selectType, context, includeElementOptionFollowUps);
+            return LoadGenericSelectableOptions(
+                connection,
+                selectId,
+                selectType,
+                context,
+                ownerName,
+                ownerTypeName,
+                selectName,
+                includeElementOptionFollowUps);
         }
 
         private static List<CharacterSelectOptionResult> LoadGenericSelectableOptions(
@@ -1306,6 +1360,9 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
             int selectId,
             string selectType,
             AuroraExpressionEvaluationContext context,
+            string ownerName,
+            string ownerTypeName,
+            string selectName,
             bool includeElementOptionFollowUps)
         {
             using var command = connection.CreateCommand();
@@ -1354,6 +1411,10 @@ ORDER BY
                     isAlreadyOwned = (!string.IsNullOrWhiteSpace(optionAuroraId) && context.MatchesToken(optionAuroraId))
                                      || (!string.IsNullOrWhiteSpace(optionName) && context.MatchesToken(optionName));
                 }
+                else
+                {
+                    isAlreadyOwned = IsStoredTextChoice(context, ownerTypeName, ownerName, selectName, optionText ?? optionName);
+                }
 
                 IReadOnlyList<CharacterSelectOptionResult> followUpOptions = null;
                 string followUpKind = null;
@@ -1393,12 +1454,18 @@ ORDER BY
             AuroraExpressionEvaluationContext context = CloneContext(baseContext);
             string ownerAuroraId = null;
             string ownerName = null;
+            string ownerTypeName = null;
 
             using (var ownerCommand = connection.CreateCommand())
             {
                 ownerCommand.CommandText = @"
-SELECT aurora_id, name
-FROM elements
+SELECT
+    e.aurora_id,
+    e.name,
+    et.type_name
+FROM elements AS e
+JOIN element_types AS et
+    ON et.element_type_id = e.element_type_id
 WHERE element_id = $element_id;";
                 ownerCommand.Parameters.AddWithValue("$element_id", ownerElementId);
 
@@ -1407,6 +1474,7 @@ WHERE element_id = $element_id;";
                 {
                     ownerAuroraId = ownerReader.IsDBNull(0) ? null : ownerReader.GetString(0);
                     ownerName = ownerReader.IsDBNull(1) ? null : ownerReader.GetString(1);
+                    ownerTypeName = ownerReader.IsDBNull(2) ? null : ownerReader.GetString(2);
                 }
             }
 
@@ -1457,6 +1525,9 @@ ORDER BY s.ordinal ASC;";
                     selectPolicy,
                     supportsText,
                     context,
+                    ownerName,
+                    ownerTypeName,
+                    selectName,
                     includeElementOptionFollowUps: false);
 
                 int availableOptionCount = options.Count(x => x.IsAvailable);
@@ -1825,6 +1896,54 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             return null;
         }
 
+        private static string BuildChoiceMacroName(string ownerTypeName, string ownerName, string selectName)
+        {
+            return $"$(choice||{ownerTypeName?.Trim() ?? string.Empty}||{ownerName?.Trim() ?? string.Empty}||{selectName?.Trim() ?? string.Empty})";
+        }
+
+        private static bool TryParseChoiceMacroName(
+            string macroName,
+            out string ownerTypeName,
+            out string ownerName,
+            out string selectName)
+        {
+            ownerTypeName = null;
+            ownerName = null;
+            selectName = null;
+
+            if (string.IsNullOrWhiteSpace(macroName))
+                return false;
+
+            string text = macroName.Trim();
+            if (!text.StartsWith("$(choice||", StringComparison.OrdinalIgnoreCase) || !text.EndsWith(")", StringComparison.Ordinal))
+                return false;
+
+            string inner = text.Substring("$(choice||".Length, text.Length - "$(choice||".Length - 1);
+            string[] parts = inner.Split("||", StringSplitOptions.None);
+            if (parts.Length != 3)
+                return false;
+
+            ownerTypeName = parts[0];
+            ownerName = parts[1];
+            selectName = parts[2];
+            return true;
+        }
+
+        private static bool IsStoredTextChoice(
+            AuroraExpressionEvaluationContext context,
+            string ownerTypeName,
+            string ownerName,
+            string selectName,
+            string value)
+        {
+            if (context == null || string.IsNullOrWhiteSpace(value))
+                return false;
+
+            string macroName = BuildChoiceMacroName(ownerTypeName, ownerName, selectName);
+            return context.MacroValues.TryGetValue(macroName, out HashSet<string> values)
+                   && values.Contains(value.Trim());
+        }
+
         private static List<string> ResolveSpecificSupportFilters(IReadOnlyList<string> supportAtoms, string groupFilter)
         {
             return supportAtoms
@@ -1874,6 +1993,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             List<ComputedCharacterItemResult> languages = BuildComputedLanguages(evaluation, provenance);
             List<ComputedCharacterItemResult> feats = BuildComputedFeats(evaluation, provenance);
             List<ComputedCharacterItemResult> features = BuildComputedFeatures(evaluation, provenance);
+            List<ComputedCharacterItemResult> choiceSelections = BuildComputedChoiceSelections(workingDocument, provenance);
             List<ComputedCharacterItemResult> traits = BuildComputedTraits(evaluation, provenance);
             List<PendingCharacterChoiceResult> pendingChoices = BuildPendingChoices(evaluation.AvailableSelects);
             List<CharacterWarningResult> warnings = BuildCharacterWarnings(evaluation.AppliedChoices, pendingChoices);
@@ -1884,6 +2004,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 languages,
                 feats,
                 features,
+                choiceSelections,
                 traits,
                 pendingChoices,
                 warnings,
@@ -2222,6 +2343,51 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     feature.PackageKey,
                     false,
                     provenance));
+            }
+
+            return MergeComputedItems(items);
+        }
+
+        private static List<ComputedCharacterItemResult> BuildComputedChoiceSelections(
+            AuroraCharacterStateDocument workingDocument,
+            List<CharacterProvenanceEntry> provenanceSink)
+        {
+            var items = new List<ComputedCharacterItemResult>();
+
+            foreach (KeyValuePair<string, List<string>> pair in workingDocument.MacroValues ?? new Dictionary<string, List<string>>())
+            {
+                if (!TryParseChoiceMacroName(pair.Key, out string ownerTypeName, out string ownerName, out string selectName))
+                    continue;
+
+                foreach (string value in pair.Value ?? Enumerable.Empty<string>())
+                {
+                    if (string.IsNullOrWhiteSpace(value))
+                        continue;
+
+                    string key = $"{pair.Key}|{value.Trim()}";
+                    List<CharacterProvenanceEntry> provenance = new()
+                    {
+                        new(
+                            "choice-selection",
+                            key,
+                            "selected-choice",
+                            ownerName,
+                            ownerTypeName,
+                            null,
+                            null,
+                            value.Trim(),
+                            selectName)
+                    };
+                    provenanceSink.AddRange(provenance);
+                    items.Add(new ComputedCharacterItemResult(
+                        "choice-selection",
+                        key,
+                        value.Trim(),
+                        selectName,
+                        null,
+                        false,
+                        provenance));
+                }
             }
 
             return MergeComputedItems(items);
