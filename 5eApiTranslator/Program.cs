@@ -772,6 +772,16 @@ namespace AuroraTranslator
                         feats = result.ComputedCharacter.Feats.Select(BuildComputedCharacterItemExport).ToList(),
                         features = result.ComputedCharacter.Features.Select(BuildComputedCharacterItemExport).ToList(),
                         choiceSelections = result.ComputedCharacter.ChoiceSelections.Select(BuildComputedCharacterItemExport).ToList(),
+                        movements = result.ComputedCharacter.Traits
+                            .Where(item => string.Equals(item.TypeName, "movement", StringComparison.OrdinalIgnoreCase)
+                                           || string.Equals(item.Category, "movement", StringComparison.OrdinalIgnoreCase))
+                            .Select(BuildComputedCharacterItemExport)
+                            .ToList(),
+                        senses = result.ComputedCharacter.Traits
+                            .Where(item => string.Equals(item.TypeName, "sense", StringComparison.OrdinalIgnoreCase)
+                                           || string.Equals(item.Category, "sense", StringComparison.OrdinalIgnoreCase))
+                            .Select(BuildComputedCharacterItemExport)
+                            .ToList(),
                         traits = result.ComputedCharacter.Traits.Select(BuildComputedCharacterItemExport).ToList(),
                         pendingChoices = result.ComputedCharacter.PendingChoices.Select(choice => new
                         {

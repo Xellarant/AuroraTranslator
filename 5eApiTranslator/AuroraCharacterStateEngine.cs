@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -290,7 +291,7 @@ namespace AuroraTranslator
             IReadOnlyList<AppliedCharacterChoiceResult> finalizedChoices = appliedChoiceResults.Values
                 .OrderBy(x => x.ChoiceIndex)
                 .ToList();
-            ComputedCharacterResult computedCharacter = BuildComputedCharacter(document, workingDocument, final with
+            ComputedCharacterResult computedCharacter = BuildComputedCharacter(connection, document, workingDocument, final with
             {
                 AppliedChoices = finalizedChoices
             });
@@ -1983,6 +1984,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
         }
 
         private static ComputedCharacterResult BuildComputedCharacter(
+            SqliteConnection connection,
             AuroraCharacterStateDocument originalDocument,
             AuroraCharacterStateDocument workingDocument,
             CharacterEvaluationResult evaluation)
@@ -1994,7 +1996,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             List<ComputedCharacterItemResult> feats = BuildComputedFeats(evaluation, provenance);
             List<ComputedCharacterItemResult> features = BuildComputedFeatures(evaluation, provenance);
             List<ComputedCharacterItemResult> choiceSelections = BuildComputedChoiceSelections(workingDocument, provenance);
-            List<ComputedCharacterItemResult> traits = BuildComputedTraits(evaluation, provenance);
+            List<ComputedCharacterItemResult> traits = BuildComputedTraits(connection, evaluation, provenance);
             List<PendingCharacterChoiceResult> pendingChoices = BuildPendingChoices(evaluation.AvailableSelects);
             List<CharacterWarningResult> warnings = BuildCharacterWarnings(evaluation.AppliedChoices, pendingChoices);
 
@@ -2394,6 +2396,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
         }
 
         private static List<ComputedCharacterItemResult> BuildComputedTraits(
+            SqliteConnection connection,
             CharacterEvaluationResult evaluation,
             List<CharacterProvenanceEntry> provenanceSink)
         {
@@ -2430,7 +2433,292 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     provenance));
             }
 
+            foreach (ActiveGrantResult grant in evaluation.ActiveGrants
+                         .Where(IsComputedTraitGrant))
+            {
+                string traitCategory = GetGrantTraitCategory(grant);
+                string key = grant.TargetAuroraId
+                             ?? $"{traitCategory}:{grant.TargetTypeName ?? grant.GrantType}:{grant.TargetName ?? grant.GrantId.ToString(CultureInfo.InvariantCulture)}";
+                string name = grant.TargetName
+                              ?? grant.TargetSemanticName
+                              ?? grant.TargetAuroraId
+                              ?? grant.GrantType
+                              ?? "Trait";
+                string typeName = traitCategory;
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "trait",
+                        key,
+                        "grant",
+                        grant.OwnerName,
+                        grant.OwnerTypeName,
+                        grant.TargetPackageKey,
+                        grant.TargetAuroraId,
+                        name,
+                        grant.RequirementsText ?? grant.GrantType)
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "trait",
+                    key,
+                    name,
+                    typeName,
+                    grant.TargetPackageKey,
+                    false,
+                    provenance));
+            }
+
+            items.AddRange(BuildComputedStatTraits(connection, evaluation, provenanceSink));
+            items.AddRange(BuildComputedSetterTraits(connection, evaluation, provenanceSink));
+
             return MergeComputedItems(items);
+        }
+
+        private static bool IsComputedTraitGrant(ActiveGrantResult grant)
+        {
+            if (!string.IsNullOrWhiteSpace(grant.TargetSemanticKind)
+                || !string.IsNullOrWhiteSpace(grant.TargetSemanticName))
+            {
+                return false;
+            }
+
+            return string.Equals(grant.GrantType, "Vision", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(grant.TargetTypeName, "Vision", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetGrantTraitCategory(ActiveGrantResult grant)
+        {
+            if (string.Equals(grant.GrantType, "Vision", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(grant.TargetTypeName, "Vision", StringComparison.OrdinalIgnoreCase))
+            {
+                return "sense";
+            }
+
+            return "trait";
+        }
+
+        private static List<ComputedCharacterItemResult> BuildComputedSetterTraits(
+            SqliteConnection connection,
+            CharacterEvaluationResult evaluation,
+            List<CharacterProvenanceEntry> provenanceSink)
+        {
+            int[] ownerElementIds = evaluation.DirectSelections
+                .Select(x => x.ElementId)
+                .Concat(evaluation.ActiveFeatures.Select(x => x.ElementId))
+                .Distinct()
+                .OrderBy(x => x)
+                .ToArray();
+
+            if (ownerElementIds.Length == 0)
+                return new List<ComputedCharacterItemResult>();
+
+            string ownerIdList = string.Join(",", ownerElementIds);
+            using var command = connection.CreateCommand();
+            command.CommandText = $@"
+SELECT
+    ss.owner_element_id,
+    owner.aurora_id,
+    owner.name,
+    owner_type.type_name,
+    rec.package_key,
+    se.setter_name,
+    se.setter_value
+FROM setter_scopes AS ss
+JOIN elements AS owner
+    ON owner.element_id = ss.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN resolved_elements_cache AS rec
+    ON rec.winning_element_id = owner.element_id
+JOIN setter_entries AS se
+    ON se.setter_scope_id = ss.setter_scope_id
+WHERE ss.owner_kind = 'element'
+  AND ss.owner_element_id IN ({ownerIdList})
+  AND se.setter_name IN ('speed', 'vision', 'senses')
+ORDER BY ss.owner_element_id ASC, se.setter_name ASC, se.ordinal ASC;";
+
+            var items = new List<ComputedCharacterItemResult>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                string setterName = reader.GetString(5);
+                string setterValue = reader.IsDBNull(6) ? null : reader.GetString(6);
+                if (string.IsNullOrWhiteSpace(setterValue))
+                    continue;
+
+                string category = setterName.ToLowerInvariant() switch
+                {
+                    "speed" => "movement",
+                    "vision" => "sense",
+                    "senses" => "sense",
+                    _ => "trait"
+                };
+                string displayName = setterName.ToLowerInvariant() switch
+                {
+                    "speed" => $"Speed: {setterValue}",
+                    "vision" => $"Vision: {setterValue}",
+                    "senses" => $"Senses: {setterValue}",
+                    _ => $"{setterName}: {setterValue}"
+                };
+                string key = $"{category}:{setterName}:{setterValue}";
+                string ownerAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
+                string ownerName = reader.GetString(2);
+                string ownerTypeName = reader.GetString(3);
+                string packageKey = reader.IsDBNull(4) ? null : reader.GetString(4);
+
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        category,
+                        key,
+                        "setter",
+                        ownerName,
+                        ownerTypeName,
+                        packageKey,
+                        ownerAuroraId,
+                        displayName,
+                        $"{setterName}={setterValue}")
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    category,
+                    key,
+                    displayName,
+                    setterName,
+                    packageKey,
+                    false,
+                    provenance));
+            }
+
+            return items;
+        }
+
+        private static List<ComputedCharacterItemResult> BuildComputedStatTraits(
+            SqliteConnection connection,
+            CharacterEvaluationResult evaluation,
+            List<CharacterProvenanceEntry> provenanceSink)
+        {
+            int[] ownerElementIds = evaluation.DirectSelections
+                .Select(x => x.ElementId)
+                .Concat(evaluation.ActiveFeatures.Select(x => x.ElementId))
+                .Distinct()
+                .OrderBy(x => x)
+                .ToArray();
+
+            if (ownerElementIds.Length == 0)
+                return new List<ComputedCharacterItemResult>();
+
+            string ownerIdList = string.Join(",", ownerElementIds);
+            using var command = connection.CreateCommand();
+            command.CommandText = $@"
+SELECT
+    owner.element_id,
+    owner.aurora_id,
+    owner.name,
+    owner_type.type_name,
+    rec.package_key,
+    st.stat_name,
+    st.value_expression_text,
+    st.bonus_expression_text,
+    st.alt_text
+FROM stats AS st
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = st.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN resolved_elements_cache AS rec
+    ON rec.winning_element_id = owner.element_id
+WHERE rs.owner_kind = 'element'
+  AND rs.owner_element_id IN ({ownerIdList})
+  AND (
+        lower(st.stat_name) = 'speed'
+        OR lower(st.stat_name) LIKE '% speed'
+        OR lower(st.stat_name) LIKE 'speed %'
+      )
+ORDER BY owner.element_id ASC, st.ordinal ASC;";
+
+            var items = new List<ComputedCharacterItemResult>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                string statName = reader.GetString(5);
+                string valueExpression = reader.IsDBNull(6) ? null : reader.GetString(6);
+                string bonusExpression = reader.IsDBNull(7) ? null : reader.GetString(7);
+                string altText = reader.IsDBNull(8) ? null : reader.GetString(8);
+
+                string displayValue = !string.IsNullOrWhiteSpace(altText)
+                    ? altText
+                    : !string.IsNullOrWhiteSpace(valueExpression)
+                        ? valueExpression
+                        : bonusExpression;
+
+                if (string.IsNullOrWhiteSpace(displayValue))
+                    continue;
+
+                string ownerAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
+                string ownerName = reader.GetString(2);
+                string ownerTypeName = reader.GetString(3);
+                string packageKey = reader.IsDBNull(4) ? null : reader.GetString(4);
+                string normalizedStatName = statName.Trim();
+                string movementName = NormalizeMovementStatName(normalizedStatName);
+                string key = $"movement:{movementName}:{displayValue}";
+                string displayName = $"{movementName}: {displayValue}";
+
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "trait",
+                        key,
+                        "stat",
+                        ownerName,
+                        ownerTypeName,
+                        packageKey,
+                        ownerAuroraId,
+                        displayName,
+                        bonusExpression is { Length: > 0 }
+                            ? $"{normalizedStatName} value={valueExpression} bonus={bonusExpression}"
+                            : $"{normalizedStatName} value={valueExpression}")
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "trait",
+                    key,
+                    displayName,
+                    "movement",
+                    packageKey,
+                    false,
+                    provenance));
+            }
+
+            return items;
+        }
+
+        private static string NormalizeMovementStatName(string statName)
+        {
+            if (string.IsNullOrWhiteSpace(statName))
+                return "Speed";
+
+            string normalized = statName.Trim();
+            if (normalized.Equals("speed", StringComparison.OrdinalIgnoreCase)
+                || normalized.Equals("innate speed", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Speed";
+            }
+
+            if (normalized.EndsWith(" speed", StringComparison.OrdinalIgnoreCase))
+            {
+                string prefix = normalized[..^" speed".Length].Trim();
+                if (prefix.Equals("innate", StringComparison.OrdinalIgnoreCase))
+                    return "Speed";
+
+                if (prefix.Length > 0)
+                    return $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(prefix.ToLowerInvariant())} Speed";
+            }
+
+            return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(normalized.ToLowerInvariant());
         }
 
         private static List<ComputedCharacterItemResult> MergeComputedItems(IEnumerable<ComputedCharacterItemResult> items)

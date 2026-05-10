@@ -30,6 +30,8 @@ Notable runtime capabilities already in place:
 - character-state evaluation can resolve active features, grants, and select pools
 - ASI/feat selects now expand into second-stage builder choices
 - character-state JSON output now includes a `computedCharacter` section with derived scores, traits, pending choices, warnings, and provenance
+- application-facing computed output now breaks traits into clearer `movements`, `senses`, and overall `traits` collections
+- committed character-state fixtures now cover baseline, bond/text-choice, early fighter, and elf darkvision scenarios
 
 ## Repository Layout
 
@@ -41,6 +43,8 @@ Notable runtime capabilities already in place:
 - [AuroraCharacterStateEngine.cs](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/AuroraCharacterStateEngine.cs)
 - [sqlite-character-loading.sql](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/sqlite-character-loading.sql)
 - [character-state-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-example.json)
+- [character-state-early-fighter-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-early-fighter-example.json)
+- [character-state-elf-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-elf-example.json)
 - [diagnostics-regression-baseline.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/diagnostics-regression-baseline.json)
 
 ## Build
@@ -85,7 +89,7 @@ dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- check-characte
 ```
 
 The committed baseline is meant to represent Wizards first-party `core` + `supplements`, not an arbitrary custom content directory.
-The committed character-state baseline is meant to represent the example first-party fixture at [character-state-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-example.json) evaluated against the first-party regression DB.
+The committed character-state baselines are meant to represent fixed first-party fixtures such as [character-state-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-example.json), [character-state-early-fighter-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-early-fighter-example.json), and [character-state-elf-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-elf-example.json) evaluated against the first-party regression DB.
 
 ### Expression and character-state evaluation
 
@@ -116,7 +120,8 @@ The current character-state evaluator is intentionally builder-oriented rather t
   - derived proficiencies and languages
   - active feats and features
   - applied text/list choices
-  - semantic traits such as size
+  - derived traits such as size and vision grants like Darkvision
+  - dedicated `movements` and `senses` collections for clearer app consumption
   - pending choices
   - warnings
   - provenance for explainability
