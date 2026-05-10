@@ -2556,7 +2556,11 @@ ORDER BY ss.owner_element_id ASC, se.setter_name ASC, se.ordinal ASC;";
 
                 if (string.Equals(setterName, "speed", StringComparison.OrdinalIgnoreCase))
                 {
-                    foreach (ParsedMovementResult movement in ParseMovementResults(setterName, setterValue))
+                    string movementParserName = ShouldParseCompositeMovement(setterValue)
+                        ? null
+                        : setterName;
+
+                    foreach (ParsedMovementResult movement in ParseMovementResults(movementParserName, setterValue))
                     {
                         string movementKey = $"movement:{movement.Kind}:{movement.ValueText}";
                         List<CharacterProvenanceEntry> provenance = new()
@@ -2792,8 +2796,9 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
 
             string explicitKind = NormalizeMovementKind(movementNameOrSetterName);
             string sourceText = rawValue.Trim();
+            bool shouldParseComposite = ShouldParseCompositeMovement(sourceText);
 
-            if (explicitKind != null)
+            if (explicitKind != null && !shouldParseComposite)
             {
                 return new List<ParsedMovementResult>
                 {
@@ -2818,6 +2823,21 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
             }
 
             return results;
+        }
+
+        private static bool ShouldParseCompositeMovement(string rawValue)
+        {
+            if (string.IsNullOrWhiteSpace(rawValue))
+                return false;
+
+            string trimmed = rawValue.Trim();
+            if (trimmed.Contains(',') || trimmed.Contains(';'))
+                return true;
+
+            return Regex.IsMatch(
+                trimmed,
+                @"\b(fly|flying|swim|swimming|climb|climbing|burrow|burrowing)\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         }
 
         private static ParsedMovementResult TryParseMovementSegment(string segment)
@@ -2867,6 +2887,7 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
         private static ParsedMovementResult BuildMovementResult(string kind, string valueText, string sourceText)
         {
             string normalizedKind = NormalizeMovementKind(kind) ?? "walk";
+            string normalizedValueText = NormalizeMovementValueText(valueText);
             string label = normalizedKind switch
             {
                 "walk" => "Speed",
@@ -2879,9 +2900,25 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
 
             return new ParsedMovementResult(
                 normalizedKind,
-                $"{label}: {valueText.Trim()}",
-                valueText.Trim(),
+                $"{label}: {normalizedValueText}",
+                normalizedValueText,
                 sourceText.Trim());
+        }
+
+        private static string NormalizeMovementValueText(string valueText)
+        {
+            if (string.IsNullOrWhiteSpace(valueText))
+                return string.Empty;
+
+            string trimmed = valueText.Trim();
+            Match simpleFeetValueMatch = Regex.Match(
+                trimmed,
+                @"^(?<value>\d+)\s*ft\.?$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+            return simpleFeetValueMatch.Success
+                ? simpleFeetValueMatch.Groups["value"].Value
+                : trimmed;
         }
 
         private static string NormalizeMovementKind(string movementName)
@@ -2945,10 +2982,10 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
         private static List<ComputedCharacterItemResult> MergeComputedItems(IEnumerable<ComputedCharacterItemResult> items)
         {
             return items
-                .GroupBy(item => $"{item.Category}|{item.Key}", StringComparer.OrdinalIgnoreCase)
+                .GroupBy(GetComputedItemMergeKey, StringComparer.OrdinalIgnoreCase)
                 .Select(group =>
                 {
-                    ComputedCharacterItemResult first = group.First();
+                    ComputedCharacterItemResult first = NormalizeComputedItemForMerge(group.First());
                     IReadOnlyList<CharacterProvenanceEntry> provenance = group
                         .SelectMany(x => x.Provenance)
                         .Distinct()
@@ -2969,6 +3006,51 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                 .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.PackageKey, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+        }
+
+        private static string GetComputedItemMergeKey(ComputedCharacterItemResult item)
+        {
+            ComputedCharacterItemResult normalized = NormalizeComputedItemForMerge(item);
+            return $"{normalized.Category}|{normalized.Key}";
+        }
+
+        private static ComputedCharacterItemResult NormalizeComputedItemForMerge(ComputedCharacterItemResult item)
+        {
+            if (!string.Equals(item.Category, "movement", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(item.TypeName)
+                || string.IsNullOrWhiteSpace(item.Key)
+                || !item.Key.StartsWith("movement:", StringComparison.OrdinalIgnoreCase))
+            {
+                return item;
+            }
+
+            int firstSeparatorIndex = item.Key.IndexOf(':');
+            int secondSeparatorIndex = firstSeparatorIndex >= 0
+                ? item.Key.IndexOf(':', firstSeparatorIndex + 1)
+                : -1;
+
+            if (secondSeparatorIndex < 0 || secondSeparatorIndex >= item.Key.Length - 1)
+                return item;
+
+            string kind = item.Key[(firstSeparatorIndex + 1)..secondSeparatorIndex];
+            string valueText = item.Key[(secondSeparatorIndex + 1)..];
+            ParsedMovementResult normalizedMovement = BuildMovementResult(kind, valueText, valueText);
+            string normalizedKey = $"movement:{normalizedMovement.Kind}:{normalizedMovement.ValueText}";
+
+            if (string.Equals(normalizedKey, item.Key, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(normalizedMovement.Label, item.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return item;
+            }
+
+            return new ComputedCharacterItemResult(
+                item.Category,
+                normalizedKey,
+                normalizedMovement.Label,
+                normalizedMovement.Kind,
+                item.PackageKey,
+                item.IsDirectSelection,
+                item.Provenance);
         }
 
         private static List<PendingCharacterChoiceResult> BuildPendingChoices(IReadOnlyList<CharacterSelectResult> availableSelects)

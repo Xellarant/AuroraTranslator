@@ -31,7 +31,7 @@ Notable runtime capabilities already in place:
 - ASI/feat selects now expand into second-stage builder choices
 - character-state JSON output now includes a `computedCharacter` section with derived scores, traits, pending choices, warnings, and provenance
 - application-facing computed output now breaks traits into clearer `movements`, `senses`, and overall `traits` collections
-- committed character-state fixtures now cover baseline, bond/text-choice, early fighter, elf darkvision, and first-party fly/climb/swim movement scenarios
+- committed character-state fixtures now cover baseline, bond/text-choice, early fighter, elf darkvision, first-party fly/climb/swim movement scenarios, and a companion burrow-speed scenario
 
 ## Repository Layout
 
@@ -48,6 +48,7 @@ Notable runtime capabilities already in place:
 - [character-state-aarakocra-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-aarakocra-example.json)
 - [character-state-tabaxi-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-tabaxi-example.json)
 - [character-state-triton-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-triton-example.json)
+- [character-state-badger-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-badger-example.json)
 - [diagnostics-regression-baseline.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/diagnostics-regression-baseline.json)
 
 ## Build
@@ -92,7 +93,7 @@ dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- check-characte
 ```
 
 The committed baseline is meant to represent Wizards first-party `core` + `supplements`, not an arbitrary custom content directory.
-The committed character-state baselines are meant to represent fixed first-party fixtures such as [character-state-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-example.json), [character-state-early-fighter-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-early-fighter-example.json), [character-state-elf-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-elf-example.json), and the movement-focused [character-state-aarakocra-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-aarakocra-example.json), [character-state-tabaxi-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-tabaxi-example.json), and [character-state-triton-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-triton-example.json) evaluated against the first-party regression DB.
+The committed character-state baselines are meant to represent fixed first-party fixtures such as [character-state-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-example.json), [character-state-early-fighter-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-early-fighter-example.json), [character-state-elf-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-elf-example.json), and the movement-focused [character-state-aarakocra-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-aarakocra-example.json), [character-state-tabaxi-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-tabaxi-example.json), [character-state-triton-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-triton-example.json), and [character-state-badger-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-badger-example.json) evaluated against the first-party regression DB.
 
 ### Expression and character-state evaluation
 

@@ -1,0 +1,43 @@
+{
+  "CapturedAtUtc": "2026-05-10T22:48:36.4570998Z",
+  "StateLabel": "character-state-badger-example.json",
+  "DirectSelectionCount": 1,
+  "DirectSelections": [
+    "Companion|Badger|core-players-handbook-2024|"
+  ],
+  "ActiveFeatureCount": 0,
+  "ActiveFeatures": [],
+  "ActiveGrantCount": 0,
+  "AvailableSelectCount": 0,
+  "PendingChoiceCount": 0,
+  "BlockingPendingChoiceCount": 0,
+  "WarningCount": 0,
+  "WarningKindCounts": [],
+  "AbilityScores": [],
+  "ProficiencyKeys": [],
+  "LanguageKeys": [],
+  "FeatKeys": [],
+  "FeatureKeys": [],
+  "ChoiceSelectionKeys": [],
+  "TraitKeys": [
+    "movement:burrow:5",
+    "movement:walk:20",
+    "sense:senses:Darkvision 30 ft.; Passive Perception 13"
+  ],
+  "PendingChoiceKeys": [],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "movement|setter",
+      "Count": 2
+    },
+    {
+      "Key": "movement|stat",
+      "Count": 2
+    },
+    {
+      "Key": "sense|setter",
+      "Count": 1
+    }
+  ],
+  "AppliedChoiceStates": []
+}
