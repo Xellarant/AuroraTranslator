@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-09T14:52:12.5205755Z",
+  "CapturedAtUtc": "2026-05-10T21:58:09.5004883Z",
   "StateLabel": "character-state-bond-example.json",
   "DirectSelectionCount": 4,
   "DirectSelections": [
@@ -84,7 +84,8 @@
     "$(choice||Background||Acolyte||Bond)|Everything I do is for the common people."
   ],
   "TraitKeys": [
-    "ID_SIZE_MEDIUM"
+    "ID_SIZE_MEDIUM",
+    "movement:walk:30"
   ],
   "PendingChoiceKeys": [
     "Background|Acolyte|Flaw|remaining=1|blocking=True",
@@ -112,6 +113,10 @@
     },
     {
       "Key": "language|grant",
+      "Count": 1
+    },
+    {
+      "Key": "movement|stat",
       "Count": 1
     },
     {

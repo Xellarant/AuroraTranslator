@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-09T14:38:46.2888903Z",
+  "CapturedAtUtc": "2026-05-10T21:58:09.2704334Z",
   "StateLabel": "character-state-example.json",
   "DirectSelectionCount": 4,
   "DirectSelections": [
@@ -80,8 +80,10 @@
     "ID_WOTC_PHB_CLASS_FEATURE_MARTIALARCHETYPE",
     "ID_WOTC_PHB_CLASS_FEATURE_SECONDWIND"
   ],
+  "ChoiceSelectionKeys": [],
   "TraitKeys": [
-    "ID_SIZE_MEDIUM"
+    "ID_SIZE_MEDIUM",
+    "movement:walk:30"
   ],
   "PendingChoiceKeys": [
     "Background|Acolyte|Bond|remaining=1|blocking=True",
@@ -106,6 +108,10 @@
     },
     {
       "Key": "language|grant",
+      "Count": 1
+    },
+    {
+      "Key": "movement|stat",
       "Count": 1
     },
     {

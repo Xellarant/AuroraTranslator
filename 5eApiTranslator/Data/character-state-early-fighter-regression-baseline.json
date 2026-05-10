@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-10T01:31:50.7355584Z",
+  "CapturedAtUtc": "2026-05-10T21:58:09.5653118Z",
   "StateLabel": "character-state-early-fighter-example.json",
   "DirectSelectionCount": 7,
   "DirectSelections": [
@@ -90,7 +90,8 @@
     "$(choice||Background||Acolyte||Personality Trait)|I can find common ground between the fiercest enemies, empathizing with them and always working toward peace."
   ],
   "TraitKeys": [
-    "ID_SIZE_MEDIUM"
+    "ID_SIZE_MEDIUM",
+    "movement:walk:30"
   ],
   "PendingChoiceKeys": [
     "Background|Acolyte|Bond|remaining=1|blocking=True",
@@ -119,6 +120,10 @@
     },
     {
       "Key": "language|grant",
+      "Count": 1
+    },
+    {
+      "Key": "movement|stat",
       "Count": 1
     },
     {

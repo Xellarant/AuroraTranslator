@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-10T21:20:47.2776036Z",
+  "CapturedAtUtc": "2026-05-10T21:58:09.2538328Z",
   "StateLabel": "character-state-elf-example.json",
   "DirectSelectionCount": 4,
   "DirectSelections": [
@@ -85,7 +85,7 @@
   "TraitKeys": [
     "ID_SIZE_MEDIUM",
     "ID_VISION_DARKVISION",
-    "movement:Speed:30"
+    "movement:walk:30"
   ],
   "PendingChoiceKeys": [
     "Background|Acolyte|Bond|remaining=1|blocking=True",
@@ -111,6 +111,10 @@
       "Count": 2
     },
     {
+      "Key": "movement|stat",
+      "Count": 1
+    },
+    {
       "Key": "proficiency|grant",
       "Count": 10
     },
@@ -120,10 +124,6 @@
     },
     {
       "Key": "trait|semantic-grant",
-      "Count": 1
-    },
-    {
-      "Key": "trait|stat",
       "Count": 1
     }
   ],

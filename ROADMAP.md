@@ -114,7 +114,7 @@ Likely target families:
   - archetype selection
   - language/proficiency selections
   - Human Variant feat flow
-- use focused fixtures to lock down computed-trait scenarios such as Darkvision
+- use focused fixtures to lock down computed-trait scenarios such as Darkvision and typed movement entries like fly/climb/swim speeds
 - add guardrails for semantic expansion counts if useful
 - add guardrails for computed-character outputs such as:
   - final ability score totals

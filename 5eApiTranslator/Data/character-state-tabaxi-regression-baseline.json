@@ -1,0 +1,57 @@
+{
+  "CapturedAtUtc": "2026-05-10T21:56:36.4054289Z",
+  "StateLabel": "character-state-tabaxi-example.json",
+  "DirectSelectionCount": 1,
+  "DirectSelections": [
+    "Race|Tabaxi|supplements-monsters-of-the-multiverse|"
+  ],
+  "ActiveFeatureCount": 0,
+  "ActiveFeatures": [],
+  "ActiveGrantCount": 6,
+  "AvailableSelectCount": 3,
+  "PendingChoiceCount": 2,
+  "BlockingPendingChoiceCount": 2,
+  "WarningCount": 2,
+  "WarningKindCounts": [
+    {
+      "Key": "pending-choice|error",
+      "Count": 1
+    },
+    {
+      "Key": "pending-choice|warning",
+      "Count": 1
+    }
+  ],
+  "AbilityScores": [],
+  "ProficiencyKeys": [],
+  "LanguageKeys": [
+    "ID_LANGUAGE_COMMON"
+  ],
+  "FeatKeys": [],
+  "FeatureKeys": [],
+  "ChoiceSelectionKeys": [],
+  "TraitKeys": [
+    "ID_VISION_DARKVISION",
+    "movement:climb:30",
+    "movement:walk:30"
+  ],
+  "PendingChoiceKeys": [
+    "Race|Tabaxi|Ability Score Improvement Option (Tabaxi)|remaining=1|blocking=True",
+    "Race|Tabaxi|Size (Tabaxi)|remaining=1|blocking=True"
+  ],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "language|grant",
+      "Count": 1
+    },
+    {
+      "Key": "movement|stat",
+      "Count": 2
+    },
+    {
+      "Key": "trait|grant",
+      "Count": 1
+    }
+  ],
+  "AppliedChoiceStates": []
+}

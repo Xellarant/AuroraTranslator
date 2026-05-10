@@ -1,0 +1,57 @@
+{
+  "CapturedAtUtc": "2026-05-10T21:56:36.4039783Z",
+  "StateLabel": "character-state-triton-example.json",
+  "DirectSelectionCount": 1,
+  "DirectSelections": [
+    "Race|Triton|supplements-monsters-of-the-multiverse|"
+  ],
+  "ActiveFeatureCount": 0,
+  "ActiveFeatures": [],
+  "ActiveGrantCount": 8,
+  "AvailableSelectCount": 2,
+  "PendingChoiceCount": 1,
+  "BlockingPendingChoiceCount": 1,
+  "WarningCount": 1,
+  "WarningKindCounts": [
+    {
+      "Key": "pending-choice|warning",
+      "Count": 1
+    }
+  ],
+  "AbilityScores": [],
+  "ProficiencyKeys": [],
+  "LanguageKeys": [
+    "ID_LANGUAGE_COMMON"
+  ],
+  "FeatKeys": [],
+  "FeatureKeys": [],
+  "ChoiceSelectionKeys": [],
+  "TraitKeys": [
+    "ID_SIZE_MEDIUM",
+    "ID_VISION_DARKVISION",
+    "movement:swim:30",
+    "movement:walk:30"
+  ],
+  "PendingChoiceKeys": [
+    "Race|Triton|Ability Score Improvement Option (Triton)|remaining=1|blocking=True"
+  ],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "language|grant",
+      "Count": 1
+    },
+    {
+      "Key": "movement|stat",
+      "Count": 2
+    },
+    {
+      "Key": "trait|grant",
+      "Count": 1
+    },
+    {
+      "Key": "trait|semantic-grant",
+      "Count": 1
+    }
+  ],
+  "AppliedChoiceStates": []
+}

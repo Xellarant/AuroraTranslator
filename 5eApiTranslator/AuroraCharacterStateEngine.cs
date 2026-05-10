@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 
 namespace AuroraTranslator
@@ -195,6 +196,12 @@ namespace AuroraTranslator
         string OwnerName,
         string OwnerTypeName,
         string SelectName);
+
+    internal sealed record ParsedMovementResult(
+        string Kind,
+        string Label,
+        string ValueText,
+        string SourceText);
 
     internal sealed record ComputedCharacterResult(
         IReadOnlyList<ComputedAbilityScoreResult> AbilityScores,
@@ -2503,12 +2510,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             CharacterEvaluationResult evaluation,
             List<CharacterProvenanceEntry> provenanceSink)
         {
-            int[] ownerElementIds = evaluation.DirectSelections
-                .Select(x => x.ElementId)
-                .Concat(evaluation.ActiveFeatures.Select(x => x.ElementId))
-                .Distinct()
-                .OrderBy(x => x)
-                .ToArray();
+            int[] ownerElementIds = GetComputedTraitOwnerElementIds(evaluation);
 
             if (ownerElementIds.Length == 0)
                 return new List<ComputedCharacterItemResult>();
@@ -2547,31 +2549,61 @@ ORDER BY ss.owner_element_id ASC, se.setter_name ASC, se.ordinal ASC;";
                 if (string.IsNullOrWhiteSpace(setterValue))
                     continue;
 
+                string ownerAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
+                string ownerName = reader.GetString(2);
+                string ownerTypeName = reader.GetString(3);
+                string packageKey = reader.IsDBNull(4) ? null : reader.GetString(4);
+
+                if (string.Equals(setterName, "speed", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (ParsedMovementResult movement in ParseMovementResults(setterName, setterValue))
+                    {
+                        string movementKey = $"movement:{movement.Kind}:{movement.ValueText}";
+                        List<CharacterProvenanceEntry> provenance = new()
+                        {
+                            new(
+                                "movement",
+                                movementKey,
+                                "setter",
+                                ownerName,
+                                ownerTypeName,
+                                packageKey,
+                                ownerAuroraId,
+                                movement.Label,
+                                movement.SourceText)
+                        };
+                        provenanceSink.AddRange(provenance);
+                        items.Add(new ComputedCharacterItemResult(
+                            "movement",
+                            movementKey,
+                            movement.Label,
+                            movement.Kind,
+                            packageKey,
+                            false,
+                            provenance));
+                    }
+
+                    continue;
+                }
+
                 string category = setterName.ToLowerInvariant() switch
                 {
-                    "speed" => "movement",
                     "vision" => "sense",
                     "senses" => "sense",
                     _ => "trait"
                 };
                 string displayName = setterName.ToLowerInvariant() switch
                 {
-                    "speed" => $"Speed: {setterValue}",
                     "vision" => $"Vision: {setterValue}",
                     "senses" => $"Senses: {setterValue}",
                     _ => $"{setterName}: {setterValue}"
                 };
-                string key = $"{category}:{setterName}:{setterValue}";
-                string ownerAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
-                string ownerName = reader.GetString(2);
-                string ownerTypeName = reader.GetString(3);
-                string packageKey = reader.IsDBNull(4) ? null : reader.GetString(4);
-
-                List<CharacterProvenanceEntry> provenance = new()
+                string defaultKey = $"{category}:{setterName}:{setterValue}";
+                List<CharacterProvenanceEntry> defaultProvenance = new()
                 {
                     new(
                         category,
-                        key,
+                        defaultKey,
                         "setter",
                         ownerName,
                         ownerTypeName,
@@ -2580,15 +2612,15 @@ ORDER BY ss.owner_element_id ASC, se.setter_name ASC, se.ordinal ASC;";
                         displayName,
                         $"{setterName}={setterValue}")
                 };
-                provenanceSink.AddRange(provenance);
+                provenanceSink.AddRange(defaultProvenance);
                 items.Add(new ComputedCharacterItemResult(
                     category,
-                    key,
+                    defaultKey,
                     displayName,
                     setterName,
                     packageKey,
                     false,
-                    provenance));
+                    defaultProvenance));
             }
 
             return items;
@@ -2599,12 +2631,7 @@ ORDER BY ss.owner_element_id ASC, se.setter_name ASC, se.ordinal ASC;";
             CharacterEvaluationResult evaluation,
             List<CharacterProvenanceEntry> provenanceSink)
         {
-            int[] ownerElementIds = evaluation.DirectSelections
-                .Select(x => x.ElementId)
-                .Concat(evaluation.ActiveFeatures.Select(x => x.ElementId))
-                .Distinct()
-                .OrderBy(x => x)
-                .ToArray();
+            int[] ownerElementIds = GetComputedTraitOwnerElementIds(evaluation);
 
             if (ownerElementIds.Length == 0)
                 return new List<ComputedCharacterItemResult>();
@@ -2637,17 +2664,88 @@ WHERE rs.owner_kind = 'element'
         lower(st.stat_name) = 'speed'
         OR lower(st.stat_name) LIKE '% speed'
         OR lower(st.stat_name) LIKE 'speed %'
+        OR lower(st.stat_name) LIKE '%speed:%'
+        OR lower(st.stat_name) LIKE '%:speed'
       )
 ORDER BY owner.element_id ASC, st.ordinal ASC;";
 
             var items = new List<ComputedCharacterItemResult>();
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
+            var statRows = new List<(int OwnerElementId, string OwnerAuroraId, string OwnerName, string OwnerTypeName, string PackageKey, string StatName, string ValueExpression, string BonusExpression, string AltText)>();
+            using (var reader = command.ExecuteReader())
             {
-                string statName = reader.GetString(5);
-                string valueExpression = reader.IsDBNull(6) ? null : reader.GetString(6);
-                string bonusExpression = reader.IsDBNull(7) ? null : reader.GetString(7);
-                string altText = reader.IsDBNull(8) ? null : reader.GetString(8);
+                while (reader.Read())
+                {
+                    statRows.Add((
+                        reader.GetInt32(0),
+                        reader.IsDBNull(1) ? null : reader.GetString(1),
+                        reader.GetString(2),
+                        reader.GetString(3),
+                        reader.IsDBNull(4) ? null : reader.GetString(4),
+                        reader.GetString(5),
+                        reader.IsDBNull(6) ? null : reader.GetString(6),
+                        reader.IsDBNull(7) ? null : reader.GetString(7),
+                        reader.IsDBNull(8) ? null : reader.GetString(8)));
+                }
+            }
+
+            Dictionary<string, string> movementAliases = BuildMovementAliasMap(statRows);
+            foreach ((int _, string ownerAuroraId, string ownerName, string ownerTypeName, string packageKey, string statName, string valueExpression, string bonusExpression, string altText) in statRows)
+            {
+                string displayValue = !string.IsNullOrWhiteSpace(altText)
+                    ? altText
+                    : !string.IsNullOrWhiteSpace(valueExpression)
+                        ? valueExpression
+                        : bonusExpression;
+
+                displayValue = ResolveMovementAliasValue(displayValue, movementAliases);
+
+                if (string.IsNullOrWhiteSpace(displayValue))
+                    continue;
+
+                string normalizedStatName = statName.Trim();
+                foreach (ParsedMovementResult movement in ParseMovementResults(normalizedStatName, displayValue))
+                {
+                    string key = $"movement:{movement.Kind}:{movement.ValueText}";
+                    List<CharacterProvenanceEntry> provenance = new()
+                    {
+                        new(
+                            "movement",
+                            key,
+                            "stat",
+                            ownerName,
+                            ownerTypeName,
+                            packageKey,
+                            ownerAuroraId,
+                            movement.Label,
+                            bonusExpression is { Length: > 0 }
+                                ? $"{normalizedStatName} value={valueExpression} bonus={bonusExpression}"
+                                : $"{normalizedStatName} value={valueExpression}")
+                    };
+                    provenanceSink.AddRange(provenance);
+                    items.Add(new ComputedCharacterItemResult(
+                        "movement",
+                        key,
+                        movement.Label,
+                        movement.Kind,
+                        packageKey,
+                        false,
+                        provenance));
+                }
+            }
+
+            return items;
+        }
+
+        private static Dictionary<string, string> BuildMovementAliasMap(
+            IEnumerable<(int OwnerElementId, string OwnerAuroraId, string OwnerName, string OwnerTypeName, string PackageKey, string StatName, string ValueExpression, string BonusExpression, string AltText)> statRows)
+        {
+            var aliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach ((int _, string _, string _, string _, string _, string statName, string valueExpression, string bonusExpression, string altText) in statRows)
+            {
+                string aliasKey = statName?.Trim();
+                if (string.IsNullOrWhiteSpace(aliasKey))
+                    continue;
 
                 string displayValue = !string.IsNullOrWhiteSpace(altText)
                     ? altText
@@ -2658,67 +2756,190 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                 if (string.IsNullOrWhiteSpace(displayValue))
                     continue;
 
-                string ownerAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
-                string ownerName = reader.GetString(2);
-                string ownerTypeName = reader.GetString(3);
-                string packageKey = reader.IsDBNull(4) ? null : reader.GetString(4);
-                string normalizedStatName = statName.Trim();
-                string movementName = NormalizeMovementStatName(normalizedStatName);
-                string key = $"movement:{movementName}:{displayValue}";
-                string displayName = $"{movementName}: {displayValue}";
-
-                List<CharacterProvenanceEntry> provenance = new()
-                {
-                    new(
-                        "trait",
-                        key,
-                        "stat",
-                        ownerName,
-                        ownerTypeName,
-                        packageKey,
-                        ownerAuroraId,
-                        displayName,
-                        bonusExpression is { Length: > 0 }
-                            ? $"{normalizedStatName} value={valueExpression} bonus={bonusExpression}"
-                            : $"{normalizedStatName} value={valueExpression}")
-                };
-                provenanceSink.AddRange(provenance);
-                items.Add(new ComputedCharacterItemResult(
-                    "trait",
-                    key,
-                    displayName,
-                    "movement",
-                    packageKey,
-                    false,
-                    provenance));
+                aliases[aliasKey] = displayValue.Trim();
             }
 
-            return items;
+            return aliases;
         }
 
-        private static string NormalizeMovementStatName(string statName)
+        private static string ResolveMovementAliasValue(string rawValue, IReadOnlyDictionary<string, string> movementAliases)
         {
-            if (string.IsNullOrWhiteSpace(statName))
-                return "Speed";
+            if (string.IsNullOrWhiteSpace(rawValue))
+                return rawValue;
 
-            string normalized = statName.Trim();
-            if (normalized.Equals("speed", StringComparison.OrdinalIgnoreCase)
-                || normalized.Equals("innate speed", StringComparison.OrdinalIgnoreCase))
+            string current = rawValue.Trim();
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            while (movementAliases.TryGetValue(current, out string nextValue))
             {
-                return "Speed";
+                if (string.IsNullOrWhiteSpace(nextValue)
+                    || string.Equals(current, nextValue, StringComparison.OrdinalIgnoreCase)
+                    || !visited.Add(current))
+                {
+                    break;
+                }
+
+                current = nextValue.Trim();
             }
 
-            if (normalized.EndsWith(" speed", StringComparison.OrdinalIgnoreCase))
-            {
-                string prefix = normalized[..^" speed".Length].Trim();
-                if (prefix.Equals("innate", StringComparison.OrdinalIgnoreCase))
-                    return "Speed";
+            return current;
+        }
 
-                if (prefix.Length > 0)
-                    return $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(prefix.ToLowerInvariant())} Speed";
+        private static List<ParsedMovementResult> ParseMovementResults(string movementNameOrSetterName, string rawValue)
+        {
+            if (string.IsNullOrWhiteSpace(rawValue))
+                return new List<ParsedMovementResult>();
+
+            string explicitKind = NormalizeMovementKind(movementNameOrSetterName);
+            string sourceText = rawValue.Trim();
+
+            if (explicitKind != null)
+            {
+                return new List<ParsedMovementResult>
+                {
+                    BuildMovementResult(explicitKind, sourceText, sourceText)
+                };
             }
 
-            return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(normalized.ToLowerInvariant());
+            var results = new List<ParsedMovementResult>();
+            string[] segments = rawValue
+                .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            foreach (string segment in segments)
+            {
+                ParsedMovementResult parsed = TryParseMovementSegment(segment);
+                if (parsed != null)
+                    results.Add(parsed);
+            }
+
+            if (results.Count == 0)
+            {
+                results.Add(BuildMovementResult("walk", sourceText, sourceText));
+            }
+
+            return results;
+        }
+
+        private static ParsedMovementResult TryParseMovementSegment(string segment)
+        {
+            if (string.IsNullOrWhiteSpace(segment))
+                return null;
+
+            string trimmed = segment.Trim();
+
+            Match leadingTypeMatch = Regex.Match(
+                trimmed,
+                @"^(?<type>walk|speed|land|ground|fly|flying|swim|swimming|climb|climbing|burrow|burrowing)\s*:?\s*(?<value>.+)$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+            if (leadingTypeMatch.Success)
+            {
+                string kind = NormalizeMovementKind(leadingTypeMatch.Groups["type"].Value);
+                string value = leadingTypeMatch.Groups["value"].Value.Trim();
+                return BuildMovementResult(kind ?? "walk", value, trimmed);
+            }
+
+            Match trailingTypeMatch = Regex.Match(
+                trimmed,
+                @"^(?<value>.+?)\s+(?<type>fly|flying|swim|swimming|climb|climbing|burrow|burrowing)$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+            if (trailingTypeMatch.Success)
+            {
+                string kind = NormalizeMovementKind(trailingTypeMatch.Groups["type"].Value);
+                string value = trailingTypeMatch.Groups["value"].Value.Trim();
+                return BuildMovementResult(kind ?? "walk", value, trimmed);
+            }
+
+            Match walkValueMatch = Regex.Match(
+                trimmed,
+                @"^\d+(\s*ft\.?)?(\s*\(.+\))?$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+            if (walkValueMatch.Success)
+            {
+                return BuildMovementResult("walk", trimmed, trimmed);
+            }
+
+            return null;
+        }
+
+        private static ParsedMovementResult BuildMovementResult(string kind, string valueText, string sourceText)
+        {
+            string normalizedKind = NormalizeMovementKind(kind) ?? "walk";
+            string label = normalizedKind switch
+            {
+                "walk" => "Speed",
+                "fly" => "Fly Speed",
+                "swim" => "Swim Speed",
+                "climb" => "Climb Speed",
+                "burrow" => "Burrow Speed",
+                _ => $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(normalizedKind.ToLowerInvariant())} Speed"
+            };
+
+            return new ParsedMovementResult(
+                normalizedKind,
+                $"{label}: {valueText.Trim()}",
+                valueText.Trim(),
+                sourceText.Trim());
+        }
+
+        private static string NormalizeMovementKind(string movementName)
+        {
+            if (string.IsNullOrWhiteSpace(movementName))
+                return null;
+
+            string normalized = movementName.Trim().ToLowerInvariant();
+            if (normalized.Contains(':'))
+            {
+                string[] tokens = normalized
+                    .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                for (int index = tokens.Length - 1; index >= 0; index--)
+                {
+                    string tokenKind = NormalizeMovementKind(tokens[index]);
+                    if (tokenKind != null)
+                        return tokenKind;
+                }
+            }
+
+            return normalized switch
+            {
+                "speed" => "walk",
+                "innate speed" => "walk",
+                "walk" => "walk",
+                "walking" => "walk",
+                "land" => "walk",
+                "ground" => "walk",
+                "fly" => "fly",
+                "flying" => "fly",
+                "fly speed" => "fly",
+                "swim" => "swim",
+                "swimming" => "swim",
+                "swim speed" => "swim",
+                "climb" => "climb",
+                "climbing" => "climb",
+                "climb speed" => "climb",
+                "burrow" => "burrow",
+                "burrowing" => "burrow",
+                "burrow speed" => "burrow",
+                _ when normalized.EndsWith(" speed", StringComparison.OrdinalIgnoreCase)
+                    => NormalizeMovementKind(normalized[..^" speed".Length]),
+                _ => null
+            };
+        }
+
+        private static int[] GetComputedTraitOwnerElementIds(CharacterEvaluationResult evaluation)
+        {
+            return evaluation.DirectSelections
+                .Select(x => x.ElementId)
+                .Concat(evaluation.ActiveFeatures.Select(x => x.ElementId))
+                .Concat(evaluation.ActiveGrants
+                    .Where(x => x.TargetElementId.HasValue)
+                    .Select(x => x.TargetElementId!.Value))
+                .Distinct()
+                .OrderBy(x => x)
+                .ToArray();
         }
 
         private static List<ComputedCharacterItemResult> MergeComputedItems(IEnumerable<ComputedCharacterItemResult> items)
