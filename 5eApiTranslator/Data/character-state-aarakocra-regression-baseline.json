@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T04:34:10.9105413Z",
+  "CapturedAtUtc": "2026-05-11T05:01:29.9491457Z",
   "StateLabel": "character-state-aarakocra-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
@@ -23,6 +23,7 @@
   "LanguageKeys": [
     "ID_LANGUAGE_COMMON"
   ],
+  "GrantedSpellKeys": [],
   "FeatKeys": [],
   "FeatureKeys": [],
   "ChoiceSelectionKeys": [],
@@ -32,8 +33,8 @@
     "movement:walk:30"
   ],
   "PendingChoiceKeys": [
-    "Race|Aarakocra|Ability Score Improvement Option (Aarakocra)|remaining=1|blocking=True",
-    "Race|Aarakocra|Language (Aarakocra)|remaining=1|blocking=True"
+    "Race|Aarakocra|Ability Score Improvement Option (Aarakocra)|family=generic-element-pick|remaining=1|blocking=True",
+    "Race|Aarakocra|Language (Aarakocra)|family=language-pick|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {

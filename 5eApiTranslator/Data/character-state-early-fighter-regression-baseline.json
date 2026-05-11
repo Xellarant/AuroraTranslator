@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T00:14:44.2468948Z",
+  "CapturedAtUtc": "2026-05-11T05:01:28.4239401Z",
   "StateLabel": "character-state-early-fighter-example.json",
   "DirectSelectionCount": 7,
   "DirectSelections": [
@@ -75,6 +75,7 @@
     "ID_LANGUAGE_COMMON",
     "ID_LANGUAGE_DRACONIC"
   ],
+  "GrantedSpellKeys": [],
   "FeatKeys": [],
   "FeatureKeys": [
     "ID_BACKGROUND_FEATURE_SHELTER_OF_THE_FAITHFUL",
@@ -97,16 +98,16 @@
     "movement:walk:30"
   ],
   "PendingChoiceKeys": [
-    "Background|Acolyte|Bond|remaining=1|blocking=True",
-    "Background|Acolyte|Flaw|remaining=1|blocking=True",
-    "Background|Acolyte|Ideal|remaining=1|blocking=True",
-    "Background|Acolyte|Language (Acolyte)|remaining=1|blocking=True",
-    "Background|Acolyte|Variant Feature|remaining=1|blocking=False",
-    "Class Feature|Ability Score Improvement|Improvement Option (Fighter 4)|remaining=1|blocking=True",
-    "Class Feature|Martial Archetype|Martial Archetype|remaining=1|blocking=True",
-    "Class|Fighter|Skill Proficiency (Fighter)|remaining=1|blocking=True",
-    "Race|Human|Human Variant|remaining=1|blocking=False",
-    "Race|Human|Language (Human)|remaining=1|blocking=True"
+    "Background|Acolyte|Bond|family=text-choice|remaining=1|blocking=True",
+    "Background|Acolyte|Flaw|family=text-choice|remaining=1|blocking=True",
+    "Background|Acolyte|Ideal|family=text-choice|remaining=1|blocking=True",
+    "Background|Acolyte|Language (Acolyte)|family=language-pick|remaining=1|blocking=True",
+    "Background|Acolyte|Variant Feature|family=generic-element-pick|remaining=1|blocking=False",
+    "Class Feature|Ability Score Improvement|Improvement Option (Fighter 4)|family=asi-pick|remaining=1|blocking=True",
+    "Class Feature|Martial Archetype|Martial Archetype|family=generic-element-pick|remaining=1|blocking=True",
+    "Class|Fighter|Skill Proficiency (Fighter)|family=skill-pick|remaining=1|blocking=True",
+    "Race|Human|Human Variant|family=race-variant-pick|remaining=1|blocking=False",
+    "Race|Human|Language (Human)|family=language-pick|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {
@@ -147,10 +148,10 @@
     }
   ],
   "AppliedChoiceStates": [
-    "0|applied|Background|Acolyte|Language (Acolyte)|Draconic",
-    "1|applied|Class|Fighter|Skill Proficiency (Fighter)|Athletics",
-    "2|applied|Class Feature|Fighting Style|Fighting Style|Defense",
-    "3|applied|Background|Acolyte|Personality Trait|I am tolerant (or intolerant) of other faiths and respect (or condemn) the worship of other gods.",
-    "4|applied|Background|Acolyte|Personality Trait|I can find common ground between the fiercest enemies, empathizing with them and always working toward peace."
+    "0|applied|Background|Acolyte|Language (Acolyte)|family=language-pick|Draconic",
+    "1|applied|Class|Fighter|Skill Proficiency (Fighter)|family=skill-pick|Athletics",
+    "2|applied|Class Feature|Fighting Style|Fighting Style|family=fighting-style-pick|Defense",
+    "3|applied|Background|Acolyte|Personality Trait|family=text-choice|I am tolerant (or intolerant) of other faiths and respect (or condemn) the worship of other gods.",
+    "4|applied|Background|Acolyte|Personality Trait|family=text-choice|I can find common ground between the fiercest enemies, empathizing with them and always working toward peace."
   ]
 }

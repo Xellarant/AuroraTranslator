@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-10T22:48:36.4570998Z",
+  "CapturedAtUtc": "2026-05-11T05:01:30.8911578Z",
   "StateLabel": "character-state-badger-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
@@ -16,6 +16,7 @@
   "AbilityScores": [],
   "ProficiencyKeys": [],
   "LanguageKeys": [],
+  "GrantedSpellKeys": [],
   "FeatKeys": [],
   "FeatureKeys": [],
   "ChoiceSelectionKeys": [],

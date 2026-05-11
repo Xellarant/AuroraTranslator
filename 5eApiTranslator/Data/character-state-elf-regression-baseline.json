@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T00:14:44.2030583Z",
+  "CapturedAtUtc": "2026-05-11T05:01:29.0091568Z",
   "StateLabel": "character-state-elf-example.json",
   "DirectSelectionCount": 4,
   "DirectSelections": [
@@ -71,6 +71,7 @@
     "ID_LANGUAGE_COMMON",
     "ID_LANGUAGE_ELVISH"
   ],
+  "GrantedSpellKeys": [],
   "FeatKeys": [],
   "FeatureKeys": [
     "ID_BACKGROUND_FEATURE_SHELTER_OF_THE_FAITHFUL",
@@ -88,16 +89,16 @@
     "movement:walk:30"
   ],
   "PendingChoiceKeys": [
-    "Background|Acolyte|Bond|remaining=1|blocking=True",
-    "Background|Acolyte|Flaw|remaining=1|blocking=True",
-    "Background|Acolyte|Ideal|remaining=1|blocking=True",
-    "Background|Acolyte|Language (Acolyte)|remaining=2|blocking=True",
-    "Background|Acolyte|Personality Trait|remaining=2|blocking=True",
-    "Background|Acolyte|Variant Feature|remaining=1|blocking=False",
-    "Class Feature|Ability Score Improvement|Improvement Option (Fighter 4)|remaining=1|blocking=True",
-    "Class Feature|Fighting Style|Fighting Style|remaining=1|blocking=True",
-    "Class Feature|Martial Archetype|Martial Archetype|remaining=1|blocking=True",
-    "Class|Fighter|Skill Proficiency (Fighter)|remaining=2|blocking=True"
+    "Background|Acolyte|Bond|family=text-choice|remaining=1|blocking=True",
+    "Background|Acolyte|Flaw|family=text-choice|remaining=1|blocking=True",
+    "Background|Acolyte|Ideal|family=text-choice|remaining=1|blocking=True",
+    "Background|Acolyte|Language (Acolyte)|family=language-pick|remaining=2|blocking=True",
+    "Background|Acolyte|Personality Trait|family=text-choice|remaining=2|blocking=True",
+    "Background|Acolyte|Variant Feature|family=generic-element-pick|remaining=1|blocking=False",
+    "Class Feature|Ability Score Improvement|Improvement Option (Fighter 4)|family=asi-pick|remaining=1|blocking=True",
+    "Class Feature|Fighting Style|Fighting Style|family=fighting-style-pick|remaining=1|blocking=True",
+    "Class Feature|Martial Archetype|Martial Archetype|family=generic-element-pick|remaining=1|blocking=True",
+    "Class|Fighter|Skill Proficiency (Fighter)|family=skill-pick|remaining=2|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {

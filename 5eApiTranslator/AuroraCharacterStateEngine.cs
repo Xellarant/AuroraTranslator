@@ -93,6 +93,8 @@ namespace AuroraTranslator
         string OwnerTypeName,
         string GrantType,
         int? GrantLevel,
+        string SpellcastingName,
+        bool? IsPrepared,
         string RequirementsText,
         int? TargetElementId,
         string TargetAuroraId,
@@ -126,6 +128,7 @@ namespace AuroraTranslator
         string SelectName,
         string SelectType,
         string SelectPolicy,
+        string ChoiceFamily,
         string SupportsText,
         int? SelectLevel,
         int NumberToChoose,
@@ -140,6 +143,7 @@ namespace AuroraTranslator
         string OwnerTypeName,
         string SelectName,
         string SelectType,
+        string ChoiceFamily,
         string OptionName,
         string OptionAuroraId,
         string FollowUpOptionName,
@@ -175,6 +179,16 @@ namespace AuroraTranslator
         bool IsDirectSelection,
         IReadOnlyList<CharacterProvenanceEntry> Provenance);
 
+    internal sealed record ComputedGrantedSpellResult(
+        string SpellKey,
+        string SpellAuroraId,
+        string SpellName,
+        string SpellPackageKey,
+        string SpellcastingName,
+        bool? IsPrepared,
+        int? GrantLevel,
+        IReadOnlyList<CharacterProvenanceEntry> Provenance);
+
     internal sealed record PendingCharacterChoiceResult(
         int SelectId,
         string OwnerName,
@@ -183,7 +197,9 @@ namespace AuroraTranslator
         string SelectName,
         string SelectType,
         string SelectPolicy,
+        string ChoiceFamily,
         int NumberToChoose,
+        int ChosenCount,
         int AlreadyOwnedCount,
         int RemainingCount,
         int AvailableOptionCount,
@@ -210,6 +226,7 @@ namespace AuroraTranslator
         IReadOnlyList<ComputedCharacterItemResult> Languages,
         IReadOnlyList<ComputedCharacterItemResult> Feats,
         IReadOnlyList<ComputedCharacterItemResult> Features,
+        IReadOnlyList<ComputedGrantedSpellResult> GrantedSpells,
         IReadOnlyList<ComputedCharacterItemResult> ChoiceSelections,
         IReadOnlyList<ComputedCharacterItemResult> Traits,
         IReadOnlyList<PendingCharacterChoiceResult> PendingChoices,
@@ -700,6 +717,7 @@ ORDER BY rec.package_key ASC, e.name ASC;";
                 select?.OwnerTypeName ?? choice.OwnerTypeName,
                 select?.SelectName ?? choice.SelectName,
                 select?.SelectType ?? choice.SelectType,
+                select?.ChoiceFamily ?? ClassifyChoiceFamily(choice.SelectType, null, choice.SelectName, null),
                 option?.OptionName ?? option?.OptionText ?? choice.OptionName ?? choice.OptionText,
                 option?.OptionAuroraId ?? choice.OptionAuroraId,
                 followUp?.OptionName ?? followUp?.OptionText ?? choice.FollowUpOptionName ?? choice.FollowUpOptionText,
@@ -1146,6 +1164,8 @@ SELECT
     owner_type.type_name,
     g.grant_type,
     g.grant_level,
+    g.spellcasting_name,
+    g.is_prepared,
     g.requirements_text,
     g.target_element_id,
     target.aurora_id,
@@ -1194,15 +1214,17 @@ ORDER BY owner.name ASC, g.ordinal ASC;";
                     reader.GetString(3),
                     reader.GetString(4),
                     grantLevel,
+                    reader.IsDBNull(6) ? null : reader.GetString(6),
+                    reader.IsDBNull(7) ? null : reader.GetInt32(7) != 0,
                     requirementsText,
-                    reader.IsDBNull(7) ? null : reader.GetInt32(7),
-                    reader.IsDBNull(8) ? null : reader.GetString(8),
-                    reader.IsDBNull(9) ? null : reader.GetString(9),
+                    reader.IsDBNull(9) ? null : reader.GetInt32(9),
                     reader.IsDBNull(10) ? null : reader.GetString(10),
                     reader.IsDBNull(11) ? null : reader.GetString(11),
                     reader.IsDBNull(12) ? null : reader.GetString(12),
                     reader.IsDBNull(13) ? null : reader.GetString(13),
-                    reader.IsDBNull(14) ? null : reader.GetString(14)));
+                    reader.IsDBNull(14) ? null : reader.GetString(14),
+                    reader.IsDBNull(15) ? null : reader.GetString(15),
+                    reader.IsDBNull(16) ? null : reader.GetString(16)));
             }
 
             return grants;
@@ -1289,6 +1311,7 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
                 int selectId = reader.GetInt32(0);
                 string selectType = reader.GetString(6);
                 string selectPolicy = ClassifySelectPolicy(selectType, reader.IsDBNull(5) ? null : reader.GetString(5), supportsText);
+                string choiceFamily = ClassifyChoiceFamily(selectType, selectPolicy, reader.IsDBNull(5) ? null : reader.GetString(5), supportsText);
                 string ownerName = reader.GetString(2);
                 string ownerTypeName = reader.GetString(3);
                 string selectName = reader.IsDBNull(5) ? null : reader.GetString(5);
@@ -1310,6 +1333,7 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
                     selectName,
                     selectType,
                     selectPolicy,
+                    choiceFamily,
                     supportsText,
                     selectLevel,
                     reader.GetInt32(9),
@@ -2077,6 +2101,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             List<ComputedCharacterItemResult> languages = BuildComputedLanguages(evaluation, provenance);
             List<ComputedCharacterItemResult> feats = BuildComputedFeats(evaluation, provenance);
             List<ComputedCharacterItemResult> features = BuildComputedFeatures(evaluation, provenance);
+            List<ComputedGrantedSpellResult> grantedSpells = BuildComputedGrantedSpells(evaluation, provenance);
             List<ComputedCharacterItemResult> choiceSelections = BuildComputedChoiceSelections(workingDocument, provenance);
             List<ComputedCharacterItemResult> traits = BuildComputedTraits(connection, evaluation, provenance);
             List<PendingCharacterChoiceResult> pendingChoices = BuildPendingChoices(evaluation.AvailableSelects, evaluation.AppliedChoices);
@@ -2088,6 +2113,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 languages,
                 feats,
                 features,
+                grantedSpells,
                 choiceSelections,
                 traits,
                 pendingChoices,
@@ -2430,6 +2456,75 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             }
 
             return MergeComputedItems(items);
+        }
+
+        private static List<ComputedGrantedSpellResult> BuildComputedGrantedSpells(
+            CharacterEvaluationResult evaluation,
+            List<CharacterProvenanceEntry> provenanceSink)
+        {
+            var spells = new List<ComputedGrantedSpellResult>();
+
+            foreach (ActiveGrantResult grant in evaluation.ActiveGrants
+                         .Where(x => string.Equals(x.TargetTypeName, "Spell", StringComparison.OrdinalIgnoreCase)))
+            {
+                string key = grant.TargetAuroraId ?? grant.TargetName ?? $"grant:{grant.GrantId}";
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "granted-spell",
+                        key,
+                        "grant",
+                        grant.OwnerName,
+                        grant.OwnerTypeName,
+                        grant.TargetPackageKey,
+                        grant.TargetAuroraId,
+                        grant.TargetName,
+                        grant.SpellcastingName ?? grant.RequirementsText)
+                };
+
+                provenanceSink.AddRange(provenance);
+                spells.Add(new ComputedGrantedSpellResult(
+                    key,
+                    grant.TargetAuroraId,
+                    grant.TargetName ?? key,
+                    grant.TargetPackageKey,
+                    grant.SpellcastingName,
+                    grant.IsPrepared,
+                    grant.GrantLevel,
+                    provenance));
+            }
+
+            return spells
+                .GroupBy(
+                    x => string.Join(
+                        "|",
+                        x.SpellAuroraId ?? string.Empty,
+                        x.SpellName ?? string.Empty,
+                        x.SpellPackageKey ?? string.Empty,
+                        x.SpellcastingName ?? string.Empty,
+                        x.IsPrepared?.ToString() ?? string.Empty),
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    ComputedGrantedSpellResult first = group.First();
+                    return new ComputedGrantedSpellResult(
+                        first.SpellKey,
+                        first.SpellAuroraId,
+                        first.SpellName,
+                        first.SpellPackageKey,
+                        first.SpellcastingName,
+                        first.IsPrepared,
+                        first.GrantLevel,
+                        group.SelectMany(x => x.Provenance)
+                            .Distinct()
+                            .OrderBy(x => x.SourceKind, StringComparer.OrdinalIgnoreCase)
+                            .ThenBy(x => x.OwnerTypeName, StringComparer.OrdinalIgnoreCase)
+                            .ThenBy(x => x.OwnerName, StringComparer.OrdinalIgnoreCase)
+                            .ToList());
+                })
+                .OrderBy(x => x.SpellcastingName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.SpellName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static List<ComputedCharacterItemResult> BuildComputedChoiceSelections(
@@ -3147,7 +3242,9 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                         select.SelectName,
                         select.SelectType,
                         select.SelectPolicy,
+                        select.ChoiceFamily,
                         select.NumberToChoose,
+                        chosenCount,
                         alreadyOwnedCount,
                         remainingCount,
                         availableOptionCount,
@@ -3262,6 +3359,69 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
             }
 
             return "fixed-element-pool";
+        }
+
+        private static string ClassifyChoiceFamily(
+            string selectType,
+            string selectPolicy,
+            string selectName,
+            string supportsText)
+        {
+            selectType = selectType?.Trim();
+            selectName = selectName?.Trim();
+            supportsText = supportsText?.Trim();
+
+            if (string.Equals(selectPolicy, "asi-feature-pool", StringComparison.OrdinalIgnoreCase))
+                return "asi-pick";
+
+            if (string.Equals(selectType, "Language", StringComparison.OrdinalIgnoreCase))
+                return "language-pick";
+
+            if (string.Equals(selectType, "Proficiency", StringComparison.OrdinalIgnoreCase))
+            {
+                string family = ClassifyProficiencyChoiceFamily(selectName, supportsText);
+                return family ?? "proficiency-pick";
+            }
+
+            if (string.Equals(selectType, "Feat", StringComparison.OrdinalIgnoreCase))
+                return "feat-pick";
+
+            if (string.Equals(selectType, "List", StringComparison.OrdinalIgnoreCase))
+                return "text-choice";
+
+            if (string.Equals(selectType, "Race Variant", StringComparison.OrdinalIgnoreCase))
+                return "race-variant-pick";
+
+            if (string.Equals(selectType, "Class Feature", StringComparison.OrdinalIgnoreCase))
+            {
+                if ((selectName?.Contains("Fighting Style", StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (supportsText?.Contains("Fighting Style", StringComparison.OrdinalIgnoreCase) ?? false))
+                {
+                    return "fighting-style-pick";
+                }
+
+                return "feature-pick";
+            }
+
+            return "generic-element-pick";
+        }
+
+        private static string ClassifyProficiencyChoiceFamily(string selectName, string supportsText)
+        {
+            string combined = string.Join(" | ", new[] { selectName, supportsText }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+            if (combined.Contains("Skill", StringComparison.OrdinalIgnoreCase))
+                return "skill-pick";
+            if (combined.Contains("Tool", StringComparison.OrdinalIgnoreCase))
+                return "tool-pick";
+            if (combined.Contains("Armor", StringComparison.OrdinalIgnoreCase))
+                return "armor-proficiency-pick";
+            if (combined.Contains("Weapon", StringComparison.OrdinalIgnoreCase))
+                return "weapon-proficiency-pick";
+            if (combined.Contains("Saving Throw", StringComparison.OrdinalIgnoreCase))
+                return "saving-throw-pick";
+
+            return null;
         }
 
         private static decimal GetAbilityScore(AuroraExpressionEvaluationContext context, string abilityKey)

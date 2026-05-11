@@ -10,6 +10,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - second-stage ASI/feat choice expansion
 - structured computed-character output with pending-choice and provenance reporting
 - repeatable character-state regression baselines for first-party runtime fixtures
+- first-pass app-facing choice family and granted-spell projections
 
 ## Completed Foundations
 
@@ -60,6 +61,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Derived character output for:
   - computed ability scores
   - proficiencies and languages
+  - granted spell rows with spellcasting/prepared metadata
   - feats and features
   - applied text/list selections
   - semantic, grant-derived, and stat-derived traits
@@ -67,6 +69,10 @@ This roadmap reflects the project state as of the current `master` branch after:
   - pending choices
   - warnings
   - provenance / explainability
+- app-facing contract rows for:
+  - normalized choice families
+  - pending choice rows
+  - granted spell rows
 
 ## Current Milestone
 
@@ -115,6 +121,7 @@ Likely target families:
   - archetype selection
   - language/proficiency selections
   - Human Variant feat flow
+  - spell-grant scenarios such as domain or oath spells
 - use focused fixtures to lock down computed-trait scenarios such as Darkvision and typed movement entries like fly/climb/swim/burrow speeds
 - add guardrails for semantic expansion counts if useful
 - add guardrails for computed-character outputs such as:

@@ -491,7 +491,9 @@ namespace AuroraTranslator
                 }
             }
 
-            throw new DirectoryNotFoundException("Could not locate the project root containing AuroraTranslator.csproj.");
+            // Running as a published bundle — .csproj won't be present; fall back to exe directory.
+            // The schema SQL is published alongside the exe under Data/.
+            return AppContext.BaseDirectory;
         }
 
         private static void ImportAuroraToSqlite(string auroraPath, string sqlitePath)
@@ -595,7 +597,10 @@ namespace AuroraTranslator
                         : (!string.IsNullOrWhiteSpace(grant.TargetSemanticName)
                             ? grant.TargetSemanticName
                             : grant.TargetSemanticKey ?? "(unresolved)");
-                    Console.WriteLine($"    - {grant.OwnerName}: {targetText}");
+                    string spellcastingText = !string.IsNullOrWhiteSpace(grant.SpellcastingName)
+                        ? $" via {grant.SpellcastingName}{(grant.IsPrepared == true ? " (prepared)" : string.Empty)}"
+                        : string.Empty;
+                    Console.WriteLine($"    - {grant.OwnerName}: {targetText}{spellcastingText}");
                 }
 
                 int remainingCount = grantGroup.Count() - 8;
@@ -613,7 +618,7 @@ namespace AuroraTranslator
             {
                 int availableOptionCount = select.Options.Count(x => x.IsAvailable);
                 int ownedOptionCount = select.Options.Count(x => x.IsAlreadyOwned);
-                Console.WriteLine($"  - {select.OwnerTypeName}: {select.OwnerName} -> {select.SelectName} ({select.SelectType}, policy {select.SelectPolicy}, choose {select.NumberToChoose}, options {availableOptionCount}/{select.Options.Count})");
+                Console.WriteLine($"  - {select.OwnerTypeName}: {select.OwnerName} -> {select.SelectName} ({select.SelectType}, policy {select.SelectPolicy}, family {select.ChoiceFamily}, choose {select.NumberToChoose}, options {availableOptionCount}/{select.Options.Count})");
 
                 foreach (CharacterSelectOptionResult option in select.Options
                              .Where(x => x.IsAvailable)
@@ -641,7 +646,7 @@ namespace AuroraTranslator
                         ?? appliedChoice.OptionName
                         ?? "(unspecified option)";
                     Console.WriteLine(
-                        $"  - [{appliedChoice.Status}] {appliedChoice.OwnerTypeName}: {appliedChoice.OwnerName} -> {appliedChoice.SelectName} => {optionText}");
+                        $"  - [{appliedChoice.Status}] {appliedChoice.OwnerTypeName}: {appliedChoice.OwnerName} -> {appliedChoice.SelectName} ({appliedChoice.ChoiceFamily}) => {optionText}");
                     if (!string.IsNullOrWhiteSpace(appliedChoice.Message))
                         Console.WriteLine($"      {appliedChoice.Message}");
                 }
@@ -729,6 +734,8 @@ namespace AuroraTranslator
                     grant.OwnerTypeName,
                     grant.GrantType,
                     grant.GrantLevel,
+                    grant.SpellcastingName,
+                    grant.IsPrepared,
                     grant.RequirementsText,
                     grant.TargetElementId,
                     grant.TargetAuroraId,
@@ -747,6 +754,7 @@ namespace AuroraTranslator
                     choice.OwnerTypeName,
                     choice.SelectName,
                     choice.SelectType,
+                    choice.ChoiceFamily,
                     choice.OptionName,
                     choice.OptionAuroraId,
                     choice.FollowUpOptionName,
@@ -771,6 +779,7 @@ namespace AuroraTranslator
                         languages = result.ComputedCharacter.Languages.Select(BuildComputedCharacterItemExport).ToList(),
                         feats = result.ComputedCharacter.Feats.Select(BuildComputedCharacterItemExport).ToList(),
                         features = result.ComputedCharacter.Features.Select(BuildComputedCharacterItemExport).ToList(),
+                        grantedSpells = result.ComputedCharacter.GrantedSpells.Select(BuildComputedGrantedSpellExport).ToList(),
                         choiceSelections = result.ComputedCharacter.ChoiceSelections.Select(BuildComputedCharacterItemExport).ToList(),
                         movements = result.ComputedCharacter.Traits
                             .Where(item => string.Equals(item.TypeName, "movement", StringComparison.OrdinalIgnoreCase)
@@ -792,7 +801,9 @@ namespace AuroraTranslator
                             choice.SelectName,
                             choice.SelectType,
                             choice.SelectPolicy,
+                            choice.ChoiceFamily,
                             choice.NumberToChoose,
+                            choice.ChosenCount,
                             choice.AlreadyOwnedCount,
                             choice.RemainingCount,
                             choice.AvailableOptionCount,
@@ -819,6 +830,7 @@ namespace AuroraTranslator
                     select.SelectName,
                     select.SelectType,
                     select.SelectPolicy,
+                    select.ChoiceFamily,
                     select.SupportsText,
                     select.SelectLevel,
                     select.NumberToChoose,
@@ -844,6 +856,14 @@ namespace AuroraTranslator
                         .ToDictionary(
                             pair => pair.Key,
                             pair => pair.Value.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList())
+                },
+                appContract = new
+                {
+                    choiceRows = result.AvailableSelects.Select(BuildChoiceRowExport).ToList(),
+                    pendingChoiceRows = result.ComputedCharacter?.PendingChoices.Select(BuildPendingChoiceRowExport).ToList()
+                        ?? new List<object>(),
+                    grantedSpells = result.ComputedCharacter?.GrantedSpells.Select(BuildComputedGrantedSpellExport).ToList()
+                        ?? new List<object>()
                 }
             };
         }
@@ -859,6 +879,21 @@ namespace AuroraTranslator
                 item.PackageKey,
                 item.IsDirectSelection,
                 provenance = item.Provenance.Select(BuildCharacterProvenanceExport).ToList()
+            };
+        }
+
+        private static object BuildComputedGrantedSpellExport(ComputedGrantedSpellResult spell)
+        {
+            return new
+            {
+                spell.SpellKey,
+                spell.SpellAuroraId,
+                spell.SpellName,
+                spell.SpellPackageKey,
+                spell.SpellcastingName,
+                spell.IsPrepared,
+                spell.GrantLevel,
+                provenance = spell.Provenance.Select(BuildCharacterProvenanceExport).ToList()
             };
         }
 
@@ -896,6 +931,50 @@ namespace AuroraTranslator
                 followUpOptionCount = option.FollowUpOptions?.Count ?? 0,
                 followUpOptions = option.FollowUpOptions?.Select(BuildCharacterSelectOptionExport).ToList()
                     ?? new List<object>()
+            };
+        }
+
+        private static object BuildChoiceRowExport(CharacterSelectResult select)
+        {
+            return new
+            {
+                select.SelectId,
+                select.OwnerName,
+                select.OwnerTypeName,
+                select.OwnerPackageKey,
+                select.SelectName,
+                select.SelectType,
+                select.SelectPolicy,
+                select.ChoiceFamily,
+                select.SupportsText,
+                select.SelectLevel,
+                select.NumberToChoose,
+                select.IsOptional,
+                select.RequirementsText,
+                availableOptionCount = select.Options.Count(option => option.IsAvailable),
+                alreadyOwnedOptionCount = select.Options.Count(option => option.IsAlreadyOwned)
+            };
+        }
+
+        private static object BuildPendingChoiceRowExport(PendingCharacterChoiceResult choice)
+        {
+            return new
+            {
+                choice.SelectId,
+                choice.OwnerName,
+                choice.OwnerTypeName,
+                choice.OwnerPackageKey,
+                choice.SelectName,
+                choice.SelectType,
+                choice.SelectPolicy,
+                choice.ChoiceFamily,
+                choice.NumberToChoose,
+                choice.ChosenCount,
+                choice.AlreadyOwnedCount,
+                choice.RemainingCount,
+                choice.AvailableOptionCount,
+                choice.IsOptional,
+                choice.IsBlocking
             };
         }
 
@@ -1366,6 +1445,10 @@ namespace AuroraTranslator
                     .Select(x => x.Key)
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                     .ToArray(),
+                GrantedSpellKeys: computed.GrantedSpells
+                    .Select(x => $"{x.SpellKey}|{x.SpellcastingName ?? string.Empty}|prepared={x.IsPrepared?.ToString() ?? string.Empty}")
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
                 FeatKeys: computed.Feats
                     .Select(x => x.Key)
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
@@ -1383,12 +1466,12 @@ namespace AuroraTranslator
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                     .ToArray(),
                 PendingChoiceKeys: computed.PendingChoices
-                    .Select(x => $"{x.OwnerTypeName}|{x.OwnerName}|{x.SelectName}|remaining={x.RemainingCount}|blocking={x.IsBlocking}")
+                    .Select(x => $"{x.OwnerTypeName}|{x.OwnerName}|{x.SelectName}|family={x.ChoiceFamily}|remaining={x.RemainingCount}|blocking={x.IsBlocking}")
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                     .ToArray(),
                 ProvenanceKindCounts: BuildDiagnosticsCountList(computed.Provenance.GroupBy(x => $"{x.Category}|{x.SourceKind}")),
                 AppliedChoiceStates: result.AppliedChoices
-                    .Select(x => $"{x.ChoiceIndex}|{x.Status}|{x.OwnerTypeName}|{x.OwnerName}|{x.SelectName}|{x.FollowUpOptionName ?? x.OptionName}")
+                    .Select(x => $"{x.ChoiceIndex}|{x.Status}|{x.OwnerTypeName}|{x.OwnerName}|{x.SelectName}|family={x.ChoiceFamily}|{x.FollowUpOptionName ?? x.OptionName}")
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                     .ToArray());
         }
@@ -1413,6 +1496,7 @@ namespace AuroraTranslator
             CompareAbilityScores(expected.AbilityScores, actual.AbilityScores, failures);
             CompareStringList(expected.ProficiencyKeys, actual.ProficiencyKeys, "ProficiencyKeys", failures);
             CompareStringList(expected.LanguageKeys, actual.LanguageKeys, "LanguageKeys", failures);
+            CompareStringList(expected.GrantedSpellKeys, actual.GrantedSpellKeys, "GrantedSpellKeys", failures);
             CompareStringList(expected.FeatKeys, actual.FeatKeys, "FeatKeys", failures);
             CompareStringList(expected.FeatureKeys, actual.FeatureKeys, "FeatureKeys", failures);
             CompareStringList(expected.ChoiceSelectionKeys, actual.ChoiceSelectionKeys, "ChoiceSelectionKeys", failures);
@@ -1638,6 +1722,7 @@ namespace AuroraTranslator
             IReadOnlyList<CharacterStateAbilityScoreBaseline> AbilityScores,
             IReadOnlyList<string> ProficiencyKeys,
             IReadOnlyList<string> LanguageKeys,
+            IReadOnlyList<string> GrantedSpellKeys,
             IReadOnlyList<string> FeatKeys,
             IReadOnlyList<string> FeatureKeys,
             IReadOnlyList<string> ChoiceSelectionKeys,

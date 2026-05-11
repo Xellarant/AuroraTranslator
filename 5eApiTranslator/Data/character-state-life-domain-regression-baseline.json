@@ -1,0 +1,137 @@
+{
+  "CapturedAtUtc": "2026-05-11T05:01:29.5635295Z",
+  "StateLabel": "character-state-life-domain-example.json",
+  "DirectSelectionCount": 4,
+  "DirectSelections": [
+    "Archetype|Life Domain|core-players-handbook-2024|",
+    "Background|Acolyte|core-players-handbook-2024|",
+    "Class|Cleric|core-players-handbook-2024|3",
+    "Race|Human|core-players-handbook-2024|"
+  ],
+  "ActiveFeatureCount": 6,
+  "ActiveFeatures": [
+    "Archetype|Life Domain|Level 3: Disciple of Life|3",
+    "Archetype|Life Domain|Level 3: Life Domain Spells|3",
+    "Archetype|Life Domain|Level 3: Preserve Life|3",
+    "Class|Cleric|Level 1: Spellcasting|1",
+    "Class|Cleric|Level 2: Channel Divinity|2",
+    "Class|Cleric|Level 3: Cleric Subclass|3"
+  ],
+  "ActiveGrantCount": 32,
+  "AvailableSelectCount": 7,
+  "PendingChoiceCount": 7,
+  "BlockingPendingChoiceCount": 7,
+  "WarningCount": 7,
+  "WarningKindCounts": [
+    {
+      "Key": "pending-choice|error",
+      "Count": 3
+    },
+    {
+      "Key": "pending-choice|warning",
+      "Count": 4
+    }
+  ],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 16
+    }
+  ],
+  "ProficiencyKeys": [
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR",
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_MEDIUM_ARMOR",
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELD",
+    "ID_PROFICIENCY_SAVINGTHROW_CHARISMA",
+    "ID_PROFICIENCY_SAVINGTHROW_WISDOM",
+    "ID_PROFICIENCY_SKILL_INSIGHT",
+    "ID_PROFICIENCY_SKILL_RELIGION",
+    "ID_PROFICIENCY_TOOL_PROFICIENCY_CALLIGRAPHERS_SUPPLIES",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
+  ],
+  "LanguageKeys": [
+    "ID_LANGUAGE_COMMON"
+  ],
+  "GrantedSpellKeys": [
+    "ID_WOTC_PHB24_SPELL_AID|Cleric|prepared=True",
+    "ID_WOTC_PHB24_SPELL_BLESS|Cleric|prepared=True",
+    "ID_WOTC_PHB24_SPELL_CURE_WOUNDS|Cleric|prepared=True",
+    "ID_WOTC_PHB24_SPELL_LESSER_RESTORATION|Cleric|prepared=True"
+  ],
+  "FeatKeys": [],
+  "FeatureKeys": [
+    "ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_DISCIPLE_OF_LIFE",
+    "ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_LIFE_DOMAIN_SPELLS",
+    "ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_PRESERVE_LIFE",
+    "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY",
+    "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CLERIC_SUBCLASS",
+    "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_SPELLCASTING"
+  ],
+  "ChoiceSelectionKeys": [],
+  "TraitKeys": [
+    "ID_INTERNAL_GRANT_MULTICLASS_SPELLCASTING_SLOTS_FULL",
+    "ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_HOLY_SYMBOL",
+    "ID_INTERNAL_RITUAL_CASTING",
+    "movement:walk:30"
+  ],
+  "PendingChoiceKeys": [
+    "Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=generic-element-pick|remaining=3|blocking=True",
+    "Class Feature|Level 2: Channel Divinity|Channel Divinity: Divine Spark|family=feature-pick|remaining=1|blocking=True",
+    "Class Feature|Level 2: Channel Divinity|Channel Divinity: Turn Undead|family=feature-pick|remaining=1|blocking=True",
+    "Class Feature|Level 3: Cleric Subclass|Cleric Subclass|family=generic-element-pick|remaining=1|blocking=True",
+    "Class|Cleric|Skill Proficiency (Cleric)|family=skill-pick|remaining=2|blocking=True",
+    "Race|Human|Language (Human)|family=language-pick|remaining=2|blocking=True",
+    "Race|Human|Size (Human)|family=generic-element-pick|remaining=1|blocking=True"
+  ],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "feature|active-feature",
+      "Count": 6
+    },
+    {
+      "Key": "granted-spell|grant",
+      "Count": 4
+    },
+    {
+      "Key": "language|grant",
+      "Count": 1
+    },
+    {
+      "Key": "movement|stat",
+      "Count": 1
+    },
+    {
+      "Key": "proficiency|grant",
+      "Count": 9
+    },
+    {
+      "Key": "trait|semantic-grant",
+      "Count": 3
+    }
+  ],
+  "AppliedChoiceStates": []
+}

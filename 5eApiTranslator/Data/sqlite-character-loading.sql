@@ -17,6 +17,21 @@ BEGIN TRANSACTION;
 -- The next phase can normalize description markup and expression trees
 -- without replacing the core element/rule shape defined here.
 
+-- Compatibility metadata consumed by Aurora.App's DbElementLoader.
+-- schema_version and data_version MUST stay in sync with AuroraDatabaseVersions
+-- in the Aurora-Lights repo (Aurora.Importer/AuroraDatabaseMetadata.cs).
+CREATE TABLE IF NOT EXISTS database_metadata
+(
+    singleton_id      INTEGER NOT NULL PRIMARY KEY CHECK (singleton_id = 1),
+    schema_version    INTEGER NOT NULL DEFAULT 1,
+    data_version      INTEGER NOT NULL DEFAULT 9,
+    importer_version  TEXT    NOT NULL DEFAULT '',
+    built_utc         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    source_file_count INTEGER NOT NULL DEFAULT 0,
+    element_count     INTEGER NOT NULL DEFAULT 0,
+    content_root_hash TEXT
+);
+
 -- Tracks MD5 hashes of external import files (SRD JSON, etc.) for incremental updates.
 CREATE TABLE IF NOT EXISTS import_state
 (
@@ -1795,6 +1810,135 @@ JOIN element_types AS language_type
     ON language_type.element_type_id = language.element_type_id
 WHERE language_type.type_name = 'Language';
 
+DROP VIEW IF EXISTS v_granted_spells;
+CREATE VIEW v_granted_spells AS
+SELECT
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_rec.package_key AS owner_package_key,
+    owner_sf.relative_path AS owner_source_path,
+    owner_type.type_name AS owner_type_name,
+    g.grant_id,
+    g.ordinal AS grant_ordinal,
+    g.grant_level,
+    g.spellcasting_name,
+    g.is_prepared,
+    g.requirements_text,
+    spell.element_id AS spell_element_id,
+    spell.aurora_id AS spell_aurora_id,
+    spell.name AS spell_name,
+    spell_rec.package_key AS spell_package_key,
+    spell_sf.relative_path AS spell_source_path
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN resolved_elements_cache AS owner_rec
+    ON owner_rec.winning_element_id = owner.element_id
+JOIN source_files AS owner_sf
+    ON owner_sf.source_file_id = owner.source_file_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+JOIN elements AS spell
+    ON spell.element_id = g.target_element_id
+JOIN resolved_elements_cache AS spell_rec
+    ON spell_rec.winning_element_id = spell.element_id
+JOIN source_files AS spell_sf
+    ON spell_sf.source_file_id = spell.source_file_id
+JOIN element_types AS spell_type
+    ON spell_type.element_type_id = spell.element_type_id
+WHERE spell_type.type_name = 'Spell';
+
+DROP VIEW IF EXISTS v_choice_templates;
+CREATE VIEW v_choice_templates AS
+WITH option_counts AS
+(
+    SELECT
+        s.select_id,
+        COUNT(DISTINCT sol.option_element_id) AS element_option_count,
+        SUM(CASE WHEN si.option_kind = 'text-choice' THEN 1 ELSE 0 END) AS text_option_count
+    FROM selects AS s
+    LEFT JOIN select_option_links AS sol
+        ON sol.select_id = s.select_id
+    LEFT JOIN select_items AS si
+        ON si.select_id = s.select_id
+    GROUP BY s.select_id
+)
+SELECT
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_type.type_name AS owner_type_name,
+    owner_rec.package_key AS owner_package_key,
+    owner_sf.relative_path AS owner_source_path,
+    s.select_id,
+    s.name_text AS select_name,
+    s.select_type,
+    s.supports_text,
+    s.select_level,
+    s.number_to_choose,
+    s.is_optional,
+    s.requirements_text,
+    CASE
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'language' THEN 'broad-language-pool'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'proficiency' THEN 'broad-proficiency-pool'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'feat' THEN 'broad-feat-pool'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'list' THEN 'text-choice-pool'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'class feature'
+         AND lower(COALESCE(s.supports_text, '')) LIKE '%improvement option%'
+            THEN 'asi-feature-pool'
+        ELSE 'fixed-element-pool'
+    END AS select_policy,
+    CASE
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'language' THEN 'language-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'proficiency'
+         AND (lower(COALESCE(s.name_text, '')) LIKE '%skill%' OR lower(COALESCE(s.supports_text, '')) LIKE '%skill%')
+            THEN 'skill-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'proficiency'
+         AND (lower(COALESCE(s.name_text, '')) LIKE '%tool%' OR lower(COALESCE(s.supports_text, '')) LIKE '%tool%')
+            THEN 'tool-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'proficiency'
+         AND (lower(COALESCE(s.name_text, '')) LIKE '%armor%' OR lower(COALESCE(s.supports_text, '')) LIKE '%armor%')
+            THEN 'armor-proficiency-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'proficiency'
+         AND (lower(COALESCE(s.name_text, '')) LIKE '%weapon%' OR lower(COALESCE(s.supports_text, '')) LIKE '%weapon%')
+            THEN 'weapon-proficiency-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'proficiency'
+         AND (lower(COALESCE(s.name_text, '')) LIKE '%saving throw%' OR lower(COALESCE(s.supports_text, '')) LIKE '%saving throw%')
+            THEN 'saving-throw-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'proficiency' THEN 'proficiency-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'feat' THEN 'feat-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'list' THEN 'text-choice'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'race variant' THEN 'race-variant-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'class feature'
+         AND lower(COALESCE(s.supports_text, '')) LIKE '%improvement option%'
+            THEN 'asi-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'class feature'
+         AND (lower(COALESCE(s.name_text, '')) LIKE '%fighting style%' OR lower(COALESCE(s.supports_text, '')) LIKE '%fighting style%')
+            THEN 'fighting-style-pick'
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'class feature' THEN 'feature-pick'
+        ELSE 'generic-element-pick'
+    END AS choice_family,
+    COALESCE(option_counts.element_option_count, 0) AS element_option_count,
+    COALESCE(option_counts.text_option_count, 0) AS text_option_count,
+    COALESCE(option_counts.element_option_count, 0) + COALESCE(option_counts.text_option_count, 0) AS total_option_count
+FROM selects AS s
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = s.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN resolved_elements_cache AS owner_rec
+    ON owner_rec.winning_element_id = owner.element_id
+JOIN source_files AS owner_sf
+    ON owner_sf.source_file_id = owner.source_file_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+LEFT JOIN option_counts
+    ON option_counts.select_id = s.select_id
+WHERE rs.owner_kind = 'element';
+
 DROP VIEW IF EXISTS v_selectable_options;
 CREATE VIEW v_selectable_options AS
 SELECT
@@ -1914,6 +2058,8 @@ SELECT
     g.grant_type,
     g.name_text,
     g.target_aurora_id,
+    g.spellcasting_name,
+    g.is_prepared,
     g.target_semantic_key,
     g.target_semantic_kind,
     g.target_semantic_name,

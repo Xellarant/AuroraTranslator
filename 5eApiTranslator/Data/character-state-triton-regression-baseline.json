@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T04:34:12.3225992Z",
+  "CapturedAtUtc": "2026-05-11T05:01:30.6217173Z",
   "StateLabel": "character-state-triton-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
@@ -23,6 +23,7 @@
   "LanguageKeys": [
     "ID_LANGUAGE_COMMON"
   ],
+  "GrantedSpellKeys": [],
   "FeatKeys": [],
   "FeatureKeys": [],
   "ChoiceSelectionKeys": [],
@@ -33,8 +34,8 @@
     "movement:walk:30"
   ],
   "PendingChoiceKeys": [
-    "Race|Triton|Ability Score Improvement Option (Triton)|remaining=1|blocking=True",
-    "Race|Triton|Language (Triton)|remaining=1|blocking=True"
+    "Race|Triton|Ability Score Improvement Option (Triton)|family=generic-element-pick|remaining=1|blocking=True",
+    "Race|Triton|Language (Triton)|family=language-pick|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {
