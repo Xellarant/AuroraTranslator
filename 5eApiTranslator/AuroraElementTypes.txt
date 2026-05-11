@@ -1,0 +1,136 @@
+Aurora Builder Element Types
+============================
+Source: https://aurorabuilder.com/documentation/anatomy-of-the-element/
+Last reviewed: 2026-03-19
+
+Status key:
+  [DONE]  - Fully implemented
+  [STUB]  - Method and dictionary entry exist, sproc not yet written
+  [SKIP]  - Intentionally excluded
+
+
+------------------------------------------------------------------------
+OWN TABLE / PROCEDURE
+------------------------------------------------------------------------
+
+[DONE]  Spell
+        Sproc:  sp_Spells_Import, sp_Spells_Classes_Import
+        Notes:  Level, school, casting time, duration, range, components,
+                concentration, ritual. Classes/subclasses stored separately.
+
+[DONE]  Feat
+        Sproc:  sp_Feats_Import
+        Notes:  Description, requirements, supports, rules (JSON).
+
+[DONE]  Magic Item
+        Sproc:  sp_MItems_Import
+        Notes:  Description, source, requirements, supports, rules (JSON).
+                TODO: mitem type category logic not yet implemented.
+
+[STUB]  Class
+        Sproc:  sp_Classes_Import
+        Notes:  Hit die (setters.hd), spellcasting block (ability, list),
+                multiclass block (prerequisite, requirements),
+                level-gated rules (grants/selects) serialized as JSON.
+
+[STUB]  Archetype
+        Sproc:  sp_Archetypes_Import
+        Notes:  Parent class via supports. Optional spellcasting block
+                (ability, list, extend flag). Rules as JSON.
+
+[STUB]  Race
+        Sproc:  sp_Races_Import
+        Notes:  Name tables: male, female, clan (setters).
+                Name format (setters). Rules as JSON.
+
+[STUB]  Sub Race
+        Sproc:  sp_SubRaces_Import
+        Notes:  Parent race via supports. Inherits/overrides race traits.
+                Rules as JSON.
+
+[STUB]  Background
+        Sproc:  sp_Backgrounds_Import
+        Notes:  Description. Rules (grants for proficiencies, languages,
+                starting equipment) as JSON.
+
+[STUB]  Language
+        Sproc:  sp_Languages_Import
+        Notes:  Speakers (setters), script (setters), is_exotic (setters).
+
+[STUB]  Proficiency
+        Sproc:  sp_Proficiencies_Import
+        Notes:  Type category (skill, weapon, armor, tool, etc.)
+                derived from supports.
+
+
+------------------------------------------------------------------------
+SHARED: sp_Features_Import  (feature_type column discriminates)
+------------------------------------------------------------------------
+
+[STUB]  Class Feature
+[STUB]  Archetype Feature
+[STUB]  Racial Trait
+[STUB]  Background Feature
+[STUB]  Feat Feature
+[STUB]  Ability Score Improvement
+
+        Sproc:  sp_Features_Import
+        Notes:  All share the same structure: index, name, source,
+                aurora_id, feature_type (el.type), parent_id (supports),
+                level (from sheet or rules), description,
+                sheet info (alt, action, usage), rules as JSON.
+
+
+------------------------------------------------------------------------
+SHARED: sp_Items_Import  (item_type column discriminates)
+------------------------------------------------------------------------
+
+[STUB]  Item
+[STUB]  Weapon
+[STUB]  Armor
+[STUB]  Ammunition
+[STUB]  Mount
+[STUB]  Vehicle
+
+        Sproc:  sp_Items_Import
+        Notes:  Common: index, name, source, aurora_id, item_type, description,
+                cost (setters), weight (setters).
+                Weapon extras:  damage die, damage type, properties (supports).
+                Armor extras:   AC formula, stealth disadvantage (setters).
+                Mount/Vehicle:  speed, carrying capacity (setters).
+                Consider child tables for weapon/armor specifics if normalizing.
+
+
+------------------------------------------------------------------------
+LOWER PRIORITY
+------------------------------------------------------------------------
+
+[STUB]  Companion
+[STUB]  Companion Action
+[STUB]  Companion Trait
+
+        Sproc:  sp_Companions_Import
+        Notes:  Shared method. Full stat block structure TBD — these are
+                complex and rarely needed for a character sheet app.
+
+[STUB]  Deity
+        Sproc:  sp_Deities_Import
+        Notes:  Alignment, domains, symbol likely all in setters.
+
+[STUB]  Option
+        Sproc:  sp_Options_Import
+        Notes:  Campaign/character creation meta-options. Rules as JSON.
+
+[STUB]  List
+        Sproc:  sp_Lists_Import
+        Notes:  Personality traits, ideals, bonds, flaws. list_type from
+                supports. Entries serialized as JSON array.
+
+
+------------------------------------------------------------------------
+SKIPPED
+------------------------------------------------------------------------
+
+[SKIP]  Support
+        Notes:  Aurora internal meta-type. No user-facing data. Excluded
+                from elementImporters dictionary.

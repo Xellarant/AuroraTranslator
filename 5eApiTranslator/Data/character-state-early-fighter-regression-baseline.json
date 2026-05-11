@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-10T21:58:09.5653118Z",
+  "CapturedAtUtc": "2026-05-11T00:14:44.2468948Z",
   "StateLabel": "character-state-early-fighter-example.json",
   "DirectSelectionCount": 7,
   "DirectSelections": [
@@ -23,13 +23,13 @@
   ],
   "ActiveGrantCount": 20,
   "AvailableSelectCount": 12,
-  "PendingChoiceCount": 6,
-  "BlockingPendingChoiceCount": 4,
-  "WarningCount": 4,
+  "PendingChoiceCount": 10,
+  "BlockingPendingChoiceCount": 8,
+  "WarningCount": 8,
   "WarningKindCounts": [
     {
       "Key": "pending-choice|warning",
-      "Count": 4
+      "Count": 8
     }
   ],
   "AbilityScores": [
@@ -86,8 +86,11 @@
     "ID_WOTC_PHB_CLASS_FEATURE_SECONDWIND"
   ],
   "ChoiceSelectionKeys": [
+    "$(choice||Background||Acolyte||Language (Acolyte))|ID_LANGUAGE_DRACONIC",
     "$(choice||Background||Acolyte||Personality Trait)|I am tolerant (or intolerant) of other faiths and respect (or condemn) the worship of other gods.",
-    "$(choice||Background||Acolyte||Personality Trait)|I can find common ground between the fiercest enemies, empathizing with them and always working toward peace."
+    "$(choice||Background||Acolyte||Personality Trait)|I can find common ground between the fiercest enemies, empathizing with them and always working toward peace.",
+    "$(choice||Class Feature||Fighting Style||Fighting Style)|ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE_DEFENSE",
+    "$(choice||Class||Fighter||Skill Proficiency (Fighter))|ID_PROFICIENCY_SKILL_ATHLETICS"
   ],
   "TraitKeys": [
     "ID_SIZE_MEDIUM",
@@ -97,9 +100,13 @@
     "Background|Acolyte|Bond|remaining=1|blocking=True",
     "Background|Acolyte|Flaw|remaining=1|blocking=True",
     "Background|Acolyte|Ideal|remaining=1|blocking=True",
+    "Background|Acolyte|Language (Acolyte)|remaining=1|blocking=True",
     "Background|Acolyte|Variant Feature|remaining=1|blocking=False",
     "Class Feature|Ability Score Improvement|Improvement Option (Fighter 4)|remaining=1|blocking=True",
-    "Race|Human|Human Variant|remaining=1|blocking=False"
+    "Class Feature|Martial Archetype|Martial Archetype|remaining=1|blocking=True",
+    "Class|Fighter|Skill Proficiency (Fighter)|remaining=1|blocking=True",
+    "Race|Human|Human Variant|remaining=1|blocking=False",
+    "Race|Human|Language (Human)|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {
@@ -108,7 +115,7 @@
     },
     {
       "Key": "choice-selection|selected-choice",
-      "Count": 2
+      "Count": 5
     },
     {
       "Key": "feature|active-feature",

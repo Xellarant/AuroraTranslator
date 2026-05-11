@@ -56,6 +56,7 @@ This roadmap reflects the project state as of the current `master` branch after:
   - `Ability Score Improvement`
   - `Feat`
 - Iterative choice application and re-evaluation
+- Pending multi-pick select counts now key off explicit applied choices rather than unrelated globally owned options
 - Derived character output for:
   - computed ability scores
   - proficiencies and languages

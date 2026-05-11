@@ -113,6 +113,7 @@ namespace AuroraTranslator
         string OptionText,
         bool IsAvailable,
         bool IsAlreadyOwned,
+        bool IsChosenForSelect,
         string RequirementText,
         string FollowUpKind = null,
         IReadOnlyList<CharacterSelectOptionResult> FollowUpOptions = null);
@@ -736,41 +737,47 @@ ORDER BY rec.package_key ASC, e.name ASC;";
                 Name = option.OptionName,
                 PackageKey = option.OptionPackageKey
             };
+            string storedChoiceValue = !string.IsNullOrWhiteSpace(option.OptionAuroraId)
+                ? option.OptionAuroraId
+                : !string.IsNullOrWhiteSpace(option.OptionName)
+                    ? option.OptionName
+                    : option.OptionText;
+            bool storedChoice = StoreChoiceValue(document, select, storedChoiceValue);
 
             string optionTypeName = option.OptionTypeName?.Trim();
             if (string.Equals(optionTypeName, "Archetype", StringComparison.OrdinalIgnoreCase))
-                return AddSelection(document.Archetypes, selection);
+                return AddSelection(document.Archetypes, selection) || storedChoice;
             if (string.Equals(optionTypeName, "Race Variant", StringComparison.OrdinalIgnoreCase))
-                return AddSelection(document.RaceVariants, selection);
+                return AddSelection(document.RaceVariants, selection) || storedChoice;
             if (string.Equals(optionTypeName, "Feat", StringComparison.OrdinalIgnoreCase))
-                return AddSelection(document.Feats, selection);
+                return AddSelection(document.Feats, selection) || storedChoice;
             if (string.Equals(optionTypeName, "Language", StringComparison.OrdinalIgnoreCase))
-                return AddSelection(document.Languages, selection);
+                return AddSelection(document.Languages, selection) || storedChoice;
             if (string.Equals(optionTypeName, "Proficiency", StringComparison.OrdinalIgnoreCase))
-                return AddSelection(document.Proficiencies, selection);
+                return AddSelection(document.Proficiencies, selection) || storedChoice;
             if (string.Equals(optionTypeName, "Sub Race", StringComparison.OrdinalIgnoreCase))
             {
                 if (MatchesSelection(document.SubRace, selection))
-                    return false;
+                    return storedChoice;
                 document.SubRace = selection;
                 return true;
             }
             if (string.Equals(optionTypeName, "Background", StringComparison.OrdinalIgnoreCase))
             {
                 if (MatchesSelection(document.Background, selection))
-                    return false;
+                    return storedChoice;
                 document.Background = selection;
                 return true;
             }
             if (string.Equals(optionTypeName, "Race", StringComparison.OrdinalIgnoreCase))
             {
                 if (MatchesSelection(document.Race, selection))
-                    return false;
+                    return storedChoice;
                 document.Race = selection;
                 return true;
             }
 
-            return AddSelection(document.Elements, selection);
+            return AddSelection(document.Elements, selection) || storedChoice;
         }
 
         private static bool ApplyAsiOptionToDocument(AuroraCharacterStateDocument document, CharacterSelectOptionResult option)
@@ -823,18 +830,7 @@ ORDER BY rec.package_key ASC, e.name ASC;";
             if (string.IsNullOrWhiteSpace(selectedValue))
                 return false;
 
-            string macroName = BuildChoiceMacroName(select.OwnerTypeName, select.OwnerName, select.SelectName);
-            if (!document.MacroValues.TryGetValue(macroName, out List<string> values) || values == null)
-            {
-                values = new List<string>();
-                document.MacroValues[macroName] = values;
-            }
-
-            if (values.Any(x => string.Equals(x, selectedValue, StringComparison.OrdinalIgnoreCase)))
-                return false;
-
-            values.Add(selectedValue);
-            return true;
+            return StoreChoiceValue(document, select, selectedValue);
         }
 
         private static bool AddSelection(List<AuroraCharacterStateSelection> selections, AuroraCharacterStateSelection candidate)
@@ -1341,10 +1337,10 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
             selectPolicy = selectPolicy?.Trim();
 
             if (string.Equals(selectPolicy, "broad-language-pool", StringComparison.OrdinalIgnoreCase))
-                return LoadLanguageOptions(connection, supportsText, context);
+                return LoadLanguageOptions(connection, supportsText, context, ownerTypeName, ownerName, selectName);
 
             if (string.Equals(selectPolicy, "broad-proficiency-pool", StringComparison.OrdinalIgnoreCase))
-                return LoadProficiencyOptions(connection, supportsText, context);
+                return LoadProficiencyOptions(connection, supportsText, context, ownerTypeName, ownerName, selectName);
 
             if (string.Equals(selectPolicy, "broad-feat-pool", StringComparison.OrdinalIgnoreCase))
                 return BuildFeatFollowUpOptions(connection, context);
@@ -1408,6 +1404,7 @@ ORDER BY
                 string requirementText = null;
                 bool isAvailable = true;
                 bool isAlreadyOwned = false;
+                bool isChosenForSelect = false;
 
                 if (optionElementId.HasValue)
                 {
@@ -1418,10 +1415,18 @@ ORDER BY
                     isAvailable = IsRequirementSatisfied(requirementText, context);
                     isAlreadyOwned = (!string.IsNullOrWhiteSpace(optionAuroraId) && context.MatchesToken(optionAuroraId))
                                      || (!string.IsNullOrWhiteSpace(optionName) && context.MatchesToken(optionName));
+                    isChosenForSelect = IsStoredChoiceValue(
+                        context,
+                        ownerTypeName,
+                        ownerName,
+                        selectName,
+                        optionAuroraId,
+                        optionName);
                 }
                 else
                 {
                     isAlreadyOwned = IsStoredTextChoice(context, ownerTypeName, ownerName, selectName, optionText ?? optionName);
+                    isChosenForSelect = isAlreadyOwned;
                 }
 
                 IReadOnlyList<CharacterSelectOptionResult> followUpOptions = null;
@@ -1443,6 +1448,7 @@ ORDER BY
                     optionText,
                     isAvailable,
                     isAlreadyOwned,
+                    isChosenForSelect,
                     requirementText,
                     followUpKind,
                     followUpOptions));
@@ -1552,6 +1558,7 @@ ORDER BY s.ordinal ASC;";
                     null,
                     true,
                     false,
+                    false,
                     requirementsText,
                     $"select-preview:{selectPolicy}",
                     options));
@@ -1584,7 +1591,10 @@ ORDER BY s.ordinal ASC;";
         private static List<CharacterSelectOptionResult> LoadLanguageOptions(
             SqliteConnection connection,
             string supportsText,
-            AuroraExpressionEvaluationContext context)
+            AuroraExpressionEvaluationContext context,
+            string ownerTypeName,
+            string ownerName,
+            string selectName)
         {
             List<string> supportAtoms = ExtractSupportAtoms(supportsText);
             bool allowStandard = supportAtoms.Any(x => string.Equals(x, "Standard", StringComparison.OrdinalIgnoreCase));
@@ -1641,6 +1651,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     null,
                     true,
                     isAlreadyOwned,
+                    IsStoredChoiceValue(context, ownerTypeName, ownerName, selectName, optionAuroraId, optionName),
                     LoadElementRequirementText(connection, reader.GetInt32(0))));
             }
 
@@ -1674,6 +1685,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     null,
                     true,
                     false,
+                    false,
                     null,
                     "ability-score-improvement",
                     asiFollowUps),
@@ -1686,6 +1698,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     null,
                     null,
                     featAllowed,
+                    false,
                     false,
                     "ID_INTERNAL_OPTION_ALLOW_FEATS",
                     "feat-selection",
@@ -1714,6 +1727,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     BuildAsiPayload("plus2", abilityKey),
                     isAvailable,
                     false,
+                    false,
                     isAvailable ? null : "Ability score would exceed 20."));
             }
 
@@ -1736,6 +1750,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                         null,
                         BuildAsiPayload("plus1plus1", leftAbility, rightAbility),
                         isAvailable,
+                        false,
                         false,
                         isAvailable ? null : "One or more ability scores would exceed 20."));
                 }
@@ -1785,6 +1800,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     null,
                     isAvailable,
                     isAlreadyOwned,
+                    false,
                     requirementText));
             }
 
@@ -1799,7 +1815,10 @@ ORDER BY e.name ASC, rec.package_key ASC;";
         private static List<CharacterSelectOptionResult> LoadProficiencyOptions(
             SqliteConnection connection,
             string supportsText,
-            AuroraExpressionEvaluationContext context)
+            AuroraExpressionEvaluationContext context,
+            string ownerTypeName,
+            string ownerName,
+            string selectName)
         {
             List<string> supportAtoms = ExtractSupportAtoms(supportsText);
             string groupFilter = ResolveProficiencyGroupFilter(supportAtoms);
@@ -1863,6 +1882,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     null,
                     true,
                     isAlreadyOwned,
+                    IsStoredChoiceValue(context, ownerTypeName, ownerName, selectName, optionAuroraId, proficiencyName),
                     LoadElementRequirementText(connection, reader.GetInt32(0))));
             }
 
@@ -1952,6 +1972,61 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                    && values.Contains(value.Trim());
         }
 
+        private static bool IsStoredChoiceValue(
+            AuroraExpressionEvaluationContext context,
+            string ownerTypeName,
+            string ownerName,
+            string selectName,
+            params string[] values)
+        {
+            if (context == null || values == null || values.Length == 0)
+                return false;
+
+            string macroName = BuildChoiceMacroName(ownerTypeName, ownerName, selectName);
+            if (!context.MacroValues.TryGetValue(macroName, out HashSet<string> storedValues) || storedValues == null)
+                return false;
+
+            foreach (string value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value) && storedValues.Contains(value.Trim()))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool StoreChoiceValue(
+            AuroraCharacterStateDocument document,
+            CharacterSelectResult select,
+            params string[] values)
+        {
+            if (document == null || select == null || values == null || values.Length == 0)
+                return false;
+
+            string macroName = BuildChoiceMacroName(select.OwnerTypeName, select.OwnerName, select.SelectName);
+            if (!document.MacroValues.TryGetValue(macroName, out List<string> storedValues) || storedValues == null)
+            {
+                storedValues = new List<string>();
+                document.MacroValues[macroName] = storedValues;
+            }
+
+            bool changed = false;
+            foreach (string value in values)
+            {
+                string trimmed = value?.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed))
+                    continue;
+
+                if (storedValues.Any(x => string.Equals(x, trimmed, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                storedValues.Add(trimmed);
+                changed = true;
+            }
+
+            return changed;
+        }
+
         private static List<string> ResolveSpecificSupportFilters(IReadOnlyList<string> supportAtoms, string groupFilter)
         {
             return supportAtoms
@@ -2004,8 +2079,8 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             List<ComputedCharacterItemResult> features = BuildComputedFeatures(evaluation, provenance);
             List<ComputedCharacterItemResult> choiceSelections = BuildComputedChoiceSelections(workingDocument, provenance);
             List<ComputedCharacterItemResult> traits = BuildComputedTraits(connection, evaluation, provenance);
-            List<PendingCharacterChoiceResult> pendingChoices = BuildPendingChoices(evaluation.AvailableSelects);
-            List<CharacterWarningResult> warnings = BuildCharacterWarnings(evaluation.AppliedChoices, pendingChoices);
+            List<PendingCharacterChoiceResult> pendingChoices = BuildPendingChoices(evaluation.AvailableSelects, evaluation.AppliedChoices);
+            List<CharacterWarningResult> warnings = BuildCharacterWarnings(evaluation.AppliedChoices, pendingChoices, evaluation.AvailableSelects);
 
             return new ComputedCharacterResult(
                 abilityScores,
@@ -3053,13 +3128,16 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                 item.Provenance);
         }
 
-        private static List<PendingCharacterChoiceResult> BuildPendingChoices(IReadOnlyList<CharacterSelectResult> availableSelects)
+        private static List<PendingCharacterChoiceResult> BuildPendingChoices(
+            IReadOnlyList<CharacterSelectResult> availableSelects,
+            IReadOnlyList<AppliedCharacterChoiceResult> appliedChoices)
         {
             return availableSelects
                 .Select(select =>
                 {
+                    int chosenCount = CountAppliedChoicesForSelect(appliedChoices, select);
                     int alreadyOwnedCount = select.Options.Count(x => x.IsAlreadyOwned);
-                    int remainingCount = Math.Max(0, select.NumberToChoose - alreadyOwnedCount);
+                    int remainingCount = Math.Max(0, select.NumberToChoose - chosenCount);
                     int availableOptionCount = select.Options.Count(x => x.IsAvailable && !x.IsAlreadyOwned);
                     return new PendingCharacterChoiceResult(
                         select.SelectId,
@@ -3084,9 +3162,26 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                 .ToList();
         }
 
+        private static int CountAppliedChoicesForSelect(
+            IReadOnlyList<AppliedCharacterChoiceResult> appliedChoices,
+            CharacterSelectResult select)
+        {
+            if (appliedChoices == null || select == null)
+                return 0;
+
+            return appliedChoices
+                .Where(choice => string.Equals(choice.Status, "applied", StringComparison.OrdinalIgnoreCase)
+                                 || string.Equals(choice.Status, "already-applied", StringComparison.OrdinalIgnoreCase))
+                .Where(choice => choice.SelectId == select.SelectId)
+                .Select(choice => $"{choice.OptionAuroraId ?? string.Empty}|{choice.OptionName ?? string.Empty}|{choice.FollowUpOptionAuroraId ?? string.Empty}|{choice.FollowUpOptionName ?? string.Empty}")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+        }
+
         private static List<CharacterWarningResult> BuildCharacterWarnings(
             IReadOnlyList<AppliedCharacterChoiceResult> appliedChoices,
-            IReadOnlyList<PendingCharacterChoiceResult> pendingChoices)
+            IReadOnlyList<PendingCharacterChoiceResult> pendingChoices,
+            IReadOnlyList<CharacterSelectResult> availableSelects)
         {
             var warnings = new List<CharacterWarningResult>();
 
@@ -3117,6 +3212,21 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                     pendingChoice.OwnerName,
                     pendingChoice.OwnerTypeName,
                     pendingChoice.SelectName));
+            }
+
+            foreach (CharacterSelectResult select in availableSelects ?? Array.Empty<CharacterSelectResult>())
+            {
+                int appliedCount = CountAppliedChoicesForSelect(appliedChoices, select);
+                if (appliedCount <= select.NumberToChoose)
+                    continue;
+
+                warnings.Add(new CharacterWarningResult(
+                    "over-selected-choice",
+                    "error",
+                    $"This choice has {appliedCount} applied selections but only allows {select.NumberToChoose}.",
+                    select.OwnerName,
+                    select.OwnerTypeName,
+                    select.SelectName));
             }
 
             return warnings

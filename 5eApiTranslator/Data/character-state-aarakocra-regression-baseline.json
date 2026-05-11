@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-10T21:56:36.4005346Z",
+  "CapturedAtUtc": "2026-05-11T04:34:10.9105413Z",
   "StateLabel": "character-state-aarakocra-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
@@ -9,13 +9,13 @@
   "ActiveFeatures": [],
   "ActiveGrantCount": 5,
   "AvailableSelectCount": 2,
-  "PendingChoiceCount": 1,
-  "BlockingPendingChoiceCount": 1,
-  "WarningCount": 1,
+  "PendingChoiceCount": 2,
+  "BlockingPendingChoiceCount": 2,
+  "WarningCount": 2,
   "WarningKindCounts": [
     {
       "Key": "pending-choice|warning",
-      "Count": 1
+      "Count": 2
     }
   ],
   "AbilityScores": [],
@@ -32,7 +32,8 @@
     "movement:walk:30"
   ],
   "PendingChoiceKeys": [
-    "Race|Aarakocra|Ability Score Improvement Option (Aarakocra)|remaining=1|blocking=True"
+    "Race|Aarakocra|Ability Score Improvement Option (Aarakocra)|remaining=1|blocking=True",
+    "Race|Aarakocra|Language (Aarakocra)|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {

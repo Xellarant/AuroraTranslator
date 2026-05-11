@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-10T21:58:09.2704334Z",
+  "CapturedAtUtc": "2026-05-11T00:14:44.3410641Z",
   "StateLabel": "character-state-example.json",
   "DirectSelectionCount": 4,
   "DirectSelections": [
@@ -20,13 +20,13 @@
   ],
   "ActiveGrantCount": 20,
   "AvailableSelectCount": 12,
-  "PendingChoiceCount": 10,
-  "BlockingPendingChoiceCount": 8,
-  "WarningCount": 8,
+  "PendingChoiceCount": 12,
+  "BlockingPendingChoiceCount": 10,
+  "WarningCount": 10,
   "WarningKindCounts": [
     {
       "Key": "pending-choice|warning",
-      "Count": 8
+      "Count": 10
     }
   ],
   "AbilityScores": [
@@ -89,13 +89,15 @@
     "Background|Acolyte|Bond|remaining=1|blocking=True",
     "Background|Acolyte|Flaw|remaining=1|blocking=True",
     "Background|Acolyte|Ideal|remaining=1|blocking=True",
-    "Background|Acolyte|Language (Acolyte)|remaining=1|blocking=True",
+    "Background|Acolyte|Language (Acolyte)|remaining=2|blocking=True",
     "Background|Acolyte|Personality Trait|remaining=2|blocking=True",
     "Background|Acolyte|Variant Feature|remaining=1|blocking=False",
     "Class Feature|Ability Score Improvement|Improvement Option (Fighter 4)|remaining=1|blocking=True",
     "Class Feature|Fighting Style|Fighting Style|remaining=1|blocking=True",
-    "Class|Fighter|Skill Proficiency (Fighter)|remaining=1|blocking=True",
-    "Race|Human|Human Variant|remaining=1|blocking=False"
+    "Class Feature|Martial Archetype|Martial Archetype|remaining=1|blocking=True",
+    "Class|Fighter|Skill Proficiency (Fighter)|remaining=2|blocking=True",
+    "Race|Human|Human Variant|remaining=1|blocking=False",
+    "Race|Human|Language (Human)|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {

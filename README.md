@@ -29,6 +29,7 @@ Notable runtime capabilities already in place:
 - package precedence can be inspected, changed, parity-checked, and refreshed from the CLI
 - character-state evaluation can resolve active features, grants, and select pools
 - ASI/feat selects now expand into second-stage builder choices
+- pending multi-pick choices are now counted from explicit applied selections instead of incidental global ownership
 - character-state JSON output now includes a `computedCharacter` section with derived scores, traits, pending choices, warnings, and provenance
 - application-facing computed output now breaks traits into clearer `movements`, `senses`, and overall `traits` collections
 - committed character-state fixtures now cover baseline, bond/text-choice, early fighter, elf darkvision, first-party fly/climb/swim movement scenarios, and a companion burrow-speed scenario

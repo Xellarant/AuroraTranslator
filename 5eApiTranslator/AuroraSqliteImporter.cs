@@ -968,6 +968,8 @@ LIMIT $sample_count;";
             // The .sql file contains PRAGMA / BEGIN TRANSACTION / COMMIT for use with standalone
             // SQLite tools.  Strip those lines before executing programmatically: we manage our
             // own transaction and deliberately leave FK enforcement OFF during bulk import.
+            bool grantColumnsBootstrapped = ApplySchemaBootstrapMigrations(connection);
+
             string rawSql = File.ReadAllText(schemaPath);
             string schemaSql = System.Text.RegularExpressions.Regex.Replace(
                 rawSql,
@@ -983,6 +985,9 @@ LIMIT $sample_count;";
             // Apply any migrations that can't be expressed with IF NOT EXISTS in the schema
             // (e.g. ADD COLUMN on an existing table).
             ApplyMigrations(connection);
+
+            if (grantColumnsBootstrapped)
+                InvalidateSourceFileHashes(connection);
         }
 
         private static SqliteConnection OpenSqliteConnection(string sqlitePath)
@@ -1048,9 +1053,14 @@ LIMIT $sample_count;";
             EnsureColumnExists(connection, "grants", "target_semantic_key", "TEXT");
             EnsureColumnExists(connection, "grants", "target_semantic_kind", "TEXT");
             EnsureColumnExists(connection, "grants", "target_semantic_name", "TEXT");
+            bool addedGrantSpellcastingName = EnsureColumnExists(connection, "grants", "spellcasting_name", "TEXT");
+            bool addedGrantIsPrepared = EnsureColumnExists(connection, "grants", "is_prepared", "INTEGER CHECK (is_prepared IN (0, 1))");
             EnsureColumnExists(connection, "grants", "raw_xml", "TEXT");
             EnsureColumnExists(connection, "selects", "raw_xml", "TEXT");
             EnsureColumnExists(connection, "stats", "raw_xml", "TEXT");
+
+            if (addedGrantSpellcastingName || addedGrantIsPrepared)
+                InvalidateSourceFileHashes(connection);
 
             using var backfillLegacyGrantTargets = connection.CreateCommand();
             backfillLegacyGrantTargets.CommandText = @"
@@ -1161,7 +1171,167 @@ WHERE target_element_id IS NULL
                 RefreshResolutionViews(connection);
         }
 
-        private static void EnsureColumnExists(
+        private static bool ApplySchemaBootstrapMigrations(SqliteConnection connection)
+        {
+            EnsureElementTextsSchemaUpToDate(connection);
+            EnsureColumnExistsIfTableExists(connection, "source_files", "file_hash", "TEXT");
+            EnsureColumnExistsIfTableExists(connection, "source_files", "content_package_id", "INTEGER REFERENCES content_packages(content_package_id)");
+            EnsureColumnExistsIfTableExists(connection, "select_items", "option_kind", "TEXT NOT NULL DEFAULT 'name-reference-candidate'");
+            EnsureColumnExistsIfTableExists(connection, "grants", "target_semantic_key", "TEXT");
+            EnsureColumnExistsIfTableExists(connection, "grants", "target_semantic_kind", "TEXT");
+            EnsureColumnExistsIfTableExists(connection, "grants", "target_semantic_name", "TEXT");
+            bool addedGrantSpellcastingName = EnsureColumnExistsIfTableExists(connection, "grants", "spellcasting_name", "TEXT");
+            bool addedGrantIsPrepared = EnsureColumnExistsIfTableExists(connection, "grants", "is_prepared", "INTEGER CHECK (is_prepared IN (0, 1))");
+            EnsureColumnExistsIfTableExists(connection, "grants", "raw_xml", "TEXT");
+            EnsureColumnExistsIfTableExists(connection, "selects", "raw_xml", "TEXT");
+            EnsureColumnExistsIfTableExists(connection, "stats", "raw_xml", "TEXT");
+            return addedGrantSpellcastingName || addedGrantIsPrepared;
+        }
+
+        private static void EnsureElementTextsSchemaUpToDate(SqliteConnection connection)
+        {
+            if (!TableExists(connection, "element_texts"))
+                return;
+
+            using var check = connection.CreateCommand();
+            check.CommandText = "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'element_texts';";
+            string createSql = check.ExecuteScalar() as string ?? string.Empty;
+            if (createSql.IndexOf("'prerequisites'", StringComparison.OrdinalIgnoreCase) >= 0)
+                return;
+
+            bool foreignKeysEnabled = ExecuteLongScalar(connection, "PRAGMA foreign_keys;") != 0;
+            if (foreignKeysEnabled)
+                ExecuteSql(connection, null, "PRAGMA foreign_keys = OFF;");
+
+            DropViewsReferencingTable(connection, "element_texts");
+
+            using var rebuild = connection.CreateCommand();
+            rebuild.CommandText = @"
+CREATE TABLE IF NOT EXISTS element_texts_new
+(
+    element_text_id INTEGER PRIMARY KEY,
+    element_id INTEGER NOT NULL REFERENCES elements(element_id) ON DELETE CASCADE,
+    text_kind TEXT NOT NULL CHECK
+    (
+        text_kind IN
+        (
+            'description',
+            'sheet',
+            'prerequisite',
+            'prerequisites',
+            'multiclass-prerequisite',
+            'summary'
+        )
+    ),
+    ordinal INTEGER NOT NULL DEFAULT 1,
+    level INTEGER,
+    display INTEGER CHECK (display IN (0, 1)),
+    alt_text TEXT,
+    action_text TEXT,
+    usage_text TEXT,
+    body TEXT NOT NULL
+);
+
+INSERT INTO element_texts_new
+(
+    element_text_id,
+    element_id,
+    text_kind,
+    ordinal,
+    level,
+    display,
+    alt_text,
+    action_text,
+    usage_text,
+    body
+)
+SELECT
+    element_text_id,
+    element_id,
+    CASE
+        WHEN text_kind IN ('description', 'sheet', 'prerequisite', 'prerequisites', 'multiclass-prerequisite', 'summary')
+            THEN text_kind
+        ELSE 'summary'
+    END,
+    ordinal,
+    level,
+    display,
+    alt_text,
+    action_text,
+    usage_text,
+    body
+FROM element_texts;
+
+DROP TABLE element_texts;
+ALTER TABLE element_texts_new RENAME TO element_texts;";
+            rebuild.ExecuteNonQuery();
+
+            if (foreignKeysEnabled)
+                ExecuteSql(connection, null, "PRAGMA foreign_keys = ON;");
+        }
+
+        private static void DropViewsReferencingTable(SqliteConnection connection, string tableName)
+        {
+            using var select = connection.CreateCommand();
+            select.CommandText = @"
+SELECT name
+FROM sqlite_master
+WHERE type = 'view'
+  AND sql IS NOT NULL
+  AND instr(lower(sql), lower($table_name)) > 0;";
+            select.Parameters.AddWithValue("$table_name", tableName);
+
+            var viewNames = new List<string>();
+            using (var reader = select.ExecuteReader())
+            {
+                while (reader.Read())
+                    viewNames.Add(reader.GetString(0));
+            }
+
+            foreach (string viewName in viewNames)
+            {
+                using var drop = connection.CreateCommand();
+                drop.CommandText = $"DROP VIEW IF EXISTS {QuoteIdentifier(viewName)};";
+                drop.ExecuteNonQuery();
+            }
+        }
+
+        private static bool EnsureColumnExistsIfTableExists(
+            SqliteConnection connection,
+            string tableName,
+            string columnName,
+            string columnDefinition)
+        {
+            if (!TableExists(connection, tableName))
+                return false;
+
+            return EnsureColumnExists(connection, tableName, columnName, columnDefinition);
+        }
+
+        private static bool TableExists(SqliteConnection connection, string tableName)
+        {
+            using var check = connection.CreateCommand();
+            check.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $table_name;";
+            check.Parameters.AddWithValue("$table_name", tableName);
+            return (long)(check.ExecuteScalar() ?? 0L) != 0;
+        }
+
+        private static void InvalidateSourceFileHashes(SqliteConnection connection)
+        {
+            if (!TableExists(connection, "source_files"))
+                return;
+
+            // Older databases may already have imported XML content, but because the
+            // new grant columns did not exist at the time, unchanged source files
+            // would otherwise never be revisited. Clearing the stored hashes forces
+            // the next XML import to reprocess every Aurora file and backfill the
+            // new grant metadata.
+            using var invalidateXmlHashes = connection.CreateCommand();
+            invalidateXmlHashes.CommandText = "UPDATE source_files SET file_hash = NULL;";
+            invalidateXmlHashes.ExecuteNonQuery();
+        }
+
+        private static bool EnsureColumnExists(
             SqliteConnection connection,
             string tableName,
             string columnName,
@@ -1171,11 +1341,12 @@ WHERE target_element_id IS NULL
             check.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{tableName}') WHERE name = $column_name;";
             check.Parameters.AddWithValue("$column_name", columnName);
             if ((long)(check.ExecuteScalar() ?? 0L) != 0)
-                return;
+                return false;
 
             using var alter = connection.CreateCommand();
             alter.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};";
             alter.ExecuteNonQuery();
+            return true;
         }
 
         private static void RefreshResolutionViews(SqliteConnection connection)
