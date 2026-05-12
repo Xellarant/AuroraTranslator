@@ -780,6 +780,8 @@ namespace AuroraTranslator
                         feats = result.ComputedCharacter.Feats.Select(BuildComputedCharacterItemExport).ToList(),
                         features = result.ComputedCharacter.Features.Select(BuildComputedCharacterItemExport).ToList(),
                         grantedSpells = result.ComputedCharacter.GrantedSpells.Select(BuildComputedGrantedSpellExport).ToList(),
+                        spellcastingProfiles = result.ComputedCharacter.SpellcastingProfiles.Select(BuildSpellcastingProfileExport).ToList(),
+                        effectRows = result.ComputedCharacter.EffectRows.Select(BuildComputedEffectRowExport).ToList(),
                         choiceSelections = result.ComputedCharacter.ChoiceSelections.Select(BuildComputedCharacterItemExport).ToList(),
                         movements = result.ComputedCharacter.Traits
                             .Where(item => string.Equals(item.TypeName, "movement", StringComparison.OrdinalIgnoreCase)
@@ -863,6 +865,10 @@ namespace AuroraTranslator
                     pendingChoiceRows = result.ComputedCharacter?.PendingChoices.Select(BuildPendingChoiceRowExport).ToList()
                         ?? new List<object>(),
                     grantedSpells = result.ComputedCharacter?.GrantedSpells.Select(BuildComputedGrantedSpellExport).ToList()
+                        ?? new List<object>(),
+                    spellcastingProfiles = result.ComputedCharacter?.SpellcastingProfiles.Select(BuildSpellcastingProfileExport).ToList()
+                        ?? new List<object>(),
+                    effectRows = result.ComputedCharacter?.EffectRows.Select(BuildComputedEffectRowExport).ToList()
                         ?? new List<object>()
                 }
             };
@@ -894,6 +900,36 @@ namespace AuroraTranslator
                 spell.IsPrepared,
                 spell.GrantLevel,
                 provenance = spell.Provenance.Select(BuildCharacterProvenanceExport).ToList()
+            };
+        }
+
+        private static object BuildSpellcastingProfileExport(ComputedSpellcastingProfileResult profile)
+        {
+            return new
+            {
+                profile.ProfileKey,
+                profile.SpellcastingName,
+                profile.GrantedSpellCount,
+                profile.PreparedSpellCount,
+                profile.UnpreparedSpellCount,
+                spellKeys = profile.SpellKeys.ToList(),
+                provenance = profile.Provenance.Select(BuildCharacterProvenanceExport).ToList()
+            };
+        }
+
+        private static object BuildComputedEffectRowExport(ComputedEffectRowResult effect)
+        {
+            return new
+            {
+                effect.EffectKind,
+                effect.EffectSubkind,
+                effect.EffectKey,
+                effect.DisplayName,
+                effect.ValueText,
+                effect.NumericValue,
+                effect.PackageKey,
+                effect.IsDirectSelection,
+                provenance = effect.Provenance.Select(BuildCharacterProvenanceExport).ToList()
             };
         }
 
@@ -1449,6 +1485,10 @@ namespace AuroraTranslator
                     .Select(x => $"{x.SpellKey}|{x.SpellcastingName ?? string.Empty}|prepared={x.IsPrepared?.ToString() ?? string.Empty}")
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                     .ToArray(),
+                SpellcastingProfileKeys: computed.SpellcastingProfiles
+                    .Select(x => $"{x.ProfileKey}|granted={x.GrantedSpellCount}|prepared={x.PreparedSpellCount}|unprepared={x.UnpreparedSpellCount}")
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
                 FeatKeys: computed.Feats
                     .Select(x => x.Key)
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
@@ -1463,6 +1503,10 @@ namespace AuroraTranslator
                     .ToArray(),
                 TraitKeys: computed.Traits
                     .Select(x => x.Key)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                EffectRowKeys: computed.EffectRows
+                    .Select(x => $"{x.EffectKind}|{x.EffectSubkind}|{x.EffectKey}|{x.ValueText ?? string.Empty}")
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                     .ToArray(),
                 PendingChoiceKeys: computed.PendingChoices
@@ -1497,10 +1541,12 @@ namespace AuroraTranslator
             CompareStringList(expected.ProficiencyKeys, actual.ProficiencyKeys, "ProficiencyKeys", failures);
             CompareStringList(expected.LanguageKeys, actual.LanguageKeys, "LanguageKeys", failures);
             CompareStringList(expected.GrantedSpellKeys, actual.GrantedSpellKeys, "GrantedSpellKeys", failures);
+            CompareStringList(expected.SpellcastingProfileKeys, actual.SpellcastingProfileKeys, "SpellcastingProfileKeys", failures);
             CompareStringList(expected.FeatKeys, actual.FeatKeys, "FeatKeys", failures);
             CompareStringList(expected.FeatureKeys, actual.FeatureKeys, "FeatureKeys", failures);
             CompareStringList(expected.ChoiceSelectionKeys, actual.ChoiceSelectionKeys, "ChoiceSelectionKeys", failures);
             CompareStringList(expected.TraitKeys, actual.TraitKeys, "TraitKeys", failures);
+            CompareStringList(expected.EffectRowKeys, actual.EffectRowKeys, "EffectRowKeys", failures);
             CompareStringList(expected.PendingChoiceKeys, actual.PendingChoiceKeys, "PendingChoiceKeys", failures);
             CompareCountSet("Provenance kind", expected.ProvenanceKindCounts, actual.ProvenanceKindCounts, failures);
             CompareStringList(expected.AppliedChoiceStates, actual.AppliedChoiceStates, "AppliedChoiceStates", failures);
@@ -1723,10 +1769,12 @@ namespace AuroraTranslator
             IReadOnlyList<string> ProficiencyKeys,
             IReadOnlyList<string> LanguageKeys,
             IReadOnlyList<string> GrantedSpellKeys,
+            IReadOnlyList<string> SpellcastingProfileKeys,
             IReadOnlyList<string> FeatKeys,
             IReadOnlyList<string> FeatureKeys,
             IReadOnlyList<string> ChoiceSelectionKeys,
             IReadOnlyList<string> TraitKeys,
+            IReadOnlyList<string> EffectRowKeys,
             IReadOnlyList<string> PendingChoiceKeys,
             IReadOnlyList<DiagnosticsRegressionCount> ProvenanceKindCounts,
             IReadOnlyList<string> AppliedChoiceStates);
@@ -2460,4 +2508,3 @@ namespace AuroraTranslator
 
     }
 }
-

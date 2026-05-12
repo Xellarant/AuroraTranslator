@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T05:01:29.5635295Z",
+  "CapturedAtUtc": "2026-05-11T22:02:54.2009185Z",
   "StateLabel": "character-state-life-domain-example.json",
   "DirectSelectionCount": 4,
   "DirectSelections": [
@@ -78,6 +78,9 @@
     "ID_WOTC_PHB24_SPELL_CURE_WOUNDS|Cleric|prepared=True",
     "ID_WOTC_PHB24_SPELL_LESSER_RESTORATION|Cleric|prepared=True"
   ],
+  "SpellcastingProfileKeys": [
+    "spellcasting:cleric|granted=4|prepared=4|unprepared=0"
+  ],
   "FeatKeys": [],
   "FeatureKeys": [
     "ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_DISCIPLE_OF_LIFE",
@@ -93,6 +96,38 @@
     "ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_HOLY_SYMBOL",
     "ID_INTERNAL_RITUAL_CASTING",
     "movement:walk:30"
+  ],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|10",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|10",
+    "ability-score|int|ability:int|10",
+    "ability-score|str|ability:str|10",
+    "ability-score|wis|ability:wis|16",
+    "feature|archetype-feature|ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_DISCIPLE_OF_LIFE|Level 3: Disciple of Life",
+    "feature|archetype-feature|ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_LIFE_DOMAIN_SPELLS|Level 3: Life Domain Spells",
+    "feature|archetype-feature|ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_PRESERVE_LIFE|Level 3: Preserve Life",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY|Level 2: Channel Divinity",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CLERIC_SUBCLASS|Level 3: Cleric Subclass",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_SPELLCASTING|Level 1: Spellcasting",
+    "language|language|ID_LANGUAGE_COMMON|Common",
+    "movement|walk|movement:walk:30|30",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR|Armor Proficiency (Light Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_MEDIUM_ARMOR|Armor Proficiency (Medium Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELD|Armor Proficiency (Shield)",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_INSIGHT|Insight",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_RELIGION|Religion",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_CHARISMA|Saving Throw Proficiency (Charisma)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_WISDOM|Saving Throw Proficiency (Wisdom)",
+    "proficiency|tool|ID_PROFICIENCY_TOOL_PROFICIENCY_CALLIGRAPHERS_SUPPLIES|Tool Proficiency (Calligrapher\u0027s supplies)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
+    "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_AID|Cleric|prepared=True|Cleric",
+    "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_BLESS|Cleric|prepared=True|Cleric",
+    "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_CURE_WOUNDS|Cleric|prepared=True|Cleric",
+    "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_LESSER_RESTORATION|Cleric|prepared=True|Cleric",
+    "trait|multiclass-spellcasting-slots|ID_INTERNAL_GRANT_MULTICLASS_SPELLCASTING_SLOTS_FULL|FULL",
+    "trait|proficiency-spellfocus-group-holy-symbol|ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_HOLY_SYMBOL|PROFICIENCY SPELLFOCUS GROUP HOLY SYMBOL",
+    "trait|ritual-casting|ID_INTERNAL_RITUAL_CASTING|RITUAL CASTING"
   ],
   "PendingChoiceKeys": [
     "Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=generic-element-pick|remaining=3|blocking=True",

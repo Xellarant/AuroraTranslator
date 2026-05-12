@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T05:01:30.8911578Z",
+  "CapturedAtUtc": "2026-05-11T22:02:51.0772042Z",
   "StateLabel": "character-state-badger-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
@@ -17,6 +17,7 @@
   "ProficiencyKeys": [],
   "LanguageKeys": [],
   "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
   "FeatKeys": [],
   "FeatureKeys": [],
   "ChoiceSelectionKeys": [],
@@ -24,6 +25,11 @@
     "movement:burrow:5",
     "movement:walk:20",
     "sense:senses:Darkvision 30 ft.; Passive Perception 13"
+  ],
+  "EffectRowKeys": [
+    "movement|burrow|movement:burrow:5|5",
+    "movement|walk|movement:walk:20|20",
+    "sense|senses:-darkvision-30-ft.;-passive-perception-13|sense:senses:Darkvision 30 ft.; Passive Perception 13|Senses: Darkvision 30 ft.; Passive Perception 13"
   ],
   "PendingChoiceKeys": [],
   "ProvenanceKindCounts": [

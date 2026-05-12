@@ -2469,6 +2469,60 @@ LEFT JOIN option_counts
     ON option_counts.select_id = s.select_id
 WHERE rs.owner_kind = 'element';
 
+DROP VIEW IF EXISTS v_app_choice_rows;
+CREATE VIEW v_app_choice_rows AS
+SELECT
+    owner_element_id,
+    owner_aurora_id,
+    owner_name,
+    owner_type_name,
+    owner_package_key,
+    owner_source_path,
+    lower(
+        COALESCE(owner_aurora_id, owner_name) || '|' ||
+        COALESCE(owner_package_key, '') || '|' ||
+        COALESCE(owner_source_path, '') || '|' ||
+        COALESCE(select_name, '') || '|' ||
+        COALESCE(choice_family, '') || '|' ||
+        COALESCE(select_type, '') || '|' ||
+        COALESCE(CAST(select_level AS TEXT), '') || '|' ||
+        CAST(number_to_choose AS TEXT) || '|' ||
+        CAST(is_optional AS TEXT)
+    ) AS choice_key,
+    choice_family,
+    select_policy,
+    select_name,
+    select_type,
+    supports_text,
+    select_level,
+    number_to_choose,
+    is_optional,
+    requirements_text,
+    MIN(element_option_count) AS element_option_count,
+    MIN(text_option_count) AS text_option_count,
+    MIN(total_option_count) AS total_option_count,
+    COUNT(*) AS template_row_count,
+    COUNT(DISTINCT select_id) AS select_id_count,
+    MIN(select_id) AS min_select_id,
+    GROUP_CONCAT(select_id) AS select_ids
+FROM v_choice_templates
+GROUP BY
+    owner_element_id,
+    owner_aurora_id,
+    owner_name,
+    owner_type_name,
+    owner_package_key,
+    owner_source_path,
+    choice_family,
+    select_policy,
+    select_name,
+    select_type,
+    supports_text,
+    select_level,
+    number_to_choose,
+    is_optional,
+    requirements_text;
+
 DROP VIEW IF EXISTS v_granted_spells;
 CREATE VIEW v_granted_spells AS
 SELECT
@@ -2508,7 +2562,534 @@ JOIN source_files AS spell_sf
     ON spell_sf.source_file_id = spell.source_file_id
 JOIN element_types AS spell_type
     ON spell_type.element_type_id = spell.element_type_id
-WHERE spell_type.type_name = 'Spell';";
+WHERE spell_type.type_name = 'Spell';
+
+DROP VIEW IF EXISTS v_movement_effect_templates;
+CREATE VIEW v_movement_effect_templates AS
+WITH RECURSIVE
+movement_stat_rows AS
+(
+    SELECT
+        owner.element_id AS owner_element_id,
+        owner.aurora_id AS owner_aurora_id,
+        owner.name AS owner_name,
+        owner_rec.package_key AS owner_package_key,
+        owner_sf.relative_path AS owner_source_path,
+        owner_type.type_name AS owner_type_name,
+        st.stat_id AS source_row_id,
+        lower(trim(st.stat_name)) AS raw_name,
+        trim(COALESCE(NULLIF(st.value_expression_text, ''), NULLIF(st.inline_display, ''), NULLIF(st.alt_text, ''), NULLIF(st.bonus_expression_text, ''))) AS raw_value,
+        st.stat_level AS grant_level
+    FROM stats AS st
+    JOIN rule_scopes AS rs
+        ON rs.rule_scope_id = st.rule_scope_id
+    JOIN elements AS owner
+        ON owner.element_id = rs.owner_element_id
+    JOIN resolved_elements_cache AS owner_rec
+        ON owner_rec.winning_element_id = owner.element_id
+    JOIN source_files AS owner_sf
+        ON owner_sf.source_file_id = owner.source_file_id
+    JOIN element_types AS owner_type
+        ON owner_type.element_type_id = owner.element_type_id
+    WHERE lower(st.stat_name) LIKE '%speed%'
+      AND COALESCE(trim(COALESCE(NULLIF(st.value_expression_text, ''), NULLIF(st.inline_display, ''), NULLIF(st.alt_text, ''), NULLIF(st.bonus_expression_text, ''))), '') <> ''
+),
+movement_alias_map AS
+(
+    SELECT
+        owner_element_id,
+        raw_name,
+        MAX(raw_value) AS raw_value
+    FROM movement_stat_rows
+    GROUP BY owner_element_id, raw_name
+),
+resolved_movement_stats AS
+(
+    SELECT
+        msr.owner_element_id,
+        msr.owner_aurora_id,
+        msr.owner_name,
+        msr.owner_package_key,
+        msr.owner_source_path,
+        msr.owner_type_name,
+        msr.source_row_id,
+        msr.raw_name,
+        msr.raw_value AS resolved_value,
+        msr.grant_level,
+        0 AS depth
+    FROM movement_stat_rows AS msr
+
+    UNION ALL
+
+    SELECT
+        rms.owner_element_id,
+        rms.owner_aurora_id,
+        rms.owner_name,
+        rms.owner_package_key,
+        rms.owner_source_path,
+        rms.owner_type_name,
+        rms.source_row_id,
+        rms.raw_name,
+        trim(alias.raw_value) AS resolved_value,
+        rms.grant_level,
+        rms.depth + 1
+    FROM resolved_movement_stats AS rms
+    JOIN movement_alias_map AS alias
+        ON alias.owner_element_id = rms.owner_element_id
+       AND alias.raw_name = lower(trim(rms.resolved_value))
+    WHERE rms.depth < 8
+      AND COALESCE(trim(alias.raw_value), '') <> ''
+      AND lower(trim(alias.raw_value)) <> lower(trim(rms.resolved_value))
+),
+final_movement_stats AS
+(
+    SELECT
+        rms.owner_element_id,
+        rms.owner_aurora_id,
+        rms.owner_name,
+        rms.owner_package_key,
+        rms.owner_source_path,
+        rms.owner_type_name,
+        rms.source_row_id,
+        rms.raw_name,
+        rms.resolved_value,
+        rms.grant_level
+    FROM resolved_movement_stats AS rms
+    LEFT JOIN movement_alias_map AS alias
+        ON alias.owner_element_id = rms.owner_element_id
+       AND alias.raw_name = lower(trim(rms.resolved_value))
+       AND COALESCE(trim(alias.raw_value), '') <> ''
+       AND lower(trim(alias.raw_value)) <> lower(trim(rms.resolved_value))
+    WHERE alias.raw_name IS NULL
+),
+movement_sources AS
+(
+    SELECT
+        fms.owner_element_id,
+        fms.owner_aurora_id,
+        fms.owner_name,
+        fms.owner_package_key,
+        fms.owner_source_path,
+        fms.owner_type_name,
+        'stat' AS source_kind,
+        'stat:' || fms.source_row_id AS source_row_key,
+        fms.raw_name,
+        trim(fms.resolved_value) AS raw_value,
+        fms.grant_level
+    FROM final_movement_stats AS fms
+
+    UNION ALL
+
+    SELECT
+        owner.element_id AS owner_element_id,
+        owner.aurora_id AS owner_aurora_id,
+        owner.name AS owner_name,
+        owner_rec.package_key AS owner_package_key,
+        owner_sf.relative_path AS owner_source_path,
+        owner_type.type_name AS owner_type_name,
+        'setter' AS source_kind,
+        'setter:' || se.setter_entry_id AS source_row_key,
+        lower(trim(se.setter_name)) AS raw_name,
+        trim(se.setter_value) AS raw_value,
+        NULL AS grant_level
+    FROM setter_entries AS se
+    JOIN setter_scopes AS ss
+        ON ss.setter_scope_id = se.setter_scope_id
+    JOIN elements AS owner
+        ON owner.element_id = ss.owner_element_id
+    JOIN resolved_elements_cache AS owner_rec
+        ON owner_rec.winning_element_id = owner.element_id
+    JOIN source_files AS owner_sf
+        ON owner_sf.source_file_id = owner.source_file_id
+    JOIN element_types AS owner_type
+        ON owner_type.element_type_id = owner.element_type_id
+    WHERE lower(se.setter_name) LIKE '%speed%'
+      AND COALESCE(trim(se.setter_value), '') <> ''
+),
+movement_segments AS
+(
+    SELECT
+        ms.owner_element_id,
+        ms.owner_aurora_id,
+        ms.owner_name,
+        ms.owner_package_key,
+        ms.owner_source_path,
+        ms.owner_type_name,
+        ms.source_kind,
+        ms.source_row_key,
+        ms.raw_name,
+        ms.grant_level,
+        trim(CASE WHEN instr(ms.raw_value, ',') > 0 THEN substr(ms.raw_value, 1, instr(ms.raw_value, ',') - 1) ELSE ms.raw_value END) AS segment,
+        trim(CASE WHEN instr(ms.raw_value, ',') > 0 THEN substr(ms.raw_value, instr(ms.raw_value, ',') + 1) ELSE '' END) AS remainder
+    FROM movement_sources AS ms
+
+    UNION ALL
+
+    SELECT
+        seg.owner_element_id,
+        seg.owner_aurora_id,
+        seg.owner_name,
+        seg.owner_package_key,
+        seg.owner_source_path,
+        seg.owner_type_name,
+        seg.source_kind,
+        seg.source_row_key,
+        seg.raw_name,
+        seg.grant_level,
+        trim(CASE WHEN instr(seg.remainder, ',') > 0 THEN substr(seg.remainder, 1, instr(seg.remainder, ',') - 1) ELSE seg.remainder END) AS segment,
+        trim(CASE WHEN instr(seg.remainder, ',') > 0 THEN substr(seg.remainder, instr(seg.remainder, ',') + 1) ELSE '' END) AS remainder
+    FROM movement_segments AS seg
+    WHERE COALESCE(seg.remainder, '') <> ''
+),
+normalized_movement_segments AS
+(
+    SELECT
+        seg.owner_element_id,
+        seg.owner_aurora_id,
+        seg.owner_name,
+        seg.owner_package_key,
+        seg.owner_source_path,
+        seg.owner_type_name,
+        seg.source_kind,
+        seg.source_row_key,
+        seg.grant_level,
+        CASE
+            WHEN lower(seg.segment) LIKE 'fly %' THEN 'fly'
+            WHEN lower(seg.segment) LIKE 'swim %' THEN 'swim'
+            WHEN lower(seg.segment) LIKE 'climb %' THEN 'climb'
+            WHEN lower(seg.segment) LIKE 'burrow %' THEN 'burrow'
+            WHEN seg.raw_name LIKE '%fly%' THEN 'fly'
+            WHEN seg.raw_name LIKE '%swim%' THEN 'swim'
+            WHEN seg.raw_name LIKE '%climb%' THEN 'climb'
+            WHEN seg.raw_name LIKE '%burrow%' THEN 'burrow'
+            ELSE 'walk'
+        END AS effect_subkind,
+        trim(CASE
+            WHEN lower(seg.segment) LIKE 'fly %' THEN substr(seg.segment, 5)
+            WHEN lower(seg.segment) LIKE 'swim %' THEN substr(seg.segment, 6)
+            WHEN lower(seg.segment) LIKE 'climb %' THEN substr(seg.segment, 7)
+            WHEN lower(seg.segment) LIKE 'burrow %' THEN substr(seg.segment, 8)
+            ELSE seg.segment
+        END) AS raw_effect_value_text
+    FROM movement_segments AS seg
+    WHERE COALESCE(seg.segment, '') <> ''
+),
+clean_movement_rows AS
+(
+    SELECT
+        nms.owner_element_id,
+        nms.owner_aurora_id,
+        nms.owner_name,
+        nms.owner_package_key,
+        nms.owner_source_path,
+        nms.owner_type_name,
+        nms.source_kind,
+        nms.source_row_key,
+        nms.grant_level,
+        nms.effect_subkind,
+        CASE
+            WHEN nms.effect_subkind = 'fly' THEN 'Fly Speed'
+            WHEN nms.effect_subkind = 'swim' THEN 'Swim Speed'
+            WHEN nms.effect_subkind = 'climb' THEN 'Climb Speed'
+            WHEN nms.effect_subkind = 'burrow' THEN 'Burrow Speed'
+            ELSE 'Speed'
+        END AS effect_name,
+        trim(replace(replace(
+            CASE
+                WHEN instr(lower(nms.raw_effect_value_text), '(') > 0
+                    THEN substr(lower(nms.raw_effect_value_text), 1, instr(lower(nms.raw_effect_value_text), '(') - 1)
+                ELSE lower(nms.raw_effect_value_text)
+            END,
+            'ft.', ''),
+            'ft', '')) AS effect_value_text
+    FROM normalized_movement_segments AS nms
+),
+movement_numeric_rows AS
+(
+    SELECT
+        cmr.owner_element_id,
+        cmr.owner_aurora_id,
+        cmr.owner_name,
+        cmr.owner_package_key,
+        cmr.owner_source_path,
+        cmr.owner_type_name,
+        'movement' AS effect_kind,
+        cmr.effect_subkind,
+        'movement:' || cmr.effect_subkind || ':' || cmr.effect_value_text AS effect_key,
+        cmr.effect_name,
+        cmr.effect_value_text,
+        CAST(cmr.effect_value_text AS REAL) AS effect_numeric_value,
+        cmr.owner_package_key AS effect_package_key,
+        cmr.source_kind,
+        cmr.source_row_key,
+        NULL AS spellcasting_name,
+        NULL AS is_prepared,
+        cmr.grant_level
+    FROM clean_movement_rows AS cmr
+    WHERE cmr.effect_value_text GLOB '[0-9]*'
+      AND CAST(cmr.effect_value_text AS REAL) > 0
+)
+SELECT DISTINCT
+    owner_element_id,
+    owner_aurora_id,
+    owner_name,
+    owner_package_key,
+    owner_source_path,
+    owner_type_name,
+    effect_kind,
+    effect_subkind,
+    effect_key,
+    effect_name,
+    effect_value_text,
+    effect_numeric_value,
+    effect_package_key,
+    source_kind,
+    source_row_key,
+    spellcasting_name,
+    is_prepared,
+    grant_level
+FROM movement_numeric_rows;
+
+DROP VIEW IF EXISTS v_effect_templates;
+CREATE VIEW v_effect_templates AS
+SELECT
+    gp.owner_element_id,
+    gp.owner_aurora_id,
+    gp.owner_name,
+    gp.owner_package_key,
+    gp.owner_source_path,
+    gp.owner_type_name,
+    'proficiency' AS effect_kind,
+    CASE
+        WHEN lower(gp.proficiency_name) LIKE '%skill%' THEN 'skill'
+        WHEN lower(gp.proficiency_name) LIKE '%tool%' THEN 'tool'
+        WHEN lower(gp.proficiency_name) LIKE '%armor%' THEN 'armor'
+        WHEN lower(gp.proficiency_name) LIKE '%weapon%' THEN 'weapon'
+        WHEN lower(gp.proficiency_name) LIKE '%saving throw%' THEN 'saving-throw'
+        ELSE 'proficiency'
+    END AS effect_subkind,
+    COALESCE(gp.proficiency_aurora_id, 'proficiency:' || gp.proficiency_name) AS effect_key,
+    gp.proficiency_name AS effect_name,
+    gp.proficiency_name AS effect_value_text,
+    NULL AS effect_numeric_value,
+    gp.proficiency_package_key AS effect_package_key,
+    'grant' AS source_kind,
+    'grant:' || gp.grant_id AS source_row_key,
+    NULL AS spellcasting_name,
+    NULL AS is_prepared,
+    gp.grant_level
+FROM v_granted_proficiencies AS gp
+
+UNION ALL
+
+SELECT
+    gl.owner_element_id,
+    gl.owner_aurora_id,
+    gl.owner_name,
+    gl.owner_package_key,
+    gl.owner_source_path,
+    gl.owner_type_name,
+    'language' AS effect_kind,
+    'language' AS effect_subkind,
+    COALESCE(gl.language_aurora_id, 'language:' || gl.language_name) AS effect_key,
+    gl.language_name AS effect_name,
+    gl.language_name AS effect_value_text,
+    NULL AS effect_numeric_value,
+    gl.language_package_key AS effect_package_key,
+    'grant' AS source_kind,
+    'grant:' || gl.grant_id AS source_row_key,
+    NULL AS spellcasting_name,
+    NULL AS is_prepared,
+    gl.grant_level
+FROM v_granted_languages AS gl
+
+UNION ALL
+
+SELECT
+    gs.owner_element_id,
+    gs.owner_aurora_id,
+    gs.owner_name,
+    gs.owner_package_key,
+    gs.owner_source_path,
+    gs.owner_type_name,
+    'spell-grant' AS effect_kind,
+    CASE WHEN gs.is_prepared = 1 THEN 'prepared-spell' ELSE 'spell' END AS effect_subkind,
+    'spell:' || COALESCE(gs.spell_aurora_id, gs.spell_name) || '|' || COALESCE(gs.spellcasting_name, '') || '|prepared=' || COALESCE(gs.is_prepared, '') AS effect_key,
+    gs.spell_name AS effect_name,
+    gs.spellcasting_name AS effect_value_text,
+    CAST(gs.grant_level AS REAL) AS effect_numeric_value,
+    gs.spell_package_key AS effect_package_key,
+    'grant' AS source_kind,
+    'grant:' || gs.grant_id AS source_row_key,
+    gs.spellcasting_name,
+    gs.is_prepared,
+    gs.grant_level
+FROM v_granted_spells AS gs
+
+UNION ALL
+
+SELECT
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_rec.package_key AS owner_package_key,
+    owner_sf.relative_path AS owner_source_path,
+    owner_type.type_name AS owner_type_name,
+    CASE
+        WHEN lower(trim(g.target_semantic_kind)) = 'size' THEN 'size'
+        ELSE 'trait'
+    END AS effect_kind,
+    lower(replace(trim(COALESCE(g.target_semantic_kind, 'semantic-trait')), ' ', '-')) AS effect_subkind,
+    COALESCE(g.target_semantic_key, 'semantic:' || COALESCE(g.target_semantic_name, g.name_text, g.target_aurora_id, g.grant_id)) AS effect_key,
+    COALESCE(g.target_semantic_name, g.name_text, g.target_aurora_id) AS effect_name,
+    COALESCE(g.target_semantic_name, g.name_text, g.target_aurora_id) AS effect_value_text,
+    NULL AS effect_numeric_value,
+    owner_rec.package_key AS effect_package_key,
+    'semantic-grant' AS source_kind,
+    'grant:' || g.grant_id AS source_row_key,
+    NULL AS spellcasting_name,
+    NULL AS is_prepared,
+    g.grant_level
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN resolved_elements_cache AS owner_rec
+    ON owner_rec.winning_element_id = owner.element_id
+JOIN source_files AS owner_sf
+    ON owner_sf.source_file_id = owner.source_file_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+WHERE COALESCE(trim(g.target_semantic_kind), '') <> ''
+   OR COALESCE(trim(g.target_semantic_name), '') <> ''
+
+UNION ALL
+
+SELECT
+    owner.element_id AS owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_rec.package_key AS owner_package_key,
+    owner_sf.relative_path AS owner_source_path,
+    owner_type.type_name AS owner_type_name,
+    'sense' AS effect_kind,
+    'vision' AS effect_subkind,
+    COALESCE(g.target_aurora_id, 'sense:' || COALESCE(target.name, g.name_text, g.grant_id)) AS effect_key,
+    COALESCE(target.name, g.name_text, g.target_semantic_name, g.target_aurora_id) AS effect_name,
+    COALESCE(target.name, g.name_text, g.target_semantic_name, g.target_aurora_id) AS effect_value_text,
+    NULL AS effect_numeric_value,
+    owner_rec.package_key AS effect_package_key,
+    'grant' AS source_kind,
+    'grant:' || g.grant_id AS source_row_key,
+    NULL AS spellcasting_name,
+    NULL AS is_prepared,
+    g.grant_level
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN resolved_elements_cache AS owner_rec
+    ON owner_rec.winning_element_id = owner.element_id
+JOIN source_files AS owner_sf
+    ON owner_sf.source_file_id = owner.source_file_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+LEFT JOIN elements AS target
+    ON target.element_id = g.target_element_id
+LEFT JOIN element_types AS target_type
+    ON target_type.element_type_id = target.element_type_id
+WHERE (g.grant_type = 'Vision' OR target_type.type_name = 'Vision')
+  AND COALESCE(trim(g.target_semantic_kind), '') = ''
+  AND COALESCE(trim(g.target_semantic_name), '') = ''
+
+UNION ALL
+
+SELECT
+    owner_element_id,
+    owner_aurora_id,
+    owner_name,
+    owner_package_key,
+    owner_source_path,
+    owner_type_name,
+    effect_kind,
+    effect_subkind,
+    effect_key,
+    effect_name,
+    effect_value_text,
+    effect_numeric_value,
+    effect_package_key,
+    source_kind,
+    source_row_key,
+    spellcasting_name,
+    is_prepared,
+    grant_level
+FROM v_movement_effect_templates;
+
+DROP VIEW IF EXISTS v_spellcasting_profiles;
+CREATE VIEW v_spellcasting_profiles AS
+SELECT
+    owner_element_id,
+    owner_aurora_id,
+    owner_name,
+    owner_package_key,
+    owner_source_path,
+    owner_type_name,
+    COALESCE(NULLIF(trim(spellcasting_name), ''), owner_name) AS spellcasting_name,
+    COUNT(*) AS granted_spell_count,
+    SUM(CASE WHEN is_prepared = 1 THEN 1 ELSE 0 END) AS prepared_spell_count,
+    SUM(CASE WHEN is_prepared = 0 THEN 1 ELSE 0 END) AS unprepared_spell_count
+FROM v_granted_spells
+GROUP BY
+    owner_element_id,
+    owner_aurora_id,
+    owner_name,
+    owner_package_key,
+    owner_source_path,
+    owner_type_name,
+    COALESCE(NULLIF(trim(spellcasting_name), ''), owner_name);
+
+DROP VIEW IF EXISTS v_app_effect_rows;
+CREATE VIEW v_app_effect_rows AS
+SELECT
+    owner_element_id,
+    owner_aurora_id,
+    owner_name,
+    owner_package_key,
+    owner_source_path,
+    owner_type_name,
+    effect_kind,
+    effect_subkind,
+    effect_key,
+    effect_name,
+    effect_value_text,
+    effect_numeric_value,
+    effect_package_key,
+    COALESCE(NULLIF(trim(spellcasting_name), ''), owner_name) AS spellcasting_name,
+    is_prepared,
+    MIN(grant_level) AS min_grant_level,
+    MAX(grant_level) AS max_grant_level,
+    COUNT(*) AS source_row_count,
+    COUNT(DISTINCT source_kind) AS source_kind_count,
+    GROUP_CONCAT(DISTINCT source_kind) AS source_kinds
+FROM v_effect_templates
+GROUP BY
+    owner_element_id,
+    owner_aurora_id,
+    owner_name,
+    owner_package_key,
+    owner_source_path,
+    owner_type_name,
+    effect_kind,
+    effect_subkind,
+    effect_key,
+    effect_name,
+    effect_value_text,
+    effect_numeric_value,
+    effect_package_key,
+    COALESCE(NULLIF(trim(spellcasting_name), ''), owner_name),
+    is_prepared;";
             views.ExecuteNonQuery();
         }
 

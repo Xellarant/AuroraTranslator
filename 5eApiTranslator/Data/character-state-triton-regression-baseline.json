@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T05:01:30.6217173Z",
+  "CapturedAtUtc": "2026-05-11T22:02:55.0305288Z",
   "StateLabel": "character-state-triton-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
@@ -24,6 +24,7 @@
     "ID_LANGUAGE_COMMON"
   ],
   "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
   "FeatKeys": [],
   "FeatureKeys": [],
   "ChoiceSelectionKeys": [],
@@ -32,6 +33,13 @@
     "ID_VISION_DARKVISION",
     "movement:swim:30",
     "movement:walk:30"
+  ],
+  "EffectRowKeys": [
+    "language|language|ID_LANGUAGE_COMMON|Common",
+    "movement|swim|movement:swim:30|30",
+    "movement|walk|movement:walk:30|30",
+    "sense|darkvision|ID_VISION_DARKVISION|Darkvision",
+    "size|size|ID_SIZE_MEDIUM|MEDIUM"
   ],
   "PendingChoiceKeys": [
     "Race|Triton|Ability Score Improvement Option (Triton)|family=generic-element-pick|remaining=1|blocking=True",

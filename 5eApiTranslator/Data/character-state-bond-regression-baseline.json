@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T05:01:27.6240512Z",
+  "CapturedAtUtc": "2026-05-11T22:02:52.0213603Z",
   "StateLabel": "character-state-bond-example.json",
   "DirectSelectionCount": 4,
   "DirectSelections": [
@@ -71,6 +71,7 @@
     "ID_LANGUAGE_COMMON"
   ],
   "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
   "FeatKeys": [],
   "FeatureKeys": [
     "ID_BACKGROUND_FEATURE_SHELTER_OF_THE_FAITHFUL",
@@ -87,6 +88,34 @@
   "TraitKeys": [
     "ID_SIZE_MEDIUM",
     "movement:walk:30"
+  ],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|8",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|14",
+    "ability-score|int|ability:int|10",
+    "ability-score|str|ability:str|16",
+    "ability-score|wis|ability:wis|12",
+    "feature|background-feature|ID_BACKGROUND_FEATURE_SHELTER_OF_THE_FAITHFUL|Feature: Shelter of the Faithful",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_ABILITYSCOREIMPROVEMENT_FIGHTER|Ability Score Improvement",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_ACTIONSURGE|Action Surge",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_EXTRAATTACK|Extra Attack",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE|Fighting Style",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_MARTIALARCHETYPE|Martial Archetype",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_SECONDWIND|Second Wind",
+    "language|language|ID_LANGUAGE_COMMON|Common",
+    "movement|walk|movement:walk:30|30",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_HEAVY_ARMOR|Armor Proficiency (Heavy Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR|Armor Proficiency (Light Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_MEDIUM_ARMOR|Armor Proficiency (Medium Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELDS|Armor Proficiency (Shields)",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_INSIGHT|Insight",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_RELIGION|Religion",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_CONSTITUTION|Saving Throw Proficiency (Constitution)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_STRENGTH|Saving Throw Proficiency (Strength)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_MARTIAL_WEAPONS|Weapon Proficiency (Martial Weapons)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
+    "size|size|ID_SIZE_MEDIUM|MEDIUM"
   ],
   "PendingChoiceKeys": [
     "Background|Acolyte|Flaw|family=text-choice|remaining=1|blocking=True",

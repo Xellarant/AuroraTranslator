@@ -32,6 +32,9 @@ Notable runtime capabilities already in place:
 - pending multi-pick choices are now counted from explicit applied selections instead of incidental global ownership
 - character-state JSON output now includes a `computedCharacter` section with derived scores, traits, pending choices, warnings, and provenance
 - application-facing computed output now breaks traits into clearer `movements`, `senses`, and overall `traits` collections
+- application-facing runtime output now also includes flat `effectRows` and grouped `spellcastingProfiles` so the app does not have to reconstruct core effects from nested sections
+- SQLite now also exposes a higher-level [v_app_effect_rows](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/sqlite-character-loading.sql) summary view so the app can consume deduped effect rows with source counts instead of raw stat/setter duplicates
+- SQLite now also exposes a higher-level [v_app_choice_rows](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/sqlite-character-loading.sql) summary view so the app can consume stable choice rows without reverse-engineering `v_choice_templates`
 - committed character-state fixtures now cover baseline, bond/text-choice, early fighter, elf darkvision, a first-party granted-spell scenario, first-party fly/climb/swim movement scenarios, and a companion burrow-speed scenario
 
 ## Repository Layout
@@ -136,6 +139,14 @@ The current character-state evaluator is intentionally builder-oriented rather t
   - choice families
   - pending choice rows
   - granted spell rows
+  - normalized effect rows
+  - grouped spellcasting profiles
+- expose SQLite app-facing projections for:
+  - `v_choice_templates`
+  - `v_app_choice_rows`
+  - `v_granted_spells`
+  - `v_spellcasting_profiles`
+  - `v_app_effect_rows`
 - capture/check runtime regression baselines for:
   - direct selections
   - active features

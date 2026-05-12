@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T05:01:30.2966119Z",
+  "CapturedAtUtc": "2026-05-11T22:02:54.6350848Z",
   "StateLabel": "character-state-tabaxi-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
@@ -28,6 +28,7 @@
     "ID_LANGUAGE_COMMON"
   ],
   "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
   "FeatKeys": [],
   "FeatureKeys": [],
   "ChoiceSelectionKeys": [],
@@ -35,6 +36,12 @@
     "ID_VISION_DARKVISION",
     "movement:climb:30",
     "movement:walk:30"
+  ],
+  "EffectRowKeys": [
+    "language|language|ID_LANGUAGE_COMMON|Common",
+    "movement|climb|movement:climb:30|30",
+    "movement|walk|movement:walk:30|30",
+    "sense|darkvision|ID_VISION_DARKVISION|Darkvision"
   ],
   "PendingChoiceKeys": [
     "Race|Tabaxi|Ability Score Improvement Option (Tabaxi)|family=generic-element-pick|remaining=1|blocking=True",

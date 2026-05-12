@@ -11,6 +11,8 @@ This roadmap reflects the project state as of the current `master` branch after:
 - structured computed-character output with pending-choice and provenance reporting
 - repeatable character-state regression baselines for first-party runtime fixtures
 - first-pass app-facing choice family and granted-spell projections
+- first-pass flat effect-row and spellcasting-profile projections for the app
+- deduped SQLite app-effect summary rows layered on top of lower-level effect templates
 
 ## Completed Foundations
 
@@ -73,6 +75,14 @@ This roadmap reflects the project state as of the current `master` branch after:
   - normalized choice families
   - pending choice rows
   - granted spell rows
+  - flat effect rows
+  - grouped spellcasting profiles
+- SQLite-side app-facing projection views for:
+  - `v_choice_templates`
+  - `v_app_choice_rows`
+  - `v_granted_spells`
+  - `v_spellcasting_profiles`
+  - `v_app_effect_rows`
 
 ## Current Milestone
 
@@ -138,14 +148,16 @@ Likely target families:
   - runtime query projections
   - live character-state evaluation
 
-### 5. Improve trust / app integration surfaces
+### 5. Deepen app-facing effect projections
 
 - align the evaluator output with Aurora App correctness goals
+- continue flattening nested runtime summaries into stable app contracts
+- widen DB-side candidate views like `v_effect_templates` and `v_spellcasting_profiles` where static content can be projected safely
 - expose enough metadata and provenance that the app can explain:
   - where a computed trait came from
   - why a choice is pending or blocked
   - which package/source contributed a resolved item
-- use the computed-character contract to inform future loader-oriented projection views
+- use the computed-character contract to inform future loader-oriented projection views and effect summaries
 
 ### 6. Eventually add profile-aware precedence
 

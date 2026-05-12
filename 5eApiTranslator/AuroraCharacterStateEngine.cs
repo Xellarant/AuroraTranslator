@@ -189,6 +189,26 @@ namespace AuroraTranslator
         int? GrantLevel,
         IReadOnlyList<CharacterProvenanceEntry> Provenance);
 
+    internal sealed record ComputedSpellcastingProfileResult(
+        string ProfileKey,
+        string SpellcastingName,
+        int GrantedSpellCount,
+        int PreparedSpellCount,
+        int UnpreparedSpellCount,
+        IReadOnlyList<string> SpellKeys,
+        IReadOnlyList<CharacterProvenanceEntry> Provenance);
+
+    internal sealed record ComputedEffectRowResult(
+        string EffectKind,
+        string EffectSubkind,
+        string EffectKey,
+        string DisplayName,
+        string ValueText,
+        decimal? NumericValue,
+        string PackageKey,
+        bool IsDirectSelection,
+        IReadOnlyList<CharacterProvenanceEntry> Provenance);
+
     internal sealed record PendingCharacterChoiceResult(
         int SelectId,
         string OwnerName,
@@ -227,6 +247,8 @@ namespace AuroraTranslator
         IReadOnlyList<ComputedCharacterItemResult> Feats,
         IReadOnlyList<ComputedCharacterItemResult> Features,
         IReadOnlyList<ComputedGrantedSpellResult> GrantedSpells,
+        IReadOnlyList<ComputedSpellcastingProfileResult> SpellcastingProfiles,
+        IReadOnlyList<ComputedEffectRowResult> EffectRows,
         IReadOnlyList<ComputedCharacterItemResult> ChoiceSelections,
         IReadOnlyList<ComputedCharacterItemResult> Traits,
         IReadOnlyList<PendingCharacterChoiceResult> PendingChoices,
@@ -2102,8 +2124,17 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             List<ComputedCharacterItemResult> feats = BuildComputedFeats(evaluation, provenance);
             List<ComputedCharacterItemResult> features = BuildComputedFeatures(evaluation, provenance);
             List<ComputedGrantedSpellResult> grantedSpells = BuildComputedGrantedSpells(evaluation, provenance);
+            List<ComputedSpellcastingProfileResult> spellcastingProfiles = BuildComputedSpellcastingProfiles(grantedSpells);
             List<ComputedCharacterItemResult> choiceSelections = BuildComputedChoiceSelections(workingDocument, provenance);
             List<ComputedCharacterItemResult> traits = BuildComputedTraits(connection, evaluation, provenance);
+            List<ComputedEffectRowResult> effectRows = BuildComputedEffectRows(
+                abilityScores,
+                proficiencies,
+                languages,
+                feats,
+                features,
+                grantedSpells,
+                traits);
             List<PendingCharacterChoiceResult> pendingChoices = BuildPendingChoices(evaluation.AvailableSelects, evaluation.AppliedChoices);
             List<CharacterWarningResult> warnings = BuildCharacterWarnings(evaluation.AppliedChoices, pendingChoices, evaluation.AvailableSelects);
 
@@ -2114,6 +2145,8 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 feats,
                 features,
                 grantedSpells,
+                spellcastingProfiles,
+                effectRows,
                 choiceSelections,
                 traits,
                 pendingChoices,
@@ -2570,6 +2603,256 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             }
 
             return MergeComputedItems(items);
+        }
+
+        private static List<ComputedSpellcastingProfileResult> BuildComputedSpellcastingProfiles(
+            IReadOnlyList<ComputedGrantedSpellResult> grantedSpells)
+        {
+            return (grantedSpells ?? Array.Empty<ComputedGrantedSpellResult>())
+                .GroupBy(
+                    spell => string.IsNullOrWhiteSpace(spell.SpellcastingName) ? "(unspecified)" : spell.SpellcastingName.Trim(),
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    string spellcastingName = group.Key;
+                    string profileKey = $"spellcasting:{NormalizeContractToken(spellcastingName)}";
+                    List<CharacterProvenanceEntry> provenance = group
+                        .SelectMany(x => x.Provenance ?? Array.Empty<CharacterProvenanceEntry>())
+                        .Distinct()
+                        .OrderBy(x => x.SourceKind, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(x => x.OwnerTypeName, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(x => x.OwnerName, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(x => x.ElementName, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    return new ComputedSpellcastingProfileResult(
+                        profileKey,
+                        spellcastingName,
+                        group.Count(),
+                        group.Count(x => x.IsPrepared == true),
+                        group.Count(x => x.IsPrepared == false),
+                        group.Select(x => x.SpellKey)
+                            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                            .ToArray(),
+                        provenance);
+                })
+                .OrderBy(x => x.SpellcastingName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static List<ComputedEffectRowResult> BuildComputedEffectRows(
+            IReadOnlyList<ComputedAbilityScoreResult> abilityScores,
+            IReadOnlyList<ComputedCharacterItemResult> proficiencies,
+            IReadOnlyList<ComputedCharacterItemResult> languages,
+            IReadOnlyList<ComputedCharacterItemResult> feats,
+            IReadOnlyList<ComputedCharacterItemResult> features,
+            IReadOnlyList<ComputedGrantedSpellResult> grantedSpells,
+            IReadOnlyList<ComputedCharacterItemResult> traits)
+        {
+            var rows = new List<ComputedEffectRowResult>();
+
+            foreach (ComputedAbilityScoreResult ability in abilityScores ?? Array.Empty<ComputedAbilityScoreResult>())
+            {
+                rows.Add(new ComputedEffectRowResult(
+                    "ability-score",
+                    ability.AbilityKey,
+                    $"ability:{ability.AbilityKey}",
+                    ability.AbilityName,
+                    ability.FinalValue.ToString(CultureInfo.InvariantCulture),
+                    ability.FinalValue,
+                    null,
+                    false,
+                    ability.Provenance));
+            }
+
+            AddItemEffectRows(rows, proficiencies, "proficiency", item => InferProficiencyEffectSubkind(item.Name, item.TypeName));
+            AddItemEffectRows(rows, languages, "language", _ => "language");
+            AddItemEffectRows(rows, feats, "feat", _ => "feat");
+            AddItemEffectRows(rows, features, "feature", item => NormalizeContractToken(item.TypeName ?? item.Category));
+
+            foreach (ComputedGrantedSpellResult spell in grantedSpells ?? Array.Empty<ComputedGrantedSpellResult>())
+            {
+                rows.Add(new ComputedEffectRowResult(
+                    "spell-grant",
+                    spell.IsPrepared == true ? "prepared-spell" : "spell",
+                    $"spell:{spell.SpellKey}|{spell.SpellcastingName ?? string.Empty}|prepared={spell.IsPrepared?.ToString() ?? string.Empty}",
+                    spell.SpellName,
+                    spell.SpellcastingName,
+                    spell.GrantLevel,
+                    spell.SpellPackageKey,
+                    false,
+                    spell.Provenance));
+            }
+
+            foreach (ComputedCharacterItemResult trait in traits ?? Array.Empty<ComputedCharacterItemResult>())
+            {
+                string effectKind;
+                string effectSubkind;
+                string valueText = null;
+                decimal? numericValue = null;
+
+                if (string.Equals(trait.Category, "movement", StringComparison.OrdinalIgnoreCase)
+                    || IsMovementKind(trait.TypeName))
+                {
+                    effectKind = "movement";
+                    effectSubkind = NormalizeMovementKind(trait.TypeName) ?? "walk";
+                    valueText = TryExtractMovementValueText(trait);
+                    numericValue = TryParseDecimalInvariant(valueText);
+                }
+                else if (string.Equals(trait.Category, "sense", StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(trait.TypeName, "sense", StringComparison.OrdinalIgnoreCase))
+                {
+                    effectKind = "sense";
+                    effectSubkind = NormalizeContractToken(trait.Name);
+                    valueText = trait.Name;
+                }
+                else if (string.Equals(trait.TypeName, "Size", StringComparison.OrdinalIgnoreCase)
+                         || trait.Key.StartsWith("size:", StringComparison.OrdinalIgnoreCase))
+                {
+                    effectKind = "size";
+                    effectSubkind = "size";
+                    valueText = trait.Name;
+                }
+                else
+                {
+                    effectKind = "trait";
+                    effectSubkind = NormalizeContractToken(trait.TypeName ?? trait.Category);
+                    valueText = trait.Name;
+                }
+
+                rows.Add(new ComputedEffectRowResult(
+                    effectKind,
+                    effectSubkind,
+                    trait.Key,
+                    trait.Name,
+                    valueText,
+                    numericValue,
+                    trait.PackageKey,
+                    trait.IsDirectSelection,
+                    trait.Provenance));
+            }
+
+            return MergeComputedEffectRows(rows);
+        }
+
+        private static void AddItemEffectRows(
+            ICollection<ComputedEffectRowResult> rows,
+            IReadOnlyList<ComputedCharacterItemResult> items,
+            string effectKind,
+            Func<ComputedCharacterItemResult, string> effectSubkindSelector)
+        {
+            foreach (ComputedCharacterItemResult item in items ?? Array.Empty<ComputedCharacterItemResult>())
+            {
+                rows.Add(new ComputedEffectRowResult(
+                    effectKind,
+                    effectSubkindSelector(item),
+                    item.Key,
+                    item.Name,
+                    item.Name,
+                    null,
+                    item.PackageKey,
+                    item.IsDirectSelection,
+                    item.Provenance));
+            }
+        }
+
+        private static string InferProficiencyEffectSubkind(string itemName, string typeName)
+        {
+            string source = $"{itemName} {typeName}".Trim();
+            if (source.IndexOf("skill", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "skill";
+            if (source.IndexOf("tool", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "tool";
+            if (source.IndexOf("armor", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "armor";
+            if (source.IndexOf("weapon", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "weapon";
+            if (source.IndexOf("saving throw", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "saving-throw";
+            return "proficiency";
+        }
+
+        private static string TryExtractMovementValueText(ComputedCharacterItemResult movement)
+        {
+            if (movement == null)
+                return null;
+
+            string[] keyParts = (movement.Key ?? string.Empty).Split(':');
+            if (keyParts.Length >= 3)
+                return keyParts[^1];
+
+            string name = movement.Name ?? string.Empty;
+            int colonIndex = name.LastIndexOf(':');
+            return colonIndex >= 0 && colonIndex < name.Length - 1
+                ? name[(colonIndex + 1)..].Trim()
+                : name.Trim();
+        }
+
+        private static decimal? TryParseDecimalInvariant(string rawValue)
+        {
+            if (string.IsNullOrWhiteSpace(rawValue))
+                return null;
+
+            if (decimal.TryParse(rawValue.Trim().Replace("ft.", string.Empty, StringComparison.OrdinalIgnoreCase).Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out decimal value))
+                return value;
+
+            return null;
+        }
+
+        private static string NormalizeContractToken(string rawText)
+        {
+            if (string.IsNullOrWhiteSpace(rawText))
+                return "unspecified";
+
+            string normalized = rawText.Trim().ToLowerInvariant();
+            normalized = normalized.Replace("/", "-");
+            normalized = normalized.Replace("_", "-");
+            normalized = normalized.Replace(" ", "-");
+
+            while (normalized.Contains("--", StringComparison.Ordinal))
+                normalized = normalized.Replace("--", "-", StringComparison.Ordinal);
+
+            return normalized.Trim('-');
+        }
+
+        private static List<ComputedEffectRowResult> MergeComputedEffectRows(IEnumerable<ComputedEffectRowResult> rows)
+        {
+            return (rows ?? Enumerable.Empty<ComputedEffectRowResult>())
+                .GroupBy(row => new
+                {
+                    Kind = row.EffectKind ?? string.Empty,
+                    Subkind = row.EffectSubkind ?? string.Empty,
+                    Key = row.EffectKey ?? string.Empty,
+                    Value = row.ValueText ?? string.Empty
+                })
+                .Select(group =>
+                {
+                    ComputedEffectRowResult first = group.First();
+                    List<CharacterProvenanceEntry> provenance = group
+                        .SelectMany(x => x.Provenance ?? Array.Empty<CharacterProvenanceEntry>())
+                        .Distinct()
+                        .OrderBy(x => x.SourceKind, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(x => x.OwnerTypeName, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(x => x.OwnerName, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(x => x.ElementName, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    return new ComputedEffectRowResult(
+                        first.EffectKind,
+                        first.EffectSubkind,
+                        first.EffectKey,
+                        group.Select(x => x.DisplayName).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? first.DisplayName,
+                        group.Select(x => x.ValueText).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? first.ValueText,
+                        group.Select(x => x.NumericValue).FirstOrDefault(x => x.HasValue),
+                        group.Select(x => x.PackageKey).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? first.PackageKey,
+                        group.Any(x => x.IsDirectSelection),
+                        provenance);
+                })
+                .OrderBy(x => x.EffectKind, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.EffectSubkind, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.ValueText, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static List<ComputedCharacterItemResult> BuildComputedTraits(
@@ -3422,6 +3705,11 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                 return "saving-throw-pick";
 
             return null;
+        }
+
+        private static bool IsMovementKind(string movementName)
+        {
+            return NormalizeMovementKind(movementName) != null;
         }
 
         private static decimal GetAbilityScore(AuroraExpressionEvaluationContext context, string abilityKey)
