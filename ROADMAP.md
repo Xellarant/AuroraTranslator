@@ -59,8 +59,10 @@ This roadmap reflects the project state as of the current `master` branch after:
   - `Ability Score Improvement`
   - `Feat`
 - Deterministic first-party PHB 2024 one-option `feature-pick` rows now auto-materialize into runtime state instead of surfacing as fake pending choices
+- Existing direct state such as an already-selected subclass can now satisfy matching generic pending picks instead of surfacing as false pending work
 - Iterative choice application and re-evaluation
 - Pending multi-pick select counts now key off explicit applied choices rather than unrelated globally owned options
+- Over-selected first-party choice states now emit explicit `over-selected-choice` warnings
 - Derived character output for:
   - computed ability scores
   - proficiencies and languages
@@ -130,11 +132,11 @@ Likely target families:
 - add more fixtures for:
   - Fighter ASI with an applied choice
   - Fighter Fighting Style
-  - archetype selection
   - language/proficiency selections
   - Human Variant feat flow
   - additional PHB 2024 replacement-style families beyond Cleric/Monk
   - spell-grant scenarios such as domain or oath spells
+  - explicit duplicate-pick and over-pick validation scenarios beyond the current first-party language oversubscribe fixture
 - use focused fixtures to lock down computed-trait scenarios such as Darkvision and typed movement entries like fly/climb/swim/burrow speeds
 - add guardrails for semantic expansion counts if useful
 - add guardrails for computed-character outputs such as:

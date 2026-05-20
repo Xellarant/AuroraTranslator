@@ -1,13 +1,16 @@
 {
-  "CapturedAtUtc": "2026-05-20T02:57:27.9226044Z",
-  "StateLabel": "character-state-life-domain-example.json",
-  "DirectSelectionCount": 6,
+  "CapturedAtUtc": "2026-05-20T02:57:28.064369Z",
+  "StateLabel": "character-state-life-domain-oversubscribe-example.json",
+  "DirectSelectionCount": 9,
   "DirectSelections": [
     "Archetype|Life Domain|core-players-handbook-2024|",
     "Background|Acolyte|core-players-handbook-2024|",
     "Class Feature|Channel Divinity: Divine Spark|core-players-handbook-2024|",
     "Class Feature|Channel Divinity: Turn Undead|core-players-handbook-2024|",
     "Class|Cleric|core-players-handbook-2024|3",
+    "Language|Dwarvish|core-ale-xml|",
+    "Language|Elvish|core-ale-xml|",
+    "Language|Halfling|core-ale-xml|",
     "Race|Human|core-players-handbook-2024|"
   ],
   "ActiveFeatureCount": 6,
@@ -21,17 +24,21 @@
   ],
   "ActiveGrantCount": 32,
   "AvailableSelectCount": 5,
-  "PendingChoiceCount": 4,
-  "BlockingPendingChoiceCount": 4,
+  "PendingChoiceCount": 3,
+  "BlockingPendingChoiceCount": 3,
   "WarningCount": 4,
   "WarningKindCounts": [
+    {
+      "Key": "over-selected-choice|error",
+      "Count": 1
+    },
     {
       "Key": "pending-choice|error",
       "Count": 2
     },
     {
       "Key": "pending-choice|warning",
-      "Count": 2
+      "Count": 1
     }
   ],
   "AbilityScores": [
@@ -72,7 +79,10 @@
     "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
   ],
   "LanguageKeys": [
-    "ID_LANGUAGE_COMMON"
+    "ID_LANGUAGE_COMMON",
+    "ID_LANGUAGE_DWARVISH",
+    "ID_LANGUAGE_ELVISH",
+    "ID_LANGUAGE_HALFLING"
   ],
   "GrantedSpellKeys": [
     "ID_WOTC_PHB24_SPELL_AID|Cleric|prepared=True",
@@ -120,6 +130,9 @@
     "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CLERIC_SUBCLASS|Level 3: Cleric Subclass",
     "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_SPELLCASTING|Level 1: Spellcasting",
     "language|language|ID_LANGUAGE_COMMON|Common",
+    "language|language|ID_LANGUAGE_DWARVISH|Dwarvish",
+    "language|language|ID_LANGUAGE_ELVISH|Elvish",
+    "language|language|ID_LANGUAGE_HALFLING|Halfling",
     "movement|walk|movement:walk:30|30",
     "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR|Armor Proficiency (Light Armor)",
     "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_MEDIUM_ARMOR|Armor Proficiency (Medium Armor)",
@@ -141,7 +154,6 @@
   "PendingChoiceKeys": [
     "Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=generic-element-pick|remaining=3|blocking=True",
     "Class|Cleric|Skill Proficiency (Cleric)|family=skill-pick|remaining=2|blocking=True",
-    "Race|Human|Language (Human)|family=language-pick|remaining=2|blocking=True",
     "Race|Human|Size (Human)|family=generic-element-pick|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
@@ -164,6 +176,10 @@
     {
       "Key": "granted-spell|grant",
       "Count": 4
+    },
+    {
+      "Key": "language|direct-selection",
+      "Count": 3
     },
     {
       "Key": "language|grant",

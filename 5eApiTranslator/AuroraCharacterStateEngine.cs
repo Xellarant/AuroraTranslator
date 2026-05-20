@@ -2226,8 +2226,19 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 features,
                 grantedSpells,
                 traits);
-            List<PendingCharacterChoiceResult> pendingChoices = BuildPendingChoices(evaluation.AvailableSelects, evaluation.AppliedChoices);
-            List<CharacterWarningResult> warnings = BuildCharacterWarnings(evaluation.AppliedChoices, pendingChoices, evaluation.AvailableSelects);
+            List<PendingCharacterChoiceResult> pendingChoices = BuildPendingChoices(
+                connection,
+                evaluation.AvailableSelects,
+                evaluation.AppliedChoices,
+                evaluation.DirectSelections,
+                workingDocument);
+            List<CharacterWarningResult> warnings = BuildCharacterWarnings(
+                connection,
+                evaluation.AppliedChoices,
+                pendingChoices,
+                evaluation.AvailableSelects,
+                evaluation.DirectSelections,
+                workingDocument);
 
             return new ComputedCharacterResult(
                 abilityScores,
@@ -3635,13 +3646,21 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
         }
 
         private static List<PendingCharacterChoiceResult> BuildPendingChoices(
+            SqliteConnection connection,
             IReadOnlyList<CharacterSelectResult> availableSelects,
-            IReadOnlyList<AppliedCharacterChoiceResult> appliedChoices)
+            IReadOnlyList<AppliedCharacterChoiceResult> appliedChoices,
+            IReadOnlyList<ResolvedCharacterElement> directSelections,
+            AuroraCharacterStateDocument workingDocument)
         {
             return availableSelects
                 .Select(select =>
                 {
-                    int chosenCount = CountAppliedChoicesForSelect(appliedChoices, select);
+                    int chosenCount = CountSatisfiedChoicesForSelect(
+                        connection,
+                        select,
+                        appliedChoices,
+                        directSelections,
+                        workingDocument);
                     int alreadyOwnedCount = select.Options.Count(x => x.IsAlreadyOwned);
                     int remainingCount = Math.Max(0, select.NumberToChoose - chosenCount);
                     int availableOptionCount = select.Options.Count(x => x.IsAvailable && !x.IsAlreadyOwned);
@@ -3670,26 +3689,239 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                 .ToList();
         }
 
-        private static int CountAppliedChoicesForSelect(
+        private static int CountSatisfiedChoicesForSelect(
+            SqliteConnection connection,
+            CharacterSelectResult select,
             IReadOnlyList<AppliedCharacterChoiceResult> appliedChoices,
-            CharacterSelectResult select)
+            IReadOnlyList<ResolvedCharacterElement> directSelections,
+            AuroraCharacterStateDocument workingDocument)
         {
-            if (appliedChoices == null || select == null)
+            if (select == null)
                 return 0;
 
-            return appliedChoices
-                .Where(choice => string.Equals(choice.Status, "applied", StringComparison.OrdinalIgnoreCase)
-                                 || string.Equals(choice.Status, "already-applied", StringComparison.OrdinalIgnoreCase))
-                .Where(choice => choice.SelectId == select.SelectId)
-                .Select(choice => $"{choice.OptionAuroraId ?? string.Empty}|{choice.OptionName ?? string.Empty}|{choice.FollowUpOptionAuroraId ?? string.Empty}|{choice.FollowUpOptionName ?? string.Empty}")
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count();
+            var satisfiedChoiceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (AppliedCharacterChoiceResult choice in appliedChoices ?? Array.Empty<AppliedCharacterChoiceResult>())
+            {
+                if (!string.Equals(choice.Status, "applied", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(choice.Status, "already-applied", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (choice.SelectId != select.SelectId)
+                    continue;
+
+                satisfiedChoiceKeys.Add(BuildAppliedChoiceKey(choice));
+            }
+
+            string macroName = BuildChoiceMacroName(select.OwnerTypeName, select.OwnerName, select.SelectName);
+            if (workingDocument?.MacroValues != null
+                && workingDocument.MacroValues.TryGetValue(macroName, out List<string> storedValues)
+                && storedValues != null)
+            {
+                foreach (string storedValue in storedValues)
+                {
+                    string trimmed = storedValue?.Trim();
+                    if (!string.IsNullOrWhiteSpace(trimmed))
+                        satisfiedChoiceKeys.Add($"stored:{trimmed}");
+                }
+            }
+
+            foreach (ResolvedCharacterElement selection in directSelections ?? Array.Empty<ResolvedCharacterElement>())
+            {
+                if (!DoesDirectSelectionSatisfySelect(connection, select, selection))
+                    continue;
+
+                string key = !string.IsNullOrWhiteSpace(selection.AuroraId)
+                    ? selection.AuroraId
+                    : selection.Name;
+
+                if (!string.IsNullOrWhiteSpace(key))
+                    satisfiedChoiceKeys.Add($"selection:{key.Trim()}");
+            }
+
+            return satisfiedChoiceKeys.Count;
+        }
+
+        private static string BuildAppliedChoiceKey(AppliedCharacterChoiceResult choice)
+        {
+            return $"{choice.OptionAuroraId ?? string.Empty}|{choice.OptionName ?? string.Empty}|{choice.FollowUpOptionAuroraId ?? string.Empty}|{choice.FollowUpOptionName ?? string.Empty}";
+        }
+
+        private static bool DoesDirectSelectionSatisfySelect(
+            SqliteConnection connection,
+            CharacterSelectResult select,
+            ResolvedCharacterElement selection)
+        {
+            if (select == null || selection == null)
+                return false;
+
+            if (select.Options != null && select.Options.Count > 0)
+            {
+                if (select.Options.Any(option => DoesOptionMatchDirectSelection(option, selection)))
+                    return true;
+            }
+
+            if (!OptionMatchesSelectType(select.SelectType, selection.TypeName))
+                return false;
+
+            bool specializedMatch = select.SelectType?.Trim() switch
+            {
+                "Archetype" => DoesArchetypeSelectionMatchSelect(connection, select, selection),
+                "Race Variant" => DoesRaceVariantSelectionMatchSelect(connection, select, selection),
+                "Sub Race" => DoesSubRaceSelectionMatchSelect(connection, select, selection),
+                _ => SupportsContainAny(select.SupportsText, selection.AuroraId, selection.Name)
+            };
+
+            if (specializedMatch)
+                return true;
+
+            return SupportsContainAny(select.SupportsText, selection.AuroraId, selection.Name, selection.TypeName);
+        }
+
+        private static bool DoesOptionMatchDirectSelection(
+            CharacterSelectOptionResult option,
+            ResolvedCharacterElement selection)
+        {
+            if (option == null || selection == null)
+                return false;
+
+            if (option.OptionElementId.HasValue && option.OptionElementId.Value == selection.ElementId)
+                return true;
+
+            if (!string.IsNullOrWhiteSpace(option.OptionAuroraId)
+                && !string.IsNullOrWhiteSpace(selection.AuroraId)
+                && string.Equals(option.OptionAuroraId, selection.AuroraId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return !string.IsNullOrWhiteSpace(option.OptionName)
+                   && string.Equals(option.OptionName, selection.Name, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool DoesArchetypeSelectionMatchSelect(
+            SqliteConnection connection,
+            CharacterSelectResult select,
+            ResolvedCharacterElement selection)
+        {
+            if (!string.Equals(selection.TypeName, "Archetype", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT
+    a.parent_support_text,
+    pe.aurora_id,
+    pe.name
+FROM archetypes AS a
+LEFT JOIN elements AS pe
+    ON pe.element_id = a.parent_class_element_id
+WHERE a.element_id = $element_id;";
+            command.Parameters.AddWithValue("$element_id", selection.ElementId);
+
+            using var reader = command.ExecuteReader();
+            if (!reader.Read())
+                return false;
+
+            string parentSupportText = reader.IsDBNull(0) ? null : reader.GetString(0);
+            string parentAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
+            string parentName = reader.IsDBNull(2) ? null : reader.GetString(2);
+
+            return SupportsContainAny(select.SupportsText, parentSupportText, parentAuroraId, parentName);
+        }
+
+        private static bool DoesRaceVariantSelectionMatchSelect(
+            SqliteConnection connection,
+            CharacterSelectResult select,
+            ResolvedCharacterElement selection)
+        {
+            if (!string.Equals(selection.TypeName, "Race Variant", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT
+    rv.parent_support_text,
+    pe.aurora_id,
+    pe.name
+FROM race_variants AS rv
+LEFT JOIN elements AS pe
+    ON pe.element_id = rv.race_element_id
+WHERE rv.element_id = $element_id;";
+            command.Parameters.AddWithValue("$element_id", selection.ElementId);
+
+            using var reader = command.ExecuteReader();
+            if (!reader.Read())
+                return false;
+
+            string parentSupportText = reader.IsDBNull(0) ? null : reader.GetString(0);
+            string parentAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
+            string parentName = reader.IsDBNull(2) ? null : reader.GetString(2);
+
+            return SupportsContainAny(select.SupportsText, parentSupportText, parentAuroraId, parentName);
+        }
+
+        private static bool DoesSubRaceSelectionMatchSelect(
+            SqliteConnection connection,
+            CharacterSelectResult select,
+            ResolvedCharacterElement selection)
+        {
+            if (!string.Equals(selection.TypeName, "Sub Race", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT
+    sr.parent_support_text,
+    pe.aurora_id,
+    pe.name
+FROM subraces AS sr
+LEFT JOIN elements AS pe
+    ON pe.element_id = sr.race_element_id
+WHERE sr.element_id = $element_id;";
+            command.Parameters.AddWithValue("$element_id", selection.ElementId);
+
+            using var reader = command.ExecuteReader();
+            if (!reader.Read())
+                return false;
+
+            string parentSupportText = reader.IsDBNull(0) ? null : reader.GetString(0);
+            string parentAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
+            string parentName = reader.IsDBNull(2) ? null : reader.GetString(2);
+
+            return SupportsContainAny(select.SupportsText, parentSupportText, parentAuroraId, parentName);
+        }
+
+        private static bool SupportsContainAny(string supportsText, params string[] candidates)
+        {
+            if (string.IsNullOrWhiteSpace(supportsText) || candidates == null || candidates.Length == 0)
+                return false;
+
+            List<string> supportAtoms = ExtractSupportAtoms(supportsText);
+            if (supportAtoms.Count == 0)
+                return false;
+
+            foreach (string candidate in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                    continue;
+
+                if (supportAtoms.Any(atom => string.Equals(atom, candidate.Trim(), StringComparison.OrdinalIgnoreCase)))
+                    return true;
+            }
+
+            return false;
         }
 
         private static List<CharacterWarningResult> BuildCharacterWarnings(
+            SqliteConnection connection,
             IReadOnlyList<AppliedCharacterChoiceResult> appliedChoices,
             IReadOnlyList<PendingCharacterChoiceResult> pendingChoices,
-            IReadOnlyList<CharacterSelectResult> availableSelects)
+            IReadOnlyList<CharacterSelectResult> availableSelects,
+            IReadOnlyList<ResolvedCharacterElement> directSelections,
+            AuroraCharacterStateDocument workingDocument)
         {
             var warnings = new List<CharacterWarningResult>();
 
@@ -3724,14 +3956,19 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
 
             foreach (CharacterSelectResult select in availableSelects ?? Array.Empty<CharacterSelectResult>())
             {
-                int appliedCount = CountAppliedChoicesForSelect(appliedChoices, select);
-                if (appliedCount <= select.NumberToChoose)
+                int satisfiedCount = CountSatisfiedChoicesForSelect(
+                    connection,
+                    select,
+                    appliedChoices,
+                    directSelections,
+                    workingDocument);
+                if (satisfiedCount <= select.NumberToChoose)
                     continue;
 
                 warnings.Add(new CharacterWarningResult(
                     "over-selected-choice",
                     "error",
-                    $"This choice has {appliedCount} applied selections but only allows {select.NumberToChoose}.",
+                    $"This choice has {satisfiedCount} selections but only allows {select.NumberToChoose}.",
                     select.OwnerName,
                     select.OwnerTypeName,
                     select.SelectName));
