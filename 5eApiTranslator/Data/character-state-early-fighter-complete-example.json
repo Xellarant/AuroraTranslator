@@ -1,0 +1,70 @@
+{
+  "classes": [
+    { "name": "Fighter", "packageKey": "core-players-handbook", "level": 5 }
+  ],
+  "archetypes": [
+    { "name": "Champion", "packageKey": "core-players-handbook" }
+  ],
+  "race": { "name": "Human", "packageKey": "core-players-handbook" },
+  "background": { "name": "Acolyte", "packageKey": "core-players-handbook" },
+  "selectedChoices": [
+    {
+      "ownerName": "Acolyte",
+      "ownerTypeName": "Background",
+      "selectName": "Language (Acolyte)",
+      "selectType": "Language",
+      "optionAuroraId": "ID_LANGUAGE_DRACONIC",
+      "optionName": "Draconic"
+    },
+    {
+      "ownerName": "Acolyte",
+      "ownerTypeName": "Background",
+      "selectName": "Language (Acolyte)",
+      "selectType": "Language",
+      "optionAuroraId": "ID_LANGUAGE_DWARVISH",
+      "optionName": "Dwarvish"
+    },
+    {
+      "ownerName": "Fighter",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Fighter)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_ATHLETICS",
+      "optionName": "Athletics"
+    },
+    {
+      "ownerName": "Fighter",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Fighter)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_PERCEPTION",
+      "optionName": "Perception"
+    },
+    {
+      "ownerName": "Fighting Style",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Fighting Style",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE_DEFENSE",
+      "optionName": "Defense"
+    },
+    {
+      "ownerName": "Acolyte",
+      "ownerTypeName": "Background",
+      "selectName": "Personality Trait",
+      "selectType": "List",
+      "optionText": "I am tolerant (or intolerant) of other faiths and respect (or condemn) the worship of other gods."
+    },
+    {
+      "ownerName": "Acolyte",
+      "ownerTypeName": "Background",
+      "selectName": "Personality Trait",
+      "selectType": "List",
+      "optionText": "I can find common ground between the fiercest enemies, empathizing with them and always working toward peace."
+    }
+  ],
+  "tokens": ["ID_INTERNAL_OPTION_ALLOW_FEATS"],
+  "numericValues": { "str": 16, "dex": 14, "con": 14, "int": 10, "wis": 12, "cha": 8 },
+  "scalarValues": {},
+  "macroValues": {}
+}

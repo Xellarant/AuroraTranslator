@@ -1,0 +1,183 @@
+{
+  "CapturedAtUtc": "2026-05-20T08:21:11.0074425Z",
+  "StateLabel": "character-state-rogue-classic-expertise-complete-example.json",
+  "DirectSelectionCount": 8,
+  "DirectSelections": [
+    "Class Feature|Skill Expertise (Acrobatics)|core-players-handbook|",
+    "Class Feature|Skill Expertise (Stealth)|core-players-handbook|",
+    "Class|Rogue|core-players-handbook|1",
+    "Proficiency|Acrobatics|core-ale-xml|",
+    "Proficiency|Investigation|core-ale-xml|",
+    "Proficiency|Perception|core-ale-xml|",
+    "Proficiency|Stealth|core-ale-xml|",
+    "Race|Elf|core-players-handbook|"
+  ],
+  "ActiveFeatureCount": 3,
+  "ActiveFeatures": [
+    "Class|Rogue|Expertise|1",
+    "Class|Rogue|Sneak Attack|1",
+    "Class|Rogue|Thieves\u2019 Cant|1"
+  ],
+  "ActiveGrantCount": 24,
+  "AvailableSelectCount": 2,
+  "PendingChoiceCount": 0,
+  "BlockingPendingChoiceCount": 0,
+  "WarningCount": 0,
+  "WarningKindCounts": [],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 16
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 12
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 8
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 10
+    }
+  ],
+  "ProficiencyKeys": [
+    "ID_INTERNAL_PROFICIENCY_SKILL_EXPERTISE_ACROBATICS",
+    "ID_INTERNAL_PROFICIENCY_SKILL_EXPERTISE_STEALTH",
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR",
+    "ID_PROFICIENCY_SAVINGTHROW_DEXTERITY",
+    "ID_PROFICIENCY_SAVINGTHROW_INTELLIGENCE",
+    "ID_PROFICIENCY_SKILL_ACROBATICS",
+    "ID_PROFICIENCY_SKILL_INVESTIGATION",
+    "ID_PROFICIENCY_SKILL_PERCEPTION",
+    "ID_PROFICIENCY_SKILL_STEALTH",
+    "ID_PROFICIENCY_TOOL_PROFICIENCY_THIEVES_TOOLS",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_CROSSBOW_HAND",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_LONGSWORD",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_RAPIER",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SHORTSWORD",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
+  ],
+  "LanguageKeys": [
+    "ID_LANGUAGE_COMMON",
+    "ID_LANGUAGE_ELVISH",
+    "ID_WOTC_PHB_LANGUAGE_THIEVES_CANT"
+  ],
+  "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
+  "FeatKeys": [],
+  "FeatureKeys": [
+    "ID_EXPERTISE_SKILL_ACROBATICS",
+    "ID_EXPERTISE_SKILL_STEALTH",
+    "ID_WOTC_PHB_CLASS_FEATURE_ROGUE_EXPERTISE",
+    "ID_WOTC_PHB_CLASS_FEATURE_ROGUE_SNEAKATTACK",
+    "ID_WOTC_PHB_CLASS_FEATURE_ROGUE_THIEVES_CANT"
+  ],
+  "ChoiceSelectionKeys": [
+    "$(choice||Class Feature||Expertise||Expertise (Rogue))|ID_EXPERTISE_SKILL_ACROBATICS",
+    "$(choice||Class Feature||Expertise||Expertise (Rogue))|ID_EXPERTISE_SKILL_STEALTH",
+    "$(choice||Class||Rogue||Skill Proficiency (Rogue))|ID_PROFICIENCY_SKILL_ACROBATICS",
+    "$(choice||Class||Rogue||Skill Proficiency (Rogue))|ID_PROFICIENCY_SKILL_INVESTIGATION",
+    "$(choice||Class||Rogue||Skill Proficiency (Rogue))|ID_PROFICIENCY_SKILL_PERCEPTION",
+    "$(choice||Class||Rogue||Skill Proficiency (Rogue))|ID_PROFICIENCY_SKILL_STEALTH"
+  ],
+  "TraitKeys": [
+    "ID_SIZE_MEDIUM",
+    "ID_VISION_DARKVISION",
+    "movement:walk:30"
+  ],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|14",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|16",
+    "ability-score|int|ability:int|12",
+    "ability-score|str|ability:str|8",
+    "ability-score|wis|ability:wis|10",
+    "feature|class-feature|ID_EXPERTISE_SKILL_ACROBATICS|Skill Expertise (Acrobatics)",
+    "feature|class-feature|ID_EXPERTISE_SKILL_STEALTH|Skill Expertise (Stealth)",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_ROGUE_EXPERTISE|Expertise",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_ROGUE_SNEAKATTACK|Sneak Attack",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_ROGUE_THIEVES_CANT|Thieves\u2019 Cant",
+    "language|language|ID_LANGUAGE_COMMON|Common",
+    "language|language|ID_LANGUAGE_ELVISH|Elvish",
+    "language|language|ID_WOTC_PHB_LANGUAGE_THIEVES_CANT|Thieves\u2019 Cant",
+    "movement|walk|movement:walk:30|30",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR|Armor Proficiency (Light Armor)",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_ACROBATICS|Acrobatics",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_INVESTIGATION|Investigation",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_PERCEPTION|Perception",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_STEALTH|Stealth",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_DEXTERITY|Saving Throw Proficiency (Dexterity)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_INTELLIGENCE|Saving Throw Proficiency (Intelligence)",
+    "proficiency|skill|ID_INTERNAL_PROFICIENCY_SKILL_EXPERTISE_ACROBATICS|Skill Expertise (Acrobatics)",
+    "proficiency|skill|ID_INTERNAL_PROFICIENCY_SKILL_EXPERTISE_STEALTH|Skill Expertise (Stealth)",
+    "proficiency|tool|ID_PROFICIENCY_TOOL_PROFICIENCY_THIEVES_TOOLS|Tool Proficiency (Thieves\u2019 tools)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_CROSSBOW_HAND|Weapon Proficiency (Hand Crossbow)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_LONGSWORD|Weapon Proficiency (Longsword)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_RAPIER|Weapon Proficiency (Rapier)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SHORTSWORD|Weapon Proficiency (Shortsword)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
+    "sense|darkvision|ID_VISION_DARKVISION|Darkvision",
+    "size|size|ID_SIZE_MEDIUM|MEDIUM"
+  ],
+  "PendingChoiceKeys": [],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "choice-selection|selected-choice",
+      "Count": 6
+    },
+    {
+      "Key": "feature|active-feature",
+      "Count": 3
+    },
+    {
+      "Key": "feature|direct-selection",
+      "Count": 2
+    },
+    {
+      "Key": "language|grant",
+      "Count": 3
+    },
+    {
+      "Key": "movement|stat",
+      "Count": 1
+    },
+    {
+      "Key": "proficiency|direct-selection",
+      "Count": 4
+    },
+    {
+      "Key": "proficiency|grant",
+      "Count": 11
+    },
+    {
+      "Key": "trait|grant",
+      "Count": 1
+    },
+    {
+      "Key": "trait|semantic-grant",
+      "Count": 1
+    }
+  ],
+  "AppliedChoiceStates": [
+    "0|applied|Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|Acrobatics",
+    "1|applied|Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|Investigation",
+    "2|applied|Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|Perception",
+    "3|applied|Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|Stealth",
+    "4|applied|Class Feature|Expertise|Expertise (Rogue)|family=feature-pick|Skill Expertise (Acrobatics)",
+    "5|applied|Class Feature|Expertise|Expertise (Rogue)|family=feature-pick|Skill Expertise (Stealth)"
+  ]
+}

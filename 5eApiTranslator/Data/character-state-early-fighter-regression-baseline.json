@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-15T23:19:32.8063208Z",
+  "CapturedAtUtc": "2026-05-20T03:18:54.114052Z",
   "StateLabel": "character-state-early-fighter-example.json",
   "DirectSelectionCount": 7,
   "DirectSelections": [
@@ -23,13 +23,13 @@
   ],
   "ActiveGrantCount": 20,
   "AvailableSelectCount": 12,
-  "PendingChoiceCount": 10,
-  "BlockingPendingChoiceCount": 8,
-  "WarningCount": 8,
+  "PendingChoiceCount": 9,
+  "BlockingPendingChoiceCount": 7,
+  "WarningCount": 7,
   "WarningKindCounts": [
     {
       "Key": "pending-choice|warning",
-      "Count": 8
+      "Count": 7
     }
   ],
   "AbilityScores": [
@@ -137,7 +137,6 @@
     "Background|Acolyte|Language (Acolyte)|family=language-pick|remaining=1|blocking=True",
     "Background|Acolyte|Variant Feature|family=generic-element-pick|remaining=1|blocking=False",
     "Class Feature|Ability Score Improvement|Improvement Option (Fighter 4)|family=asi-pick|remaining=1|blocking=True",
-    "Class Feature|Martial Archetype|Martial Archetype|family=generic-element-pick|remaining=1|blocking=True",
     "Class|Fighter|Skill Proficiency (Fighter)|family=skill-pick|remaining=1|blocking=True",
     "Race|Human|Human Variant|family=race-variant-pick|remaining=1|blocking=False",
     "Race|Human|Language (Human)|family=language-pick|remaining=1|blocking=True"

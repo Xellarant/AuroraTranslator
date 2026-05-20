@@ -312,7 +312,10 @@ namespace AuroraTranslator
 
                     appliedChoiceResults[choiceIndex] = result;
                     if (string.Equals(result.Status, "applied", StringComparison.OrdinalIgnoreCase))
+                    {
                         anyApplied = true;
+                        current = EvaluateCore(connection, workingDocument, appliedChoiceResults.Values.OrderBy(x => x.ChoiceIndex).ToList());
+                    }
                     if (string.Equals(result.Status, "applied", StringComparison.OrdinalIgnoreCase)
                         || string.Equals(result.Status, "already-applied", StringComparison.OrdinalIgnoreCase))
                     {
@@ -622,6 +625,26 @@ ORDER BY rec.package_key ASC, e.name ASC;";
                 return BuildChoiceResult(choiceIndex, choice, select, option, null, "follow-up-required", "This option requires a follow-up choice before it can be applied.");
             }
 
+            int satisfiedCountBeforeApply = CountSatisfiedChoicesForSelect(
+                connection,
+                select,
+                evaluation.AppliedChoices,
+                evaluation.DirectSelections,
+                workingDocument);
+            bool alreadySatisfied = IsOptionAlreadySatisfied(option) || IsOptionAlreadySatisfied(followUp);
+
+            if (satisfiedCountBeforeApply >= select.NumberToChoose && !alreadySatisfied)
+            {
+                return BuildChoiceResult(
+                    choiceIndex,
+                    choice,
+                    select,
+                    option,
+                    followUp,
+                    "select-full",
+                    $"This choice already has {satisfiedCountBeforeApply} selection(s), which fills its limit of {select.NumberToChoose}.");
+            }
+
             if (!applyChanges)
             {
                 return BuildChoiceResult(choiceIndex, choice, select, option, followUp, "ready", "The choice is available and ready to apply.");
@@ -646,6 +669,11 @@ ORDER BY rec.package_key ASC, e.name ASC;";
             }
 
             return BuildChoiceResult(choiceIndex, choice, select, option, followUp, changed ? "applied" : "already-applied", message);
+        }
+
+        private static bool IsOptionAlreadySatisfied(CharacterSelectOptionResult option)
+        {
+            return option?.IsAlreadyOwned == true || option?.IsChosenForSelect == true;
         }
 
         private static CharacterSelectResult MatchSelect(
@@ -850,13 +878,20 @@ ORDER BY rec.package_key ASC, e.name ASC;";
 
             if (string.Equals(option.OptionKind, "semantic", StringComparison.OrdinalIgnoreCase))
             {
+                string semanticChoiceValue = !string.IsNullOrWhiteSpace(option.OptionAuroraId)
+                    ? option.OptionAuroraId
+                    : !string.IsNullOrWhiteSpace(option.OptionName)
+                        ? option.OptionName
+                        : option.OptionText;
+                bool storedSemanticChoice = StoreChoiceValue(document, select, semanticChoiceValue);
+
                 if (string.Equals(option.OptionAuroraId, "SEMANTIC_ASI", StringComparison.OrdinalIgnoreCase)
                     || option.OptionAuroraId?.StartsWith("ASI_", StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    return ApplyAsiOptionToDocument(document, option);
+                    return ApplyAsiOptionToDocument(document, option) || storedSemanticChoice;
                 }
 
-                return false;
+                return storedSemanticChoice;
             }
 
             if (!option.OptionElementId.HasValue)
@@ -2748,8 +2783,9 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             IReadOnlyList<ComputedGrantedSpellResult> grantedSpells)
         {
             return (grantedSpells ?? Array.Empty<ComputedGrantedSpellResult>())
+                .Where(spell => !string.IsNullOrWhiteSpace(spell.SpellcastingName))
                 .GroupBy(
-                    spell => string.IsNullOrWhiteSpace(spell.SpellcastingName) ? "(unspecified)" : spell.SpellcastingName.Trim(),
+                    spell => spell.SpellcastingName.Trim(),
                     StringComparer.OrdinalIgnoreCase)
                 .Select(group =>
                 {
@@ -3701,20 +3737,6 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
 
             var satisfiedChoiceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (AppliedCharacterChoiceResult choice in appliedChoices ?? Array.Empty<AppliedCharacterChoiceResult>())
-            {
-                if (!string.Equals(choice.Status, "applied", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(choice.Status, "already-applied", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (choice.SelectId != select.SelectId)
-                    continue;
-
-                satisfiedChoiceKeys.Add(BuildAppliedChoiceKey(choice));
-            }
-
             string macroName = BuildChoiceMacroName(select.OwnerTypeName, select.OwnerName, select.SelectName);
             if (workingDocument?.MacroValues != null
                 && workingDocument.MacroValues.TryGetValue(macroName, out List<string> storedValues)
@@ -3724,29 +3746,84 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                 {
                     string trimmed = storedValue?.Trim();
                     if (!string.IsNullOrWhiteSpace(trimmed))
-                        satisfiedChoiceKeys.Add($"stored:{trimmed}");
+                        satisfiedChoiceKeys.Add(trimmed);
                 }
             }
 
-            foreach (ResolvedCharacterElement selection in directSelections ?? Array.Empty<ResolvedCharacterElement>())
+            if (string.Equals(select.ChoiceFamily, "feature-pick", StringComparison.OrdinalIgnoreCase))
             {
-                if (!DoesDirectSelectionSatisfySelect(connection, select, selection))
-                    continue;
+                foreach (CharacterSelectOptionResult option in select.Options.Where(x => x.IsAlreadyOwned))
+                {
+                    string key = GetSatisfiedChoiceKey(option.OptionAuroraId, option.OptionName, option.OptionText);
+                    if (!string.IsNullOrWhiteSpace(key))
+                        satisfiedChoiceKeys.Add(key);
+                }
+            }
 
-                string key = !string.IsNullOrWhiteSpace(selection.AuroraId)
-                    ? selection.AuroraId
-                    : selection.Name;
+            if (ShouldCountDirectSelectionsForSelect(select))
+            {
+                foreach (ResolvedCharacterElement selection in directSelections ?? Array.Empty<ResolvedCharacterElement>())
+                {
+                    if (!DoesDirectSelectionSatisfySelect(connection, select, selection))
+                        continue;
 
-                if (!string.IsNullOrWhiteSpace(key))
-                    satisfiedChoiceKeys.Add($"selection:{key.Trim()}");
+                    string key = !string.IsNullOrWhiteSpace(selection.AuroraId)
+                        ? selection.AuroraId
+                        : selection.Name;
+
+                    if (!string.IsNullOrWhiteSpace(key))
+                        satisfiedChoiceKeys.Add(key.Trim());
+                }
             }
 
             return satisfiedChoiceKeys.Count;
         }
 
-        private static string BuildAppliedChoiceKey(AppliedCharacterChoiceResult choice)
+        private static string GetSatisfiedChoiceKey(string auroraId, string name, string text)
         {
-            return $"{choice.OptionAuroraId ?? string.Empty}|{choice.OptionName ?? string.Empty}|{choice.FollowUpOptionAuroraId ?? string.Empty}|{choice.FollowUpOptionName ?? string.Empty}";
+            if (!string.IsNullOrWhiteSpace(auroraId))
+                return auroraId.Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+                return name.Trim();
+            if (!string.IsNullOrWhiteSpace(text))
+                return text.Trim();
+
+            return null;
+        }
+
+        private static bool ShouldCountDirectSelectionsForSelect(CharacterSelectResult select)
+        {
+            if (select == null)
+                return false;
+
+            string selectType = select.SelectType?.Trim();
+            string choiceFamily = select.ChoiceFamily?.Trim();
+
+            if (string.Equals(choiceFamily, "feature-pick", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (string.Equals(selectType, "Language", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "Proficiency", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "Spell", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "Feat", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "List", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "Class Feature", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (string.Equals(selectType, "Archetype", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "Race Variant", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "Sub Race", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "Race", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "Background", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "Racial Trait", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return string.Equals(choiceFamily, "generic-element-pick", StringComparison.OrdinalIgnoreCase)
+                   && (select.Options?.Count ?? 0) == 0;
         }
 
         private static bool DoesDirectSelectionSatisfySelect(
@@ -3931,7 +4008,7 @@ WHERE sr.element_id = $element_id;";
             {
                 warnings.Add(new CharacterWarningResult(
                     "choice-application",
-                    string.Equals(choice.Status, "blocked", StringComparison.OrdinalIgnoreCase) ? "error" : "warning",
+                    IsChoiceErrorStatus(choice.Status) ? "error" : "warning",
                     choice.Message ?? $"Choice status was {choice.Status}.",
                     choice.OwnerName,
                     choice.OwnerTypeName,
@@ -3980,6 +4057,12 @@ WHERE sr.element_id = $element_id;";
                 .ThenBy(x => x.OwnerTypeName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.OwnerName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+        }
+
+        private static bool IsChoiceErrorStatus(string status)
+        {
+            return string.Equals(status, "blocked", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(status, "select-full", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ClassifySelectPolicy(string selectType, string selectName, string supportsText)

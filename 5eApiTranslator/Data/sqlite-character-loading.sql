@@ -2323,11 +2323,12 @@ SELECT
     owner_package_key,
     owner_source_path,
     owner_type_name,
-    COALESCE(NULLIF(trim(spellcasting_name), ''), owner_name) AS spellcasting_name,
+    trim(spellcasting_name) AS spellcasting_name,
     COUNT(*) AS granted_spell_count,
     SUM(CASE WHEN is_prepared = 1 THEN 1 ELSE 0 END) AS prepared_spell_count,
     SUM(CASE WHEN is_prepared = 0 THEN 1 ELSE 0 END) AS unprepared_spell_count
 FROM v_granted_spells
+WHERE NULLIF(trim(spellcasting_name), '') IS NOT NULL
 GROUP BY
     owner_element_id,
     owner_aurora_id,
@@ -2335,7 +2336,7 @@ GROUP BY
     owner_package_key,
     owner_source_path,
     owner_type_name,
-    COALESCE(NULLIF(trim(spellcasting_name), ''), owner_name);
+    trim(spellcasting_name);
 
 DROP VIEW IF EXISTS v_app_effect_rows;
 CREATE VIEW v_app_effect_rows AS
@@ -2486,6 +2487,21 @@ SELECT
         CAST(number_to_choose AS TEXT) || '|' ||
         CAST(is_optional AS TEXT)
     ) AS choice_key,
+    lower(
+        COALESCE(owner_aurora_id, owner_name) || '|' ||
+        COALESCE(owner_type_name, '') || '|' ||
+        COALESCE(owner_package_key, '') || '|' ||
+        COALESCE(owner_source_path, '') || '|' ||
+        COALESCE(select_name, '') || '|' ||
+        COALESCE(choice_family, '') || '|' ||
+        COALESCE(select_type, '') || '|' ||
+        COALESCE(CAST(select_level AS TEXT), '') || '|' ||
+        CAST(number_to_choose AS TEXT) || '|' ||
+        CAST(is_optional AS TEXT) || '|' ||
+        COALESCE(select_policy, '') || '|' ||
+        COALESCE(supports_text, '') || '|' ||
+        COALESCE(requirements_text, '')
+    ) AS choice_row_key,
     choice_family,
     select_policy,
     select_name,
@@ -2495,6 +2511,29 @@ SELECT
     number_to_choose,
     is_optional,
     requirements_text,
+    CASE
+        WHEN MIN(total_option_count) > 0 THEN 'static-template'
+        WHEN lower(trim(COALESCE(select_policy, ''))) IN ('broad-language-pool', 'broad-proficiency-pool', 'broad-feat-pool', 'asi-feature-pool')
+            THEN 'runtime-semantic'
+        WHEN lower(trim(COALESCE(choice_family, ''))) IN ('feature-pick', 'generic-element-pick', 'fighting-style-pick', 'race-variant-pick')
+            THEN 'runtime-derived'
+        ELSE 'empty-template'
+    END AS option_count_kind,
+    CASE
+        WHEN MIN(total_option_count) > 0 THEN 1
+        ELSE 0
+    END AS is_static_option_count_complete,
+    CASE
+        WHEN MIN(total_option_count) > 0 THEN 0
+        WHEN lower(trim(COALESCE(select_policy, ''))) IN ('broad-language-pool', 'broad-proficiency-pool', 'broad-feat-pool', 'asi-feature-pool')
+            THEN 1
+        WHEN lower(trim(COALESCE(choice_family, ''))) IN ('feature-pick', 'generic-element-pick', 'fighting-style-pick', 'race-variant-pick')
+            THEN 1
+        ELSE 0
+    END AS requires_runtime_option_resolution,
+    MIN(element_option_count) AS static_element_option_count,
+    MIN(text_option_count) AS static_text_option_count,
+    MIN(total_option_count) AS static_total_option_count,
     MIN(element_option_count) AS element_option_count,
     MIN(text_option_count) AS text_option_count,
     MIN(total_option_count) AS total_option_count,

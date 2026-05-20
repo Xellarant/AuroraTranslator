@@ -1,0 +1,196 @@
+{
+  "CapturedAtUtc": "2026-05-20T03:18:53.9355236Z",
+  "StateLabel": "character-state-monk-complete-example.json",
+  "DirectSelectionCount": 11,
+  "DirectSelections": [
+    "Background|Acolyte|core-players-handbook-2024|",
+    "Class Feature|Flurry of Blows|core-players-handbook-2024|",
+    "Class Feature|Patient Defense|core-players-handbook-2024|",
+    "Class Feature|Step of the Wind|core-players-handbook-2024|",
+    "Class|Monk|core-players-handbook-2024|2",
+    "Language|Dwarvish|core-ale-xml|",
+    "Language|Elvish|core-ale-xml|",
+    "Proficiency|Acrobatics|core-ale-xml|",
+    "Proficiency|Stealth|core-ale-xml|",
+    "Proficiency|Tool Proficiency (Calligrapher\u0027s supplies)|core-ale-xml|",
+    "Race|Human|core-players-handbook-2024|"
+  ],
+  "ActiveFeatureCount": 5,
+  "ActiveFeatures": [
+    "Class|Monk|Level 1: Martial Arts|1",
+    "Class|Monk|Level 1: Unarmored Defense|1",
+    "Class|Monk|Level 2: Monk\u0027s Focus|2",
+    "Class|Monk|Level 2: Unarmored Movement|2",
+    "Class|Monk|Level 2: Uncanny Metabolism|2"
+  ],
+  "ActiveGrantCount": 22,
+  "AvailableSelectCount": 4,
+  "PendingChoiceCount": 1,
+  "BlockingPendingChoiceCount": 1,
+  "WarningCount": 1,
+  "WarningKindCounts": [
+    {
+      "Key": "pending-choice|error",
+      "Count": 1
+    }
+  ],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 16
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 14
+    }
+  ],
+  "ProficiencyKeys": [
+    "ID_PROFICIENCY_SAVINGTHROW_DEXTERITY",
+    "ID_PROFICIENCY_SAVINGTHROW_STRENGTH",
+    "ID_PROFICIENCY_SKILL_ACROBATICS",
+    "ID_PROFICIENCY_SKILL_INSIGHT",
+    "ID_PROFICIENCY_SKILL_RELIGION",
+    "ID_PROFICIENCY_SKILL_STEALTH",
+    "ID_PROFICIENCY_TOOL_PROFICIENCY_CALLIGRAPHERS_SUPPLIES",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_CROSSBOW_HAND",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SCIMITAR",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SHORTSWORD",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
+  ],
+  "LanguageKeys": [
+    "ID_LANGUAGE_COMMON",
+    "ID_LANGUAGE_DWARVISH",
+    "ID_LANGUAGE_ELVISH"
+  ],
+  "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
+  "FeatKeys": [],
+  "FeatureKeys": [
+    "ID_WOTC_PHB24_CLASS_FEATURE_MONK_FOCUS_FLURRY_OF_BLOWS",
+    "ID_WOTC_PHB24_CLASS_FEATURE_MONK_FOCUS_PATIENT_DEFENSE",
+    "ID_WOTC_PHB24_CLASS_FEATURE_MONK_FOCUS_STEP_OF_THE_WIND",
+    "ID_WOTC_PHB24_CLASS_FEATURE_MONK_MARTIAL_ARTS",
+    "ID_WOTC_PHB24_CLASS_FEATURE_MONK_MONKS_FOCUS",
+    "ID_WOTC_PHB24_CLASS_FEATURE_MONK_UNARMORED_DEFENSE",
+    "ID_WOTC_PHB24_CLASS_FEATURE_MONK_UNARMORED_MOVEMENT",
+    "ID_WOTC_PHB24_CLASS_FEATURE_MONK_UNCANNY_METABOLISM"
+  ],
+  "ChoiceSelectionKeys": [
+    "$(choice||Class Feature||Level 2: Monk\u0027s Focus||Flurry of Blows)|ID_WOTC_PHB24_CLASS_FEATURE_MONK_FOCUS_FLURRY_OF_BLOWS",
+    "$(choice||Class Feature||Level 2: Monk\u0027s Focus||Patient Defense)|ID_WOTC_PHB24_CLASS_FEATURE_MONK_FOCUS_PATIENT_DEFENSE",
+    "$(choice||Class Feature||Level 2: Monk\u0027s Focus||Step of the Wind)|ID_WOTC_PHB24_CLASS_FEATURE_MONK_FOCUS_STEP_OF_THE_WIND",
+    "$(choice||Class||Monk||Skill Proficiency (Monk))|ID_PROFICIENCY_SKILL_ACROBATICS",
+    "$(choice||Class||Monk||Skill Proficiency (Monk))|ID_PROFICIENCY_SKILL_STEALTH",
+    "$(choice||Class||Monk||Tool Proficiency (Monk))|ID_PROFICIENCY_TOOL_PROFICIENCY_CALLIGRAPHERS_SUPPLIES",
+    "$(choice||Race||Human||Language (Human))|ID_LANGUAGE_DWARVISH",
+    "$(choice||Race||Human||Language (Human))|ID_LANGUAGE_ELVISH"
+  ],
+  "TraitKeys": [
+    "movement:burrow:monk:unarmored movement",
+    "movement:climb:monk:unarmored movement",
+    "movement:fly:monk:unarmored movement",
+    "movement:swim:monk:unarmored movement",
+    "movement:walk:30",
+    "movement:walk:monk:unarmored movement"
+  ],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|10",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|16",
+    "ability-score|int|ability:int|10",
+    "ability-score|str|ability:str|10",
+    "ability-score|wis|ability:wis|14",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MONK_FOCUS_FLURRY_OF_BLOWS|Flurry of Blows",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MONK_FOCUS_PATIENT_DEFENSE|Patient Defense",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MONK_FOCUS_STEP_OF_THE_WIND|Step of the Wind",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MONK_MARTIAL_ARTS|Level 1: Martial Arts",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MONK_MONKS_FOCUS|Level 2: Monk\u0027s Focus",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MONK_UNARMORED_DEFENSE|Level 1: Unarmored Defense",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MONK_UNARMORED_MOVEMENT|Level 2: Unarmored Movement",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MONK_UNCANNY_METABOLISM|Level 2: Uncanny Metabolism",
+    "language|language|ID_LANGUAGE_COMMON|Common",
+    "language|language|ID_LANGUAGE_DWARVISH|Dwarvish",
+    "language|language|ID_LANGUAGE_ELVISH|Elvish",
+    "movement|burrow|movement:burrow:monk:unarmored movement|unarmored movement",
+    "movement|climb|movement:climb:monk:unarmored movement|unarmored movement",
+    "movement|fly|movement:fly:monk:unarmored movement|unarmored movement",
+    "movement|swim|movement:swim:monk:unarmored movement|unarmored movement",
+    "movement|walk|movement:walk:30|30",
+    "movement|walk|movement:walk:monk:unarmored movement|unarmored movement",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_ACROBATICS|Acrobatics",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_INSIGHT|Insight",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_RELIGION|Religion",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_STEALTH|Stealth",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_DEXTERITY|Saving Throw Proficiency (Dexterity)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_STRENGTH|Saving Throw Proficiency (Strength)",
+    "proficiency|tool|ID_PROFICIENCY_TOOL_PROFICIENCY_CALLIGRAPHERS_SUPPLIES|Tool Proficiency (Calligrapher\u0027s supplies)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_CROSSBOW_HAND|Weapon Proficiency (Hand Crossbow)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SCIMITAR|Weapon Proficiency (Scimitar)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SHORTSWORD|Weapon Proficiency (Shortsword)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)"
+  ],
+  "PendingChoiceKeys": [
+    "Race|Human|Size (Human)|family=generic-element-pick|remaining=1|blocking=True"
+  ],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "choice-selection|selected-choice",
+      "Count": 8
+    },
+    {
+      "Key": "feature|active-feature",
+      "Count": 5
+    },
+    {
+      "Key": "feature|direct-selection",
+      "Count": 3
+    },
+    {
+      "Key": "language|direct-selection",
+      "Count": 2
+    },
+    {
+      "Key": "language|grant",
+      "Count": 1
+    },
+    {
+      "Key": "movement|stat",
+      "Count": 6
+    },
+    {
+      "Key": "proficiency|direct-selection",
+      "Count": 3
+    },
+    {
+      "Key": "proficiency|grant",
+      "Count": 9
+    }
+  ],
+  "AppliedChoiceStates": [
+    "0|applied|Class|Monk|Skill Proficiency (Monk)|family=skill-pick|Acrobatics",
+    "1|applied|Class|Monk|Skill Proficiency (Monk)|family=skill-pick|Stealth",
+    "2|applied|Class|Monk|Tool Proficiency (Monk)|family=tool-pick|Tool Proficiency (Calligrapher\u0027s supplies)",
+    "3|applied|Race|Human|Language (Human)|family=language-pick|Dwarvish",
+    "4|applied|Race|Human|Language (Human)|family=language-pick|Elvish"
+  ]
+}

@@ -1,12 +1,17 @@
 {
-  "CapturedAtUtc": "2026-05-20T08:22:32.6617893Z",
-  "StateLabel": "character-state-elf-example.json",
-  "DirectSelectionCount": 4,
+  "CapturedAtUtc": "2026-05-20T03:18:54.3095314Z",
+  "StateLabel": "character-state-early-fighter-complete-example.json",
+  "DirectSelectionCount": 9,
   "DirectSelections": [
     "Archetype|Champion|core-players-handbook|",
     "Background|Acolyte|core-players-handbook|",
+    "Class Feature|Defense|core-players-handbook|",
     "Class|Fighter|core-players-handbook|5",
-    "Race|Elf|core-players-handbook|"
+    "Language|Draconic|core-players-handbook|",
+    "Language|Dwarvish|core-ale-xml|",
+    "Proficiency|Athletics|core-ale-xml|",
+    "Proficiency|Perception|core-ale-xml|",
+    "Race|Human|core-players-handbook|"
   ],
   "ActiveFeatureCount": 7,
   "ActiveFeatures": [
@@ -18,15 +23,15 @@
     "Class|Fighter|Martial Archetype|3",
     "Class|Fighter|Second Wind|1"
   ],
-  "ActiveGrantCount": 26,
-  "AvailableSelectCount": 10,
-  "PendingChoiceCount": 9,
-  "BlockingPendingChoiceCount": 8,
-  "WarningCount": 8,
+  "ActiveGrantCount": 20,
+  "AvailableSelectCount": 12,
+  "PendingChoiceCount": 7,
+  "BlockingPendingChoiceCount": 5,
+  "WarningCount": 5,
   "WarningKindCounts": [
     {
       "Key": "pending-choice|warning",
-      "Count": 8
+      "Count": 5
     }
   ],
   "AbilityScores": [
@@ -62,14 +67,17 @@
     "ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELDS",
     "ID_PROFICIENCY_SAVINGTHROW_CONSTITUTION",
     "ID_PROFICIENCY_SAVINGTHROW_STRENGTH",
+    "ID_PROFICIENCY_SKILL_ATHLETICS",
     "ID_PROFICIENCY_SKILL_INSIGHT",
+    "ID_PROFICIENCY_SKILL_PERCEPTION",
     "ID_PROFICIENCY_SKILL_RELIGION",
     "ID_PROFICIENCY_WEAPON_PROFICIENCY_MARTIAL_WEAPONS",
     "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
   ],
   "LanguageKeys": [
     "ID_LANGUAGE_COMMON",
-    "ID_LANGUAGE_ELVISH"
+    "ID_LANGUAGE_DRACONIC",
+    "ID_LANGUAGE_DWARVISH"
   ],
   "GrantedSpellKeys": [],
   "SpellcastingProfileKeys": [],
@@ -80,13 +88,21 @@
     "ID_WOTC_PHB_CLASS_FEATURE_ACTIONSURGE",
     "ID_WOTC_PHB_CLASS_FEATURE_EXTRAATTACK",
     "ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE",
+    "ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE_DEFENSE",
     "ID_WOTC_PHB_CLASS_FEATURE_MARTIALARCHETYPE",
     "ID_WOTC_PHB_CLASS_FEATURE_SECONDWIND"
   ],
-  "ChoiceSelectionKeys": [],
+  "ChoiceSelectionKeys": [
+    "$(choice||Background||Acolyte||Language (Acolyte))|ID_LANGUAGE_DRACONIC",
+    "$(choice||Background||Acolyte||Language (Acolyte))|ID_LANGUAGE_DWARVISH",
+    "$(choice||Background||Acolyte||Personality Trait)|I am tolerant (or intolerant) of other faiths and respect (or condemn) the worship of other gods.",
+    "$(choice||Background||Acolyte||Personality Trait)|I can find common ground between the fiercest enemies, empathizing with them and always working toward peace.",
+    "$(choice||Class Feature||Fighting Style||Fighting Style)|ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE_DEFENSE",
+    "$(choice||Class||Fighter||Skill Proficiency (Fighter))|ID_PROFICIENCY_SKILL_ATHLETICS",
+    "$(choice||Class||Fighter||Skill Proficiency (Fighter))|ID_PROFICIENCY_SKILL_PERCEPTION"
+  ],
   "TraitKeys": [
     "ID_SIZE_MEDIUM",
-    "ID_VISION_DARKVISION",
     "movement:walk:30"
   ],
   "EffectRowKeys": [
@@ -100,35 +116,36 @@
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_ABILITYSCOREIMPROVEMENT_FIGHTER|Ability Score Improvement",
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_ACTIONSURGE|Action Surge",
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_EXTRAATTACK|Extra Attack",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE_DEFENSE|Defense",
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE|Fighting Style",
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_MARTIALARCHETYPE|Martial Archetype",
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_SECONDWIND|Second Wind",
     "language|language|ID_LANGUAGE_COMMON|Common",
-    "language|language|ID_LANGUAGE_ELVISH|Elvish",
+    "language|language|ID_LANGUAGE_DRACONIC|Draconic",
+    "language|language|ID_LANGUAGE_DWARVISH|Dwarvish",
     "movement|walk|movement:walk:30|30",
     "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_HEAVY_ARMOR|Armor Proficiency (Heavy Armor)",
     "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR|Armor Proficiency (Light Armor)",
     "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_MEDIUM_ARMOR|Armor Proficiency (Medium Armor)",
     "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELDS|Armor Proficiency (Shields)",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_ATHLETICS|Athletics",
     "proficiency|proficiency|ID_PROFICIENCY_SKILL_INSIGHT|Insight",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_PERCEPTION|Perception",
     "proficiency|proficiency|ID_PROFICIENCY_SKILL_RELIGION|Religion",
     "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_CONSTITUTION|Saving Throw Proficiency (Constitution)",
     "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_STRENGTH|Saving Throw Proficiency (Strength)",
     "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_MARTIAL_WEAPONS|Weapon Proficiency (Martial Weapons)",
     "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
-    "sense|darkvision|ID_VISION_DARKVISION|Darkvision",
     "size|size|ID_SIZE_MEDIUM|MEDIUM"
   ],
   "PendingChoiceKeys": [
     "Background|Acolyte|Bond|family=text-choice|remaining=1|blocking=True",
     "Background|Acolyte|Flaw|family=text-choice|remaining=1|blocking=True",
     "Background|Acolyte|Ideal|family=text-choice|remaining=1|blocking=True",
-    "Background|Acolyte|Language (Acolyte)|family=language-pick|remaining=2|blocking=True",
-    "Background|Acolyte|Personality Trait|family=text-choice|remaining=2|blocking=True",
     "Background|Acolyte|Variant Feature|family=generic-element-pick|remaining=1|blocking=False",
     "Class Feature|Ability Score Improvement|Improvement Option (Fighter 4)|family=asi-pick|remaining=1|blocking=True",
-    "Class Feature|Fighting Style|Fighting Style|family=fighting-style-pick|remaining=1|blocking=True",
-    "Class|Fighter|Skill Proficiency (Fighter)|family=skill-pick|remaining=2|blocking=True"
+    "Race|Human|Human Variant|family=race-variant-pick|remaining=1|blocking=False",
+    "Race|Human|Language (Human)|family=language-pick|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {
@@ -136,29 +153,49 @@
       "Count": 6
     },
     {
+      "Key": "choice-selection|selected-choice",
+      "Count": 7
+    },
+    {
       "Key": "feature|active-feature",
       "Count": 7
     },
     {
-      "Key": "language|grant",
+      "Key": "feature|direct-selection",
+      "Count": 1
+    },
+    {
+      "Key": "language|direct-selection",
       "Count": 2
+    },
+    {
+      "Key": "language|grant",
+      "Count": 1
     },
     {
       "Key": "movement|stat",
       "Count": 1
     },
     {
-      "Key": "proficiency|grant",
-      "Count": 10
+      "Key": "proficiency|direct-selection",
+      "Count": 2
     },
     {
-      "Key": "trait|grant",
-      "Count": 1
+      "Key": "proficiency|grant",
+      "Count": 10
     },
     {
       "Key": "trait|semantic-grant",
       "Count": 1
     }
   ],
-  "AppliedChoiceStates": []
+  "AppliedChoiceStates": [
+    "0|applied|Background|Acolyte|Language (Acolyte)|family=language-pick|Draconic",
+    "1|applied|Background|Acolyte|Language (Acolyte)|family=language-pick|Dwarvish",
+    "2|applied|Class|Fighter|Skill Proficiency (Fighter)|family=skill-pick|Athletics",
+    "3|applied|Class|Fighter|Skill Proficiency (Fighter)|family=skill-pick|Perception",
+    "4|applied|Class Feature|Fighting Style|Fighting Style|family=fighting-style-pick|Defense",
+    "5|applied|Background|Acolyte|Personality Trait|family=text-choice|I am tolerant (or intolerant) of other faiths and respect (or condemn) the worship of other gods.",
+    "6|applied|Background|Acolyte|Personality Trait|family=text-choice|I can find common ground between the fiercest enemies, empathizing with them and always working toward peace."
+  ]
 }

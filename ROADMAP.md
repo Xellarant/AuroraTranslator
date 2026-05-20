@@ -62,7 +62,9 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Existing direct state such as an already-selected subclass can now satisfy matching generic pending picks instead of surfacing as false pending work
 - Iterative choice application and re-evaluation
 - Pending multi-pick select counts now key off explicit applied choices rather than unrelated globally owned options
-- Over-selected first-party choice states now emit explicit `over-selected-choice` warnings
+- Common first-party multi-pick pools now behave like real slots across Acolyte/Fighter/Monk flows, and extra selected picks stop applying once a pool is full
+- Multi-select `feature-pick` families such as classic Rogue `Expertise` and Warlock `Eldritch Invocation` now behave like real builder slots, including saved-state satisfaction from direct feature elements
+- Over-selected first-party choice states now fail loudly, either as explicit over-selection warnings or immediate `select-full` application errors
 - Derived character output for:
   - computed ability scores
   - proficiencies and languages
@@ -83,6 +85,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - SQLite-side app-facing projection views for:
   - `v_choice_templates`
   - `v_app_choice_rows`
+  - explicit static option counts plus runtime-resolution metadata for dynamic choice families
   - `v_granted_spells`
   - `v_spellcasting_profiles`
   - `v_app_effect_rows`
@@ -134,8 +137,10 @@ Likely target families:
   - Fighter Fighting Style
   - language/proficiency selections
   - Human Variant feat flow
+  - duplicate-pick validation for selected-choice flows
   - additional PHB 2024 replacement-style families beyond Cleric/Monk
   - spell-grant scenarios such as domain or oath spells
+  - more `feature-pick` families such as Metamagic, Weapon Mastery, and Eldritch Adept
   - explicit duplicate-pick and over-pick validation scenarios beyond the current first-party language oversubscribe fixture
 - use focused fixtures to lock down computed-trait scenarios such as Darkvision and typed movement entries like fly/climb/swim/burrow speeds
 - add guardrails for semantic expansion counts if useful

@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-20T02:57:28.064369Z",
+  "CapturedAtUtc": "2026-05-20T08:22:32.8547037Z",
   "StateLabel": "character-state-life-domain-oversubscribe-example.json",
   "DirectSelectionCount": 9,
   "DirectSelections": [
@@ -24,21 +24,17 @@
   ],
   "ActiveGrantCount": 32,
   "AvailableSelectCount": 5,
-  "PendingChoiceCount": 3,
-  "BlockingPendingChoiceCount": 3,
+  "PendingChoiceCount": 4,
+  "BlockingPendingChoiceCount": 4,
   "WarningCount": 4,
   "WarningKindCounts": [
-    {
-      "Key": "over-selected-choice|error",
-      "Count": 1
-    },
     {
       "Key": "pending-choice|error",
       "Count": 2
     },
     {
       "Key": "pending-choice|warning",
-      "Count": 1
+      "Count": 2
     }
   ],
   "AbilityScores": [
@@ -154,6 +150,7 @@
   "PendingChoiceKeys": [
     "Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=generic-element-pick|remaining=3|blocking=True",
     "Class|Cleric|Skill Proficiency (Cleric)|family=skill-pick|remaining=2|blocking=True",
+    "Race|Human|Language (Human)|family=language-pick|remaining=2|blocking=True",
     "Race|Human|Size (Human)|family=generic-element-pick|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
