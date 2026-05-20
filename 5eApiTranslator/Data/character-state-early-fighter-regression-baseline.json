@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T22:02:53.0366432Z",
+  "CapturedAtUtc": "2026-05-15T23:19:32.8063208Z",
   "StateLabel": "character-state-early-fighter-example.json",
   "DirectSelectionCount": 7,
   "DirectSelections": [
@@ -84,6 +84,7 @@
     "ID_WOTC_PHB_CLASS_FEATURE_ACTIONSURGE",
     "ID_WOTC_PHB_CLASS_FEATURE_EXTRAATTACK",
     "ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE",
+    "ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE_DEFENSE",
     "ID_WOTC_PHB_CLASS_FEATURE_MARTIALARCHETYPE",
     "ID_WOTC_PHB_CLASS_FEATURE_SECONDWIND"
   ],
@@ -109,6 +110,7 @@
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_ABILITYSCOREIMPROVEMENT_FIGHTER|Ability Score Improvement",
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_ACTIONSURGE|Action Surge",
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_EXTRAATTACK|Extra Attack",
+    "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE_DEFENSE|Defense",
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE|Fighting Style",
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_MARTIALARCHETYPE|Martial Archetype",
     "feature|class-feature|ID_WOTC_PHB_CLASS_FEATURE_SECONDWIND|Second Wind",
@@ -152,6 +154,10 @@
     {
       "Key": "feature|active-feature",
       "Count": 7
+    },
+    {
+      "Key": "feature|direct-selection",
+      "Count": 1
     },
     {
       "Key": "language|direct-selection",

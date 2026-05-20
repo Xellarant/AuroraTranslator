@@ -29,13 +29,14 @@ Notable runtime capabilities already in place:
 - package precedence can be inspected, changed, parity-checked, and refreshed from the CLI
 - character-state evaluation can resolve active features, grants, and select pools
 - ASI/feat selects now expand into second-stage builder choices
+- deterministic one-option PHB 2024 feature-pick rows now auto-materialize into runtime state instead of lingering as fake pending choices
 - pending multi-pick choices are now counted from explicit applied selections instead of incidental global ownership
 - character-state JSON output now includes a `computedCharacter` section with derived scores, traits, pending choices, warnings, and provenance
 - application-facing computed output now breaks traits into clearer `movements`, `senses`, and overall `traits` collections
 - application-facing runtime output now also includes flat `effectRows` and grouped `spellcastingProfiles` so the app does not have to reconstruct core effects from nested sections
 - SQLite now also exposes a higher-level [v_app_effect_rows](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/sqlite-character-loading.sql) summary view so the app can consume deduped effect rows with source counts instead of raw stat/setter duplicates
 - SQLite now also exposes a higher-level [v_app_choice_rows](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/sqlite-character-loading.sql) summary view so the app can consume stable choice rows without reverse-engineering `v_choice_templates`
-- committed character-state fixtures now cover baseline, bond/text-choice, early fighter, elf darkvision, a first-party granted-spell scenario, first-party fly/climb/swim movement scenarios, and a companion burrow-speed scenario
+- committed character-state fixtures now cover baseline, bond/text-choice, early fighter, elf darkvision, a first-party granted-spell scenario, PHB 2024 replacement-style feature picks, first-party fly/climb/swim movement scenarios, and a companion burrow-speed scenario
 
 ## Repository Layout
 
@@ -98,7 +99,7 @@ dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- check-characte
 ```
 
 The committed baseline is meant to represent Wizards first-party `core` + `supplements`, not an arbitrary custom content directory.
-The committed character-state baselines are meant to represent fixed first-party fixtures such as [character-state-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-example.json), [character-state-early-fighter-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-early-fighter-example.json), [character-state-elf-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-elf-example.json), the granted-spell [character-state-life-domain-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-life-domain-example.json), and the movement-focused [character-state-aarakocra-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-aarakocra-example.json), [character-state-tabaxi-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-tabaxi-example.json), [character-state-triton-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-triton-example.json), and [character-state-badger-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-badger-example.json) evaluated against the first-party regression DB.
+The committed character-state baselines are meant to represent fixed first-party fixtures such as [character-state-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-example.json), [character-state-early-fighter-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-early-fighter-example.json), [character-state-elf-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-elf-example.json), the granted-spell [character-state-life-domain-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-life-domain-example.json), the PHB 2024 replacement-style [character-state-monk-focus-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-monk-focus-example.json), and the movement-focused [character-state-aarakocra-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-aarakocra-example.json), [character-state-tabaxi-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-tabaxi-example.json), [character-state-triton-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-triton-example.json), and [character-state-badger-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-badger-example.json) evaluated against the first-party regression DB.
 
 ### Expression and character-state evaluation
 
@@ -119,6 +120,7 @@ The current character-state evaluator is intentionally builder-oriented rather t
 - evaluate select availability
 - handle broad language/proficiency pools with dedicated logic
 - treat ASI-style selects semantically
+- auto-materialize deterministic one-option feature-pick selects that act like implicit class-feature defaults in first-party PHB 2024 content
 - expand ASI choices into:
   - `+2` to one ability
   - `+1/+1` to two abilities

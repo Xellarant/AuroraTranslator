@@ -291,6 +291,12 @@ namespace AuroraTranslator
             {
                 bool anyApplied = false;
 
+                if (ApplyImplicitFeaturePickSelections(connection, workingDocument, current))
+                {
+                    anyApplied = true;
+                    current = EvaluateCore(connection, workingDocument, appliedChoiceResults.Values.OrderBy(x => x.ChoiceIndex).ToList());
+                }
+
                 for (int choiceIndex = 0; choiceIndex < workingDocument.SelectedChoices.Count; choiceIndex++)
                 {
                     if (completedChoices.Contains(choiceIndex))
@@ -746,6 +752,91 @@ ORDER BY rec.package_key ASC, e.name ASC;";
                 followUp?.OptionAuroraId ?? choice.FollowUpOptionAuroraId,
                 status,
                 message);
+        }
+
+        private static bool ApplyImplicitFeaturePickSelections(
+            SqliteConnection connection,
+            AuroraCharacterStateDocument document,
+            CharacterEvaluationResult current)
+        {
+            if (current?.AvailableSelects == null || current.AvailableSelects.Count == 0)
+                return false;
+
+            bool changed = false;
+            foreach (CharacterSelectResult select in current.AvailableSelects)
+            {
+                if (!ShouldImplicitlyApplyFeaturePick(select))
+                    continue;
+
+                CharacterSelectOptionResult option = select.Options.FirstOrDefault(x => x.IsAvailable);
+                if (option == null)
+                    continue;
+
+                bool applied = ApplyOptionToDocument(connection, document, select, option);
+                bool appliedReplacementTokens = ApplyReplacementTokensToDocument(document, select, option);
+                changed = applied || appliedReplacementTokens || changed;
+            }
+
+            return changed;
+        }
+
+        private static bool ShouldImplicitlyApplyFeaturePick(CharacterSelectResult select)
+        {
+            if (select == null
+                || select.IsOptional
+                || select.NumberToChoose != 1
+                || !string.Equals(select.ChoiceFamily, "feature-pick", StringComparison.OrdinalIgnoreCase)
+                || RequiresFollowUpToApply(select.Options?.FirstOrDefault()))
+            {
+                return false;
+            }
+
+            List<CharacterSelectOptionResult> availableOptions = select.Options?
+                .Where(x => x.IsAvailable)
+                .ToList();
+
+            return availableOptions?.Count == 1 && availableOptions[0].OptionElementId.HasValue;
+        }
+
+        private static bool ApplyReplacementTokensToDocument(
+            AuroraCharacterStateDocument document,
+            CharacterSelectResult select,
+            CharacterSelectOptionResult option)
+        {
+            if (document == null)
+                return false;
+
+            var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            AddReplacementTokens(tokens, select?.RequirementsText);
+            AddReplacementTokens(tokens, option?.RequirementText);
+
+            bool changed = false;
+            foreach (string token in tokens)
+            {
+                if (document.Tokens.Any(x => string.Equals(x, token, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                document.Tokens.Add(token);
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        private static void AddReplacementTokens(ISet<string> sink, string requirementsText)
+        {
+            if (sink == null || string.IsNullOrWhiteSpace(requirementsText))
+                return;
+
+            foreach (Match match in Regex.Matches(
+                         requirementsText,
+                         @"ID_INTERNAL_[A-Z0-9_]*FEATURE_REPLACEMENT[A-Z0-9_]*",
+                         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            {
+                string token = match.Value?.Trim();
+                if (!string.IsNullOrWhiteSpace(token))
+                    sink.Add(token);
+            }
         }
 
         private static bool ApplyOptionToDocument(
@@ -2461,6 +2552,33 @@ ORDER BY e.name ASC, rec.package_key ASC;";
         {
             var items = new List<ComputedCharacterItemResult>();
 
+            foreach (ResolvedCharacterElement selection in evaluation.DirectSelections.Where(x => IsFeatureLikeSelectionType(x.TypeName)))
+            {
+                string key = selection.AuroraId ?? $"{selection.TypeName}:{selection.Name}";
+                List<CharacterProvenanceEntry> provenance = new()
+                {
+                    new(
+                        "feature",
+                        key,
+                        "direct-selection",
+                        selection.Name,
+                        selection.TypeName,
+                        selection.PackageKey,
+                        selection.AuroraId,
+                        selection.Name,
+                        "Selected directly")
+                };
+                provenanceSink.AddRange(provenance);
+                items.Add(new ComputedCharacterItemResult(
+                    "feature",
+                    key,
+                    selection.Name,
+                    selection.TypeName,
+                    selection.PackageKey,
+                    true,
+                    provenance));
+            }
+
             foreach (ActiveCharacterFeature feature in evaluation.ActiveFeatures)
             {
                 string key = feature.AuroraId ?? $"{feature.OwnerTypeName}:{feature.OwnerName}:{feature.Name}";
@@ -2489,6 +2607,16 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             }
 
             return MergeComputedItems(items);
+        }
+
+        private static bool IsFeatureLikeSelectionType(string typeName)
+        {
+            if (string.IsNullOrWhiteSpace(typeName))
+                return false;
+
+            return typeName.Contains("Feature", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(typeName, "Racial Trait", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(typeName, "Dragonmark", StringComparison.OrdinalIgnoreCase);
         }
 
         private static List<ComputedGrantedSpellResult> BuildComputedGrantedSpells(

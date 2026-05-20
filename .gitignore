@@ -367,3 +367,6 @@ FodyWeavers.xsd
 
 # Local assistant scratch/config
 .claude/
+
+# Local Aurora Lights app bundle staging
+Aurora.App/

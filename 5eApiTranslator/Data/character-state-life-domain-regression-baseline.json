@@ -1,10 +1,12 @@
 {
-  "CapturedAtUtc": "2026-05-11T22:02:54.2009185Z",
+  "CapturedAtUtc": "2026-05-15T23:18:34.6877258Z",
   "StateLabel": "character-state-life-domain-example.json",
-  "DirectSelectionCount": 4,
+  "DirectSelectionCount": 6,
   "DirectSelections": [
     "Archetype|Life Domain|core-players-handbook-2024|",
     "Background|Acolyte|core-players-handbook-2024|",
+    "Class Feature|Channel Divinity: Divine Spark|core-players-handbook-2024|",
+    "Class Feature|Channel Divinity: Turn Undead|core-players-handbook-2024|",
     "Class|Cleric|core-players-handbook-2024|3",
     "Race|Human|core-players-handbook-2024|"
   ],
@@ -18,10 +20,10 @@
     "Class|Cleric|Level 3: Cleric Subclass|3"
   ],
   "ActiveGrantCount": 32,
-  "AvailableSelectCount": 7,
-  "PendingChoiceCount": 7,
-  "BlockingPendingChoiceCount": 7,
-  "WarningCount": 7,
+  "AvailableSelectCount": 5,
+  "PendingChoiceCount": 5,
+  "BlockingPendingChoiceCount": 5,
+  "WarningCount": 5,
   "WarningKindCounts": [
     {
       "Key": "pending-choice|error",
@@ -29,7 +31,7 @@
     },
     {
       "Key": "pending-choice|warning",
-      "Count": 4
+      "Count": 2
     }
   ],
   "AbilityScores": [
@@ -87,10 +89,15 @@
     "ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_LIFE_DOMAIN_SPELLS",
     "ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_PRESERVE_LIFE",
     "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY",
+    "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_DIVINE_SPARK",
+    "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_TURN_UNDEAD",
     "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CLERIC_SUBCLASS",
     "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_SPELLCASTING"
   ],
-  "ChoiceSelectionKeys": [],
+  "ChoiceSelectionKeys": [
+    "$(choice||Class Feature||Level 2: Channel Divinity||Channel Divinity: Divine Spark)|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_DIVINE_SPARK",
+    "$(choice||Class Feature||Level 2: Channel Divinity||Channel Divinity: Turn Undead)|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_TURN_UNDEAD"
+  ],
   "TraitKeys": [
     "ID_INTERNAL_GRANT_MULTICLASS_SPELLCASTING_SLOTS_FULL",
     "ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_HOLY_SYMBOL",
@@ -107,6 +114,8 @@
     "feature|archetype-feature|ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_DISCIPLE_OF_LIFE|Level 3: Disciple of Life",
     "feature|archetype-feature|ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_LIFE_DOMAIN_SPELLS|Level 3: Life Domain Spells",
     "feature|archetype-feature|ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_PRESERVE_LIFE|Level 3: Preserve Life",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_DIVINE_SPARK|Channel Divinity: Divine Spark",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_TURN_UNDEAD|Channel Divinity: Turn Undead",
     "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY|Level 2: Channel Divinity",
     "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CLERIC_SUBCLASS|Level 3: Cleric Subclass",
     "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_SPELLCASTING|Level 1: Spellcasting",
@@ -131,8 +140,6 @@
   ],
   "PendingChoiceKeys": [
     "Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=generic-element-pick|remaining=3|blocking=True",
-    "Class Feature|Level 2: Channel Divinity|Channel Divinity: Divine Spark|family=feature-pick|remaining=1|blocking=True",
-    "Class Feature|Level 2: Channel Divinity|Channel Divinity: Turn Undead|family=feature-pick|remaining=1|blocking=True",
     "Class Feature|Level 3: Cleric Subclass|Cleric Subclass|family=generic-element-pick|remaining=1|blocking=True",
     "Class|Cleric|Skill Proficiency (Cleric)|family=skill-pick|remaining=2|blocking=True",
     "Race|Human|Language (Human)|family=language-pick|remaining=2|blocking=True",
@@ -144,8 +151,16 @@
       "Count": 6
     },
     {
+      "Key": "choice-selection|selected-choice",
+      "Count": 2
+    },
+    {
       "Key": "feature|active-feature",
       "Count": 6
+    },
+    {
+      "Key": "feature|direct-selection",
+      "Count": 2
     },
     {
       "Key": "granted-spell|grant",

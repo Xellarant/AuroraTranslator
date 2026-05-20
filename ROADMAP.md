@@ -58,6 +58,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Second-stage semantic expansion for:
   - `Ability Score Improvement`
   - `Feat`
+- Deterministic first-party PHB 2024 one-option `feature-pick` rows now auto-materialize into runtime state instead of surfacing as fake pending choices
 - Iterative choice application and re-evaluation
 - Pending multi-pick select counts now key off explicit applied choices rather than unrelated globally owned options
 - Derived character output for:
@@ -106,10 +107,11 @@ High priority:
 - add more semantic choice families where raw support links are too broad
 - distinguish follow-up actions from follow-up element picks more clearly if the consumer needs it
 - broaden choice application beyond the current ASI / feat-first flows
+- continue tightening replacement-style feature semantics beyond the current deterministic PHB 2024 one-option default picks
 
 Likely target families:
 
-- variant feature replacement flows
+- variant feature replacement flows with explicit suppression/replacement semantics
 - optional class/archetype family picks
 - more dynamic language/proficiency sub-pools
 
@@ -131,6 +133,7 @@ Likely target families:
   - archetype selection
   - language/proficiency selections
   - Human Variant feat flow
+  - additional PHB 2024 replacement-style families beyond Cleric/Monk
   - spell-grant scenarios such as domain or oath spells
 - use focused fixtures to lock down computed-trait scenarios such as Darkvision and typed movement entries like fly/climb/swim/burrow speeds
 - add guardrails for semantic expansion counts if useful

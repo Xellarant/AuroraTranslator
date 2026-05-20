@@ -1,0 +1,36 @@
+{
+  "classes": [
+    {
+      "name": "Monk",
+      "packageKey": "core-players-handbook-2024",
+      "level": 2
+    }
+  ],
+  "archetypes": [],
+  "race": {
+    "name": "Human",
+    "packageKey": "core-players-handbook-2024"
+  },
+  "subRace": null,
+  "raceVariants": [],
+  "background": {
+    "name": "Acolyte",
+    "packageKey": "core-players-handbook-2024"
+  },
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [],
+  "tokens": [],
+  "numericValues": {
+    "str": 10,
+    "dex": 16,
+    "con": 14,
+    "int": 10,
+    "wis": 14,
+    "cha": 10
+  },
+  "scalarValues": {},
+  "macroValues": {}
+}
