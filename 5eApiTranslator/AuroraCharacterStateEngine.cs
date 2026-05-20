@@ -1352,7 +1352,7 @@ ORDER BY owner.name ASC, g.ordinal ASC;";
                 if (grantLevel.HasValue && grantLevel.Value > ownerLevel)
                     continue;
 
-                string requirementsText = reader.IsDBNull(6) ? null : reader.GetString(6);
+                string requirementsText = reader.IsDBNull(8) ? null : reader.GetString(8);
                 if (!IsRequirementSatisfied(requirementsText, context))
                     continue;
 
@@ -1425,7 +1425,8 @@ SELECT
     s.select_level,
     s.number_to_choose,
     s.is_optional,
-    s.requirements_text
+    s.requirements_text,
+    s.spellcasting_profile_id
 FROM selects AS s
 JOIN rule_scopes AS rs
     ON rs.rule_scope_id = s.rule_scope_id
@@ -1463,12 +1464,16 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
                 string ownerName = reader.GetString(2);
                 string ownerTypeName = reader.GetString(3);
                 string selectName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                int? spellcastingProfileId = reader.IsDBNull(12) ? null : reader.GetInt32(12);
                 List<CharacterSelectOptionResult> options = LoadSelectOptions(
                     connection,
                     selectId,
+                    ownerElementId,
+                    ownerLevel,
                     selectType,
                     selectPolicy,
                     supportsText,
+                    spellcastingProfileId,
                     context,
                     ownerName,
                     ownerTypeName,
@@ -1496,9 +1501,12 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
         private static List<CharacterSelectOptionResult> LoadSelectOptions(
             SqliteConnection connection,
             int selectId,
+            int ownerElementId,
+            int ownerLevel,
             string selectType,
             string selectPolicy,
             string supportsText,
+            int? spellcastingProfileId,
             AuroraExpressionEvaluationContext context,
             string ownerName,
             string ownerTypeName,
@@ -1519,6 +1527,18 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
 
             if (string.Equals(selectPolicy, "asi-feature-pool", StringComparison.OrdinalIgnoreCase))
                 return LoadAsiFeatureOptions(connection, selectId, supportsText, context);
+
+            if (string.Equals(selectPolicy, "broad-spell-pool", StringComparison.OrdinalIgnoreCase))
+                return LoadSpellOptions(
+                    connection,
+                    ownerElementId,
+                    ownerLevel,
+                    spellcastingProfileId,
+                    supportsText,
+                    context,
+                    ownerName,
+                    ownerTypeName,
+                    selectName);
 
             return LoadGenericSelectableOptions(
                 connection,
@@ -1632,6 +1652,293 @@ ORDER BY
                 .ToList();
         }
 
+        private static List<CharacterSelectOptionResult> LoadSpellOptions(
+            SqliteConnection connection,
+            int ownerElementId,
+            int ownerLevel,
+            int? spellcastingProfileId,
+            string supportsText,
+            AuroraExpressionEvaluationContext context,
+            string ownerName,
+            string ownerTypeName,
+            string selectName)
+        {
+            if (!spellcastingProfileId.HasValue)
+                return new List<CharacterSelectOptionResult>();
+
+            (string profileName, string listText) = LoadSpellcastingProfileSelectInfo(connection, spellcastingProfileId.Value);
+            string spellListName = !string.IsNullOrWhiteSpace(listText)
+                ? listText.Trim()
+                : profileName?.Trim();
+            if (string.IsNullOrWhiteSpace(spellListName))
+                return new List<CharacterSelectOptionResult>();
+
+            bool usesSlotCap = supportsText?.Contains("$(spellcasting:slots)", StringComparison.OrdinalIgnoreCase) == true;
+            HashSet<int> explicitSpellLevels = ExtractExplicitSpellLevels(supportsText);
+            int slotCap = usesSlotCap
+                ? ResolveSpellLevelCap(connection, ownerElementId, ownerLevel, profileName)
+                : 0;
+
+            bool includeCantrips = explicitSpellLevels.Contains(0);
+            int maxAllowedSpellLevel = usesSlotCap
+                ? Math.Max(0, slotCap)
+                : explicitSpellLevels.Count > 0
+                    ? explicitSpellLevels.Where(x => x > 0).DefaultIfEmpty(0).Max()
+                    : 0;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT DISTINCT
+    spell.element_id,
+    spell.aurora_id,
+    spell.name,
+    spell_rec.package_key,
+    spell_type.type_name,
+    sp.spell_level
+FROM spellcasting_profiles AS profile
+JOIN spell_access AS sa
+    ON sa.access_text = profile.list_text
+JOIN spells AS sp
+    ON sp.element_id = sa.spell_element_id
+JOIN elements AS spell
+    ON spell.element_id = sp.element_id
+JOIN resolved_elements_cache AS spell_rec
+    ON spell_rec.winning_element_id = spell.element_id
+JOIN element_types AS spell_type
+    ON spell_type.element_type_id = spell.element_type_id
+WHERE profile.spellcasting_profile_id = $spellcasting_profile_id
+ORDER BY
+    sp.spell_level ASC,
+    spell.name ASC;";
+            command.Parameters.AddWithValue("$spellcasting_profile_id", spellcastingProfileId.Value);
+
+            var options = new List<CharacterSelectOptionResult>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                int optionElementId = reader.GetInt32(0);
+                string optionAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
+                string optionName = reader.GetString(2);
+                string optionPackageKey = reader.IsDBNull(3) ? null : reader.GetString(3);
+                string optionTypeName = reader.IsDBNull(4) ? null : reader.GetString(4);
+                int spellLevel = reader.IsDBNull(5) ? 0 : reader.GetInt32(5);
+
+                if (spellLevel == 0)
+                {
+                    if (!includeCantrips)
+                        continue;
+                }
+                else
+                {
+                    if (explicitSpellLevels.Count > 0 && !explicitSpellLevels.Contains(spellLevel) && !usesSlotCap)
+                        continue;
+                    if (usesSlotCap && (spellLevel < 1 || spellLevel > maxAllowedSpellLevel))
+                        continue;
+                    if (!usesSlotCap && explicitSpellLevels.Count == 0)
+                        continue;
+                }
+
+                string requirementText = LoadElementRequirementText(connection, optionElementId);
+                bool isAvailable = IsRequirementSatisfied(requirementText, context);
+                bool isAlreadyOwned = (!string.IsNullOrWhiteSpace(optionAuroraId) && context.MatchesToken(optionAuroraId))
+                                     || context.MatchesToken(optionName);
+                bool isChosenForSelect = IsStoredChoiceValue(
+                    context,
+                    ownerTypeName,
+                    ownerName,
+                    selectName,
+                    optionAuroraId,
+                    optionName);
+
+                options.Add(new CharacterSelectOptionResult(
+                    "element",
+                    optionElementId,
+                    optionAuroraId,
+                    optionName,
+                    optionTypeName,
+                    optionPackageKey,
+                    null,
+                    isAvailable,
+                    isAlreadyOwned,
+                    isChosenForSelect,
+                    requirementText));
+            }
+
+            return options
+                .GroupBy(x => x.OptionElementId)
+                .Select(x => x.First())
+                .ToList();
+        }
+
+        private static (string ProfileName, string ListText) LoadSpellcastingProfileSelectInfo(
+            SqliteConnection connection,
+            int spellcastingProfileId)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT
+    profile_name,
+    list_text
+FROM spellcasting_profiles
+WHERE spellcasting_profile_id = $spellcasting_profile_id;";
+            command.Parameters.AddWithValue("$spellcasting_profile_id", spellcastingProfileId);
+
+            using var reader = command.ExecuteReader();
+            if (!reader.Read())
+                return (null, null);
+
+            return (
+                reader.IsDBNull(0) ? null : reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1));
+        }
+
+        private static HashSet<int> ExtractExplicitSpellLevels(string supportsText)
+        {
+            var levels = new HashSet<int>();
+            if (string.IsNullOrWhiteSpace(supportsText))
+                return levels;
+
+            foreach (Match match in Regex.Matches(supportsText, @"(?<![A-Za-z0-9_])\d+(?![A-Za-z0-9_])"))
+            {
+                if (int.TryParse(match.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int level))
+                    levels.Add(level);
+            }
+
+            return levels;
+        }
+
+        private static int ResolveSpellLevelCap(
+            SqliteConnection connection,
+            int ownerElementId,
+            int ownerLevel,
+            string profileName)
+        {
+            if (string.IsNullOrWhiteSpace(profileName))
+                return 0;
+
+            string statPrefix = $"{profileName.Trim().ToLowerInvariant()}:spellcasting:slots:";
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT
+    DISTINCT stat_name
+FROM stats AS s
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = s.rule_scope_id
+WHERE rs.owner_kind = 'element'
+  AND rs.owner_element_id = $owner_element_id
+  AND lower(s.stat_name) LIKE $stat_name_prefix;";
+            command.Parameters.AddWithValue("$owner_element_id", ownerElementId);
+            command.Parameters.AddWithValue("$stat_name_prefix", $"{statPrefix}%");
+
+            int maxSpellLevel = 0;
+            var resolvedStatValues = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                string statName = reader.IsDBNull(0) ? null : reader.GetString(0);
+
+                string suffix = statName?.Split(':').LastOrDefault();
+                if (!int.TryParse(suffix, NumberStyles.Integer, CultureInfo.InvariantCulture, out int spellLevel))
+                    continue;
+
+                decimal value = ResolveStatValueAtLevel(
+                    connection,
+                    ownerElementId,
+                    statName,
+                    ownerLevel,
+                    resolvedStatValues,
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                if (value > 0)
+                    maxSpellLevel = Math.Max(maxSpellLevel, spellLevel);
+            }
+
+            return maxSpellLevel;
+        }
+
+        private static decimal ResolveStatValueAtLevel(
+            SqliteConnection connection,
+            int ownerElementId,
+            string statName,
+            int ownerLevel,
+            Dictionary<string, decimal> cache,
+            HashSet<string> evaluationStack)
+        {
+            if (string.IsNullOrWhiteSpace(statName))
+                return 0m;
+
+            string normalizedStatName = statName.Trim();
+            string cacheKey = $"{ownerElementId}|{ownerLevel}|{normalizedStatName}";
+            if (cache.TryGetValue(cacheKey, out decimal cachedValue))
+                return cachedValue;
+
+            if (!evaluationStack.Add(cacheKey))
+                return 0m;
+
+            decimal total = 0m;
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT
+    value_expression_text,
+    stat_level
+FROM stats AS s
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = s.rule_scope_id
+WHERE rs.owner_kind = 'element'
+  AND rs.owner_element_id = $owner_element_id
+  AND lower(s.stat_name) = lower($stat_name)
+ORDER BY COALESCE(s.stat_level, 0) ASC,
+         s.ordinal ASC;";
+            command.Parameters.AddWithValue("$owner_element_id", ownerElementId);
+            command.Parameters.AddWithValue("$stat_name", normalizedStatName);
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                string valueExpressionText = reader.IsDBNull(0) ? null : reader.GetString(0);
+                int? statLevel = reader.IsDBNull(1) ? null : reader.GetInt32(1);
+                if (statLevel.HasValue && statLevel.Value > ownerLevel)
+                    continue;
+
+                total += ResolveStatExpressionValue(
+                    connection,
+                    ownerElementId,
+                    valueExpressionText,
+                    ownerLevel,
+                    cache,
+                    evaluationStack);
+            }
+
+            evaluationStack.Remove(cacheKey);
+            cache[cacheKey] = total;
+            return total;
+        }
+
+        private static decimal ResolveStatExpressionValue(
+            SqliteConnection connection,
+            int ownerElementId,
+            string valueExpressionText,
+            int ownerLevel,
+            Dictionary<string, decimal> cache,
+            HashSet<string> evaluationStack)
+        {
+            string expression = valueExpressionText?.Trim();
+            if (string.IsNullOrWhiteSpace(expression))
+                return 0m;
+
+            decimal? numericValue = TryParseDecimalInvariant(expression);
+            if (numericValue.HasValue)
+                return numericValue.Value;
+
+            if (expression.StartsWith('+'))
+                return ResolveStatExpressionValue(connection, ownerElementId, expression.Substring(1), ownerLevel, cache, evaluationStack);
+
+            if (expression.StartsWith('-'))
+                return -ResolveStatExpressionValue(connection, ownerElementId, expression.Substring(1), ownerLevel, cache, evaluationStack);
+
+            return ResolveStatValueAtLevel(connection, ownerElementId, expression, ownerLevel, cache, evaluationStack);
+        }
+
         private static List<CharacterSelectOptionResult> LoadDirectSelectPreviewOptions(
             SqliteConnection connection,
             int ownerElementId,
@@ -1668,15 +1975,16 @@ WHERE element_id = $element_id;";
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-SELECT
-    s.select_id,
-    s.name_text,
-    s.select_type,
-    s.supports_text,
-    s.select_level,
-    s.number_to_choose,
-    s.is_optional,
-    s.requirements_text
+    SELECT
+        s.select_id,
+        s.name_text,
+        s.select_type,
+        s.supports_text,
+        s.select_level,
+        s.number_to_choose,
+        s.is_optional,
+        s.requirements_text,
+        s.spellcasting_profile_id
 FROM selects AS s
 JOIN rule_scopes AS rs
     ON rs.rule_scope_id = s.rule_scope_id
@@ -1695,6 +2003,7 @@ ORDER BY s.ordinal ASC;";
                 string supportsText = reader.IsDBNull(3) ? null : reader.GetString(3);
                 int? selectLevel = reader.IsDBNull(4) ? null : reader.GetInt32(4);
                 string requirementsText = reader.IsDBNull(7) ? null : reader.GetString(7);
+                int? spellcastingProfileId = reader.IsDBNull(8) ? null : reader.GetInt32(8);
 
                 if (selectLevel.HasValue && selectLevel.Value > 1)
                     continue;
@@ -1707,9 +2016,12 @@ ORDER BY s.ordinal ASC;";
                 List<CharacterSelectOptionResult> options = LoadSelectOptions(
                     connection,
                     selectId,
+                    ownerElementId,
+                    1,
                     selectType,
                     selectPolicy,
                     supportsText,
+                    spellcastingProfileId,
                     context,
                     ownerName,
                     ownerTypeName,
@@ -4070,6 +4382,9 @@ WHERE sr.element_id = $element_id;";
             selectType = selectType?.Trim();
             selectName = selectName?.Trim();
 
+            if (string.Equals(selectType, "Spell", StringComparison.OrdinalIgnoreCase))
+                return "broad-spell-pool";
+
             if (string.Equals(selectType, "Language", StringComparison.OrdinalIgnoreCase))
                 return "broad-language-pool";
 
@@ -4104,6 +4419,9 @@ WHERE sr.element_id = $element_id;";
 
             if (string.Equals(selectPolicy, "asi-feature-pool", StringComparison.OrdinalIgnoreCase))
                 return "asi-pick";
+
+            if (string.Equals(selectType, "Spell", StringComparison.OrdinalIgnoreCase))
+                return "spell-pick";
 
             if (string.Equals(selectType, "Language", StringComparison.OrdinalIgnoreCase))
                 return "language-pick";

@@ -1,6 +1,6 @@
 {
-  "CapturedAtUtc": "2026-05-20T09:59:12.7179912Z",
-  "StateLabel": "character-state-warlock-invocations-complete-example.json",
+  "CapturedAtUtc": "2026-05-20T09:59:12.7351451Z",
+  "StateLabel": "character-state-warlock-spellcasting-overpick-example.json",
   "DirectSelectionCount": 11,
   "DirectSelections": [
     "Archetype|The Fiend|core-players-handbook|",
@@ -27,8 +27,13 @@
   "AvailableSelectCount": 5,
   "PendingChoiceCount": 0,
   "BlockingPendingChoiceCount": 0,
-  "WarningCount": 0,
-  "WarningKindCounts": [],
+  "WarningCount": 2,
+  "WarningKindCounts": [
+    {
+      "Key": "choice-application|error",
+      "Count": 2
+    }
+  ],
   "AbilityScores": [
     {
       "AbilityKey": "cha",
@@ -173,13 +178,15 @@
   ],
   "AppliedChoiceStates": [
     "0|applied|Class|Warlock|Skill Proficiency (Warlock)|family=skill-pick|Arcana",
+    "10|select-full|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Charm Person",
     "1|applied|Class|Warlock|Skill Proficiency (Warlock)|family=skill-pick|Deception",
     "2|applied|Class Feature|Otherworldly Patron|Otherworldly Patron|family=generic-element-pick|The Fiend",
     "3|applied|Class Feature|Eldritch Invocations|Eldritch Invocation (Level 2)|family=feature-pick|Armor of Shadows",
     "4|applied|Class Feature|Eldritch Invocations|Eldritch Invocation (Level 2)|family=feature-pick|Devil\u2019s Sight",
     "5|applied|Class Feature|Pact Magic|Cantrip (Warlock)|family=spell-pick|Eldritch Blast",
     "6|applied|Class Feature|Pact Magic|Cantrip (Warlock)|family=spell-pick|Mage Hand",
-    "7|applied|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Armor of Agathys",
-    "8|applied|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Hex"
+    "7|select-full|Class Feature|Pact Magic|Cantrip (Warlock)|family=spell-pick|Chill Touch",
+    "8|applied|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Armor of Agathys",
+    "9|applied|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Hex"
   ]
 }

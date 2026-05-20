@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-20T09:25:09.3462093Z",
+  "CapturedAtUtc": "2026-05-20T09:59:45.851474Z",
   "StateLabel": "character-state-warlock-invocations-overpick-example.json",
   "DirectSelectionCount": 7,
   "DirectSelections": [
@@ -19,7 +19,7 @@
     "Class|Warlock|Otherworldly Patron|1",
     "Class|Warlock|Pact Magic|1"
   ],
-  "ActiveGrantCount": 21,
+  "ActiveGrantCount": 20,
   "AvailableSelectCount": 5,
   "PendingChoiceCount": 2,
   "BlockingPendingChoiceCount": 2,
@@ -30,7 +30,7 @@
       "Count": 1
     },
     {
-      "Key": "pending-choice|error",
+      "Key": "pending-choice|warning",
       "Count": 2
     }
   ],
@@ -94,7 +94,6 @@
     "$(choice||Class||Warlock||Skill Proficiency (Warlock))|ID_PROFICIENCY_SKILL_DECEPTION"
   ],
   "TraitKeys": [
-    "ID_INTERNAL_GRANT_MULTICLASS_SPELLCASTING_SLOTS_SOLO",
     "ID_SIZE_MEDIUM",
     "ID_VISION_DARKVISION",
     "movement:walk:30"
@@ -124,12 +123,11 @@
     "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
     "sense|darkvision|ID_VISION_DARKVISION|Darkvision",
     "size|size|ID_SIZE_MEDIUM|MEDIUM",
-    "spell-grant|spell|spell:ID_PHB_SPELL_MAGE_ARMOR||prepared=|",
-    "trait|multiclass-spellcasting-slots|ID_INTERNAL_GRANT_MULTICLASS_SPELLCASTING_SLOTS_SOLO|SOLO"
+    "spell-grant|spell|spell:ID_PHB_SPELL_MAGE_ARMOR||prepared=|"
   ],
   "PendingChoiceKeys": [
-    "Class Feature|Pact Magic|Cantrip (Warlock)|family=generic-element-pick|remaining=2|blocking=True",
-    "Class Feature|Pact Magic|Spellcasting (Warlock)|family=generic-element-pick|remaining=2|blocking=True"
+    "Class Feature|Pact Magic|Cantrip (Warlock)|family=spell-pick|remaining=2|blocking=True",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|remaining=2|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {
@@ -174,7 +172,7 @@
     },
     {
       "Key": "trait|semantic-grant",
-      "Count": 2
+      "Count": 1
     }
   ],
   "AppliedChoiceStates": [

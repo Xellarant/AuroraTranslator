@@ -2412,6 +2412,7 @@ SELECT
     s.is_optional,
     s.requirements_text,
     CASE
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'spell' THEN 'broad-spell-pool'
         WHEN lower(trim(COALESCE(s.select_type, ''))) = 'language' THEN 'broad-language-pool'
         WHEN lower(trim(COALESCE(s.select_type, ''))) = 'proficiency' THEN 'broad-proficiency-pool'
         WHEN lower(trim(COALESCE(s.select_type, ''))) = 'feat' THEN 'broad-feat-pool'
@@ -2422,6 +2423,7 @@ SELECT
         ELSE 'fixed-element-pool'
     END AS select_policy,
     CASE
+        WHEN lower(trim(COALESCE(s.select_type, ''))) = 'spell' THEN 'spell-pick'
         WHEN lower(trim(COALESCE(s.select_type, ''))) = 'language' THEN 'language-pick'
         WHEN lower(trim(COALESCE(s.select_type, ''))) = 'proficiency'
          AND (lower(COALESCE(s.name_text, '')) LIKE '%skill%' OR lower(COALESCE(s.supports_text, '')) LIKE '%skill%')
@@ -2515,7 +2517,7 @@ SELECT
     requirements_text,
     CASE
         WHEN MIN(total_option_count) > 0 THEN 'static-template'
-        WHEN lower(trim(COALESCE(select_policy, ''))) IN ('broad-language-pool', 'broad-proficiency-pool', 'broad-feat-pool', 'asi-feature-pool')
+        WHEN lower(trim(COALESCE(select_policy, ''))) IN ('broad-spell-pool', 'broad-language-pool', 'broad-proficiency-pool', 'broad-feat-pool', 'asi-feature-pool')
             THEN 'runtime-semantic'
         WHEN lower(trim(COALESCE(choice_family, ''))) IN ('feature-pick', 'generic-element-pick', 'fighting-style-pick', 'race-variant-pick')
             THEN 'runtime-derived'
@@ -2527,7 +2529,7 @@ SELECT
     END AS is_static_option_count_complete,
     CASE
         WHEN MIN(total_option_count) > 0 THEN 0
-        WHEN lower(trim(COALESCE(select_policy, ''))) IN ('broad-language-pool', 'broad-proficiency-pool', 'broad-feat-pool', 'asi-feature-pool')
+        WHEN lower(trim(COALESCE(select_policy, ''))) IN ('broad-spell-pool', 'broad-language-pool', 'broad-proficiency-pool', 'broad-feat-pool', 'asi-feature-pool')
             THEN 1
         WHEN lower(trim(COALESCE(choice_family, ''))) IN ('feature-pick', 'generic-element-pick', 'fighting-style-pick', 'race-variant-pick')
             THEN 1

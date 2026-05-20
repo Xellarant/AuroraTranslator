@@ -1,0 +1,66 @@
+{
+  "classes": [
+    {
+      "name": "Rogue",
+      "packageKey": "core-players-handbook",
+      "level": 1
+    }
+  ],
+  "archetypes": [],
+  "race": {
+    "name": "Elf",
+    "packageKey": "core-players-handbook"
+  },
+  "subRace": null,
+  "raceVariants": [],
+  "background": null,
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [
+    {
+      "ownerName": "Rogue",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Rogue)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_ACROBATICS",
+      "optionName": "Acrobatics"
+    },
+    {
+      "ownerName": "Rogue",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Rogue)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_INVESTIGATION",
+      "optionName": "Investigation"
+    },
+    {
+      "ownerName": "Rogue",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Rogue)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_PERCEPTION",
+      "optionName": "Perception"
+    },
+    {
+      "ownerName": "Rogue",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Rogue)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_STEALTH",
+      "optionName": "Stealth"
+    }
+  ],
+  "tokens": [],
+  "numericValues": {
+    "str": 8,
+    "dex": 16,
+    "con": 14,
+    "int": 12,
+    "wis": 10,
+    "cha": 14
+  },
+  "scalarValues": {},
+  "macroValues": {}
+}

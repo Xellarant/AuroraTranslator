@@ -78,6 +78,14 @@
     {
       "ownerName": "Pact Magic",
       "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Warlock)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_PHB_SPELL_CHILL_TOUCH",
+      "optionName": "Chill Touch"
+    },
+    {
+      "ownerName": "Pact Magic",
+      "ownerTypeName": "Class Feature",
       "selectName": "Spellcasting (Warlock)",
       "selectType": "Spell",
       "optionAuroraId": "ID_PHB_SPELL_ARMOR_OF_AGATHYS",
@@ -90,6 +98,14 @@
       "selectType": "Spell",
       "optionAuroraId": "ID_PHB_SPELL_HEX",
       "optionName": "Hex"
+    },
+    {
+      "ownerName": "Pact Magic",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Spellcasting (Warlock)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_PHB_SPELL_CHARM_PERSON",
+      "optionName": "Charm Person"
     }
   ],
   "tokens": [],

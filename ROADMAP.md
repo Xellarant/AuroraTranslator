@@ -64,6 +64,8 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Pending multi-pick select counts now key off explicit applied choices rather than unrelated globally owned options
 - Common first-party multi-pick pools now behave like real slots across Acolyte/Fighter/Monk flows, and extra selected picks stop applying once a pool is full
 - Multi-select `feature-pick` families such as classic Rogue `Expertise` and Warlock `Eldritch Invocation` now behave like real builder slots, including saved-state satisfaction from direct feature elements
+- Classic Rogue `Expertise` is now covered by partial, direct-state, and fully completed first-party fixtures so we can detect regressions across the whole progression
+- Warlock Pact Magic spell-pick rows now resolve through spellcasting profiles, fill real spell option pools, and participate in slot-aware over-pick validation
 - Over-selected first-party choice states now fail loudly, either as explicit over-selection warnings or immediate `select-full` application errors
 - Derived character output for:
   - computed ability scores
@@ -80,6 +82,7 @@ This roadmap reflects the project state as of the current `master` branch after:
   - normalized choice families
   - pending choice rows
   - granted spell rows
+  - runtime-resolved spell-pick rows
   - flat effect rows
   - grouped spellcasting profiles
 - SQLite-side app-facing projection views for:
@@ -141,6 +144,7 @@ Likely target families:
   - additional PHB 2024 replacement-style families beyond Cleric/Monk
   - spell-grant scenarios such as domain or oath spells
   - more `feature-pick` families such as Metamagic, Weapon Mastery, and Eldritch Adept
+  - more `spell-pick` families such as Wizard spellbook/cantrip flows and broader subclass spell-selection cases
   - explicit duplicate-pick and over-pick validation scenarios beyond the current first-party language oversubscribe fixture
 - use focused fixtures to lock down computed-trait scenarios such as Darkvision and typed movement entries like fly/climb/swim/burrow speeds
 - add guardrails for semantic expansion counts if useful

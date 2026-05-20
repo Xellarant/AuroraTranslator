@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-20T08:22:32.8547037Z",
+  "CapturedAtUtc": "2026-05-20T09:59:12.1659687Z",
   "StateLabel": "character-state-life-domain-oversubscribe-example.json",
   "DirectSelectionCount": 9,
   "DirectSelections": [
@@ -22,7 +22,7 @@
     "Class|Cleric|Level 2: Channel Divinity|2",
     "Class|Cleric|Level 3: Cleric Subclass|3"
   ],
-  "ActiveGrantCount": 32,
+  "ActiveGrantCount": 31,
   "AvailableSelectCount": 5,
   "PendingChoiceCount": 4,
   "BlockingPendingChoiceCount": 4,
@@ -30,11 +30,11 @@
   "WarningKindCounts": [
     {
       "Key": "pending-choice|error",
-      "Count": 2
+      "Count": 1
     },
     {
       "Key": "pending-choice|warning",
-      "Count": 2
+      "Count": 3
     }
   ],
   "AbilityScores": [
@@ -105,7 +105,6 @@
     "$(choice||Class Feature||Level 2: Channel Divinity||Channel Divinity: Turn Undead)|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_TURN_UNDEAD"
   ],
   "TraitKeys": [
-    "ID_INTERNAL_GRANT_MULTICLASS_SPELLCASTING_SLOTS_FULL",
     "ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_HOLY_SYMBOL",
     "ID_INTERNAL_RITUAL_CASTING",
     "movement:walk:30"
@@ -143,12 +142,11 @@
     "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_BLESS|Cleric|prepared=True|Cleric",
     "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_CURE_WOUNDS|Cleric|prepared=True|Cleric",
     "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_LESSER_RESTORATION|Cleric|prepared=True|Cleric",
-    "trait|multiclass-spellcasting-slots|ID_INTERNAL_GRANT_MULTICLASS_SPELLCASTING_SLOTS_FULL|FULL",
     "trait|proficiency-spellfocus-group-holy-symbol|ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_HOLY_SYMBOL|PROFICIENCY SPELLFOCUS GROUP HOLY SYMBOL",
     "trait|ritual-casting|ID_INTERNAL_RITUAL_CASTING|RITUAL CASTING"
   ],
   "PendingChoiceKeys": [
-    "Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=generic-element-pick|remaining=3|blocking=True",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=spell-pick|remaining=3|blocking=True",
     "Class|Cleric|Skill Proficiency (Cleric)|family=skill-pick|remaining=2|blocking=True",
     "Race|Human|Language (Human)|family=language-pick|remaining=2|blocking=True",
     "Race|Human|Size (Human)|family=generic-element-pick|remaining=1|blocking=True"
@@ -192,7 +190,7 @@
     },
     {
       "Key": "trait|semantic-grant",
-      "Count": 3
+      "Count": 2
     }
   ],
   "AppliedChoiceStates": []
