@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-20T22:08:58.2968549Z",
+  "CapturedAtUtc": "2026-05-27T09:30:24.0481802Z",
   "StateLabel": "character-state-life-domain-oversubscribe-example.json",
   "DirectSelectionCount": 9,
   "DirectSelections": [
@@ -29,12 +29,8 @@
   "WarningCount": 10,
   "WarningKindCounts": [
     {
-      "Key": "pending-choice|error",
-      "Count": 2
-    },
-    {
       "Key": "pending-choice|warning",
-      "Count": 8
+      "Count": 10
     }
   ],
   "AbilityScores": [

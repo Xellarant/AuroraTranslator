@@ -1,0 +1,102 @@
+{
+  "CapturedAtUtc": "2026-05-27T09:26:39.5453693Z",
+  "StateLabel": "character-state-ritual-caster-direct-example.json",
+  "DirectSelectionCount": 4,
+  "DirectSelections": [
+    "Feat Feature|Wisdom|core-players-handbook-2024|",
+    "Feat|Ritual Caster|core-players-handbook-2024|",
+    "Spell|Detect Magic|core-players-handbook-2024|",
+    "Spell|Find Familiar|core-players-handbook-2024|"
+  ],
+  "ActiveFeatureCount": 0,
+  "ActiveFeatures": [],
+  "ActiveGrantCount": 1,
+  "AvailableSelectCount": 3,
+  "PendingChoiceCount": 0,
+  "BlockingPendingChoiceCount": 0,
+  "WarningCount": 0,
+  "WarningKindCounts": [],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 16
+    }
+  ],
+  "ProficiencyKeys": [],
+  "LanguageKeys": [],
+  "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
+  "FeatKeys": [
+    "ID_WOTC_PHB24_FEAT_RITUAL_CASTER"
+  ],
+  "FeatureKeys": [
+    "ID_WOTC_PHB24_FEAT_FEATURE_RITUAL_CASTER_WISDOM"
+  ],
+  "ChoiceSelectionKeys": [
+    "$(choice||Feat||Ritual Caster||1st Ritual Spell (Ritual Caster))|ID_WOTC_PHB24_SPELL_DETECT_MAGIC",
+    "$(choice||Feat||Ritual Caster||2nd Ritual Spell (Ritual Caster))|ID_WOTC_PHB24_SPELL_FIND_FAMILIAR",
+    "$(choice||Feat||Ritual Caster||Ability Score Increase (Ritual Caster))|ID_WOTC_PHB24_FEAT_FEATURE_RITUAL_CASTER_WISDOM"
+  ],
+  "TraitKeys": [
+    "ID_INTERNAL_RITUAL_CASTING"
+  ],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|10",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|10",
+    "ability-score|int|ability:int|10",
+    "ability-score|str|ability:str|10",
+    "ability-score|wis|ability:wis|16",
+    "feature|feat-feature|ID_WOTC_PHB24_FEAT_FEATURE_RITUAL_CASTER_WISDOM|Wisdom",
+    "feat|feat|ID_WOTC_PHB24_FEAT_RITUAL_CASTER|Ritual Caster",
+    "trait|ritual-casting|ID_INTERNAL_RITUAL_CASTING|RITUAL CASTING"
+  ],
+  "PendingChoiceKeys": [],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "choice-selection|selected-choice",
+      "Count": 3
+    },
+    {
+      "Key": "feature|direct-selection",
+      "Count": 1
+    },
+    {
+      "Key": "feat|direct-selection",
+      "Count": 1
+    },
+    {
+      "Key": "trait|semantic-grant",
+      "Count": 1
+    }
+  ],
+  "AppliedChoiceStates": [
+    "0|applied|Feat|Ritual Caster|Ability Score Increase (Ritual Caster)|family=generic-element-pick|Wisdom",
+    "1|applied|Feat|Ritual Caster|1st Ritual Spell (Ritual Caster)|family=spell-pick|Detect Magic",
+    "2|applied|Feat|Ritual Caster|2nd Ritual Spell (Ritual Caster)|family=spell-pick|Find Familiar"
+  ]
+}

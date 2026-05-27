@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-20T22:09:03.3963062Z",
+  "CapturedAtUtc": "2026-05-27T09:30:26.1691886Z",
   "StateLabel": "character-state-tabaxi-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
@@ -14,12 +14,8 @@
   "WarningCount": 3,
   "WarningKindCounts": [
     {
-      "Key": "pending-choice|error",
-      "Count": 1
-    },
-    {
       "Key": "pending-choice|warning",
-      "Count": 2
+      "Count": 3
     }
   ],
   "AbilityScores": [],

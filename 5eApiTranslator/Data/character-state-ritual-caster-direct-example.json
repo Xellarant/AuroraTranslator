@@ -1,0 +1,57 @@
+{
+  "classes": [],
+  "archetypes": [],
+  "race": null,
+  "subRace": null,
+  "raceVariants": [],
+  "background": null,
+  "feats": [
+    {
+      "name": "Ritual Caster",
+      "packageKey": "core-players-handbook-2024"
+    }
+  ],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [
+    {
+      "ownerName": "Ritual Caster",
+      "ownerTypeName": "Feat",
+      "selectName": "Ability Score Increase (Ritual Caster)",
+      "selectType": "Feat Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_FEAT_FEATURE_RITUAL_CASTER_WISDOM",
+      "optionName": "Wisdom"
+    },
+    {
+      "ownerName": "Ritual Caster",
+      "ownerTypeName": "Feat",
+      "selectName": "1st Ritual Spell (Ritual Caster)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_DETECT_MAGIC",
+      "optionName": "Detect Magic"
+    },
+    {
+      "ownerName": "Ritual Caster",
+      "ownerTypeName": "Feat",
+      "selectName": "2nd Ritual Spell (Ritual Caster)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_FIND_FAMILIAR",
+      "optionName": "Find Familiar"
+    }
+  ],
+  "tokens": [],
+  "numericValues": {
+    "character": 4,
+    "level": 4,
+    "proficiency": 2,
+    "str": 10,
+    "dex": 10,
+    "con": 14,
+    "int": 10,
+    "wis": 16,
+    "cha": 10
+  },
+  "scalarValues": {},
+  "macroValues": {}
+}

@@ -1146,6 +1146,12 @@ JOIN source_files AS sf
 JOIN element_types AS feature_type
     ON feature_type.element_type_id = feature_element.element_type_id
 WHERE f.parent_element_id = $parent_element_id
+  AND
+  (
+      $parent_type_name <> 'Feat'
+      OR $parent_package_key IS NULL
+      OR lower(rec.package_key) = lower($parent_package_key)
+  )
   AND NOT EXISTS
   (
       SELECT 1
@@ -1164,6 +1170,10 @@ WHERE f.parent_element_id = $parent_element_id
   )
 ORDER BY unlock_level ASC, feature_element.name ASC;";
                 command.Parameters.AddWithValue("$parent_element_id", parentSelection.ElementId);
+                command.Parameters.AddWithValue("$parent_type_name", parentSelection.TypeName ?? string.Empty);
+                command.Parameters.AddWithValue(
+                    "$parent_package_key",
+                    parentSelection.PackageKey is null ? DBNull.Value : parentSelection.PackageKey);
 
                 using var reader = command.ExecuteReader();
                 while (reader.Read())
@@ -1242,6 +1252,10 @@ WHERE element_id = $element_id;";
 
             if (totalLevel > 0 && !context.NumericValues.ContainsKey("level"))
                 context.AddNumericValue("level", totalLevel);
+            if (totalLevel > 0 && !context.NumericValues.ContainsKey("character"))
+                context.AddNumericValue("character", totalLevel);
+            if (totalLevel > 0 && !context.NumericValues.ContainsKey("proficiency"))
+                context.AddNumericValue("proficiency", CalculateProficiencyBonus(totalLevel));
 
             foreach (ResolvedCharacterElement element in directSelections)
             {
@@ -1259,6 +1273,21 @@ WHERE element_id = $element_id;";
                 AddElementTokensToContext(context, connection, feature.ElementId, feature.AuroraId, feature.Name);
 
             return context;
+        }
+
+        private static int CalculateProficiencyBonus(int totalLevel)
+        {
+            if (totalLevel <= 0)
+                return 0;
+
+            return totalLevel switch
+            {
+                <= 4 => 2,
+                <= 8 => 3,
+                <= 12 => 4,
+                <= 16 => 5,
+                _ => 6
+            };
         }
 
         private static void AddElementTokensToContext(
@@ -1296,6 +1325,20 @@ ORDER BY ordinal ASC;";
                     context.AddMacroValues("$(spellcasting:list)", new[] { supportText });
                 }
             }
+        }
+
+        private static bool IsElementAlreadyOwned(
+            AuroraExpressionEvaluationContext context,
+            string auroraId,
+            string name)
+        {
+            if (context == null)
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(auroraId))
+                return context.MatchesToken(auroraId);
+
+            return !string.IsNullOrWhiteSpace(name) && context.MatchesToken(name);
         }
 
         private static Dictionary<int, int> BuildOwnerLevelMap(
@@ -1608,7 +1651,7 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
                 return LoadProficiencyOptions(connection, supportsText, context, ownerTypeName, ownerName, selectName);
 
             if (string.Equals(selectPolicy, "broad-feat-pool", StringComparison.OrdinalIgnoreCase))
-                return BuildFeatFollowUpOptions(connection, context);
+                return BuildFeatFollowUpOptions(connection, context, supportsText, ownerName, selectName);
 
             if (string.Equals(selectPolicy, "asi-feature-pool", StringComparison.OrdinalIgnoreCase))
                 return LoadAsiFeatureOptions(connection, selectId, supportsText, context);
@@ -1692,8 +1735,7 @@ ORDER BY
 
                     requirementText = LoadElementRequirementText(connection, optionElementId.Value);
                     isAvailable = IsRequirementSatisfied(requirementText, context);
-                    isAlreadyOwned = (!string.IsNullOrWhiteSpace(optionAuroraId) && context.MatchesToken(optionAuroraId))
-                                     || (!string.IsNullOrWhiteSpace(optionName) && context.MatchesToken(optionName));
+                    isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, optionName);
                     isChosenForSelect = IsStoredChoiceValue(
                         context,
                         ownerTypeName,
@@ -1808,8 +1850,7 @@ ORDER BY e.name ASC;";
 
                 string requirementText = LoadElementRequirementText(connection, optionElementId);
                 bool isAvailable = IsRequirementSatisfied(requirementText, context);
-                bool isAlreadyOwned = (!string.IsNullOrWhiteSpace(optionAuroraId) && context.MatchesToken(optionAuroraId))
-                                     || (!string.IsNullOrWhiteSpace(optionName) && context.MatchesToken(optionName));
+                bool isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, optionName);
                 bool isChosenForSelect = IsStoredChoiceValue(
                     context,
                     ownerTypeName,
@@ -1870,7 +1911,12 @@ ORDER BY e.name ASC;";
                     filter.AllowedLists.Add(inheritedSpellList);
             }
 
-            if (filter.AllowedAuroraIds.Count == 0 && filter.AllowedLists.Count == 0)
+            if (filter.AllowedAuroraIds.Count == 0
+                && filter.AllowedLists.Count == 0
+                && filter.AllowedSchools.Count == 0
+                && filter.ExplicitSpellLevels.Count == 0
+                && !filter.RequiresRitual
+                && filter.ExcludedSpellNames.Count == 0)
                 return new List<CharacterSelectOptionResult>();
 
             string slotCapProfileName = !string.IsNullOrWhiteSpace(profileName)
@@ -1977,8 +2023,7 @@ ORDER BY
 
                 string requirementText = LoadElementRequirementText(connection, optionElementId);
                 bool isAvailable = IsRequirementSatisfied(requirementText, context);
-                bool isAlreadyOwned = (!string.IsNullOrWhiteSpace(optionAuroraId) && context.MatchesToken(optionAuroraId))
-                                     || context.MatchesToken(optionName);
+                bool isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, optionName);
                 bool isChosenForSelect = IsStoredChoiceValue(
                     context,
                     ownerTypeName,
@@ -2706,7 +2751,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
 
                 string optionAuroraId = reader.GetString(1);
                 string optionName = reader.GetString(2);
-                bool isAlreadyOwned = context.MatchesToken(optionAuroraId) || context.MatchesToken(optionName);
+                bool isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, optionName);
 
                 options.Add(new CharacterSelectOptionResult(
                     "element",
@@ -2828,21 +2873,35 @@ ORDER BY e.name ASC, rec.package_key ASC;";
 
         private static List<CharacterSelectOptionResult> BuildFeatFollowUpOptions(
             SqliteConnection connection,
-            AuroraExpressionEvaluationContext context)
+            AuroraExpressionEvaluationContext context,
+            string supportsText = null,
+            string ownerName = null,
+            string selectName = null)
         {
+            HashSet<string> allowedAuroraIds = ExtractAuroraIds(supportsText);
+            HashSet<string> requiredSupportTags = ResolveFeatSupportTags(supportsText, ownerName, selectName);
+
             using var command = connection.CreateCommand();
             command.CommandText = @"
 SELECT
     e.element_id,
     e.aurora_id,
     e.name,
-    rec.package_key
+    rec.package_key,
+    GROUP_CONCAT(DISTINCT es.support_text) AS support_blob
 FROM elements AS e
 JOIN element_types AS et
     ON et.element_type_id = e.element_type_id
 JOIN resolved_elements_cache AS rec
     ON rec.winning_element_id = e.element_id
+LEFT JOIN element_supports AS es
+    ON es.element_id = e.element_id
 WHERE et.type_name = 'Feat'
+GROUP BY
+    e.element_id,
+    e.aurora_id,
+    e.name,
+    rec.package_key
 ORDER BY e.name ASC, rec.package_key ASC;";
 
             var options = new List<CharacterSelectOptionResult>();
@@ -2853,9 +2912,23 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 string auroraId = reader.GetString(1);
                 string featName = reader.GetString(2);
                 string packageKey = reader.IsDBNull(3) ? null : reader.GetString(3);
+                string supportBlob = reader.IsDBNull(4) ? string.Empty : reader.GetString(4);
+
+                if (allowedAuroraIds.Count > 0 && !allowedAuroraIds.Contains(auroraId))
+                    continue;
+
+                if (requiredSupportTags.Count > 0)
+                {
+                    List<string> featSupportTags = ExtractSupportAtoms(supportBlob);
+                    bool matchesRequiredSupport = requiredSupportTags.Any(tag =>
+                        featSupportTags.Any(support => string.Equals(support, tag, StringComparison.OrdinalIgnoreCase)));
+                    if (!matchesRequiredSupport)
+                        continue;
+                }
+
                 string requirementText = LoadElementRequirementText(connection, elementId);
                 bool isAvailable = IsRequirementSatisfied(requirementText, context);
-                bool isAlreadyOwned = context.MatchesToken(auroraId) || context.MatchesToken(featName);
+                bool isAlreadyOwned = IsElementAlreadyOwned(context, auroraId, featName);
 
                 options.Add(new CharacterSelectOptionResult(
                     "element",
@@ -2877,6 +2950,55 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 .OrderBy(x => x.OptionName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.OptionPackageKey, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+        }
+
+        private static HashSet<string> ExtractAuroraIds(string text)
+        {
+            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(text))
+                return ids;
+
+            foreach (Match match in Regex.Matches(text, @"ID_[A-Z0-9_]+", RegexOptions.IgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(match.Value))
+                    ids.Add(match.Value.Trim());
+            }
+
+            return ids;
+        }
+
+        private static HashSet<string> ResolveFeatSupportTags(
+            string supportsText,
+            string ownerName,
+            string selectName)
+        {
+            var tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string atom in ExtractSupportAtoms(supportsText))
+            {
+                if (string.IsNullOrWhiteSpace(atom)
+                    || atom.StartsWith("ID_", StringComparison.OrdinalIgnoreCase)
+                    || int.TryParse(atom, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+                {
+                    continue;
+                }
+
+                tags.Add(atom);
+            }
+
+            if (tags.Count > 0)
+                return tags;
+
+            if (!string.IsNullOrWhiteSpace(selectName) && selectName.Contains("Origin Feat", StringComparison.OrdinalIgnoreCase))
+                tags.Add("Origin");
+            else if ((!string.IsNullOrWhiteSpace(selectName) && selectName.Contains("Epic Boon", StringComparison.OrdinalIgnoreCase))
+                     || (!string.IsNullOrWhiteSpace(ownerName) && ownerName.Contains("Epic Boon", StringComparison.OrdinalIgnoreCase)))
+                tags.Add("Epic Boon");
+            else if (!string.IsNullOrWhiteSpace(selectName)
+                     && selectName.Contains("Ability Score Improvement", StringComparison.OrdinalIgnoreCase))
+                tags.Add("General");
+
+            return tags;
         }
 
         private static List<CharacterSelectOptionResult> LoadProficiencyOptions(
@@ -2938,7 +3060,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 }
 
                 string optionAuroraId = reader.GetString(1);
-                bool isAlreadyOwned = context.MatchesToken(optionAuroraId) || context.MatchesToken(proficiencyName);
+                bool isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, proficiencyName);
                 options.Add(new CharacterSelectOptionResult(
                     "element",
                     reader.GetInt32(0),
@@ -4744,6 +4866,7 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                 "Archetype" => DoesArchetypeSelectionMatchSelect(connection, select, selection),
                 "Race Variant" => DoesRaceVariantSelectionMatchSelect(connection, select, selection),
                 "Sub Race" => DoesSubRaceSelectionMatchSelect(connection, select, selection),
+                "Feat Feature" => false,
                 _ => SupportsContainAny(select.SupportsText, selection.AuroraId, selection.Name)
             };
 
@@ -4770,7 +4893,8 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                 return true;
             }
 
-            return !string.IsNullOrWhiteSpace(option.OptionName)
+            return string.IsNullOrWhiteSpace(option.OptionAuroraId)
+                   && !string.IsNullOrWhiteSpace(option.OptionName)
                    && string.Equals(option.OptionName, selection.Name, StringComparison.OrdinalIgnoreCase);
         }
 

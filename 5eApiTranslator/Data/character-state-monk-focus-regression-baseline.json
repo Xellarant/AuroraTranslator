@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-20T22:09:00.8959057Z",
+  "CapturedAtUtc": "2026-05-27T09:30:25.8303661Z",
   "StateLabel": "character-state-monk-focus-example.json",
   "DirectSelectionCount": 6,
   "DirectSelections": [
@@ -25,12 +25,8 @@
   "WarningCount": 9,
   "WarningKindCounts": [
     {
-      "Key": "pending-choice|error",
-      "Count": 2
-    },
-    {
       "Key": "pending-choice|warning",
-      "Count": 7
+      "Count": 9
     }
   ],
   "AbilityScores": [

@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-20T22:08:58.98495Z",
+  "CapturedAtUtc": "2026-05-27T09:30:23.200803Z",
   "StateLabel": "character-state-life-domain-example.json",
   "DirectSelectionCount": 6,
   "DirectSelections": [
@@ -26,12 +26,8 @@
   "WarningCount": 10,
   "WarningKindCounts": [
     {
-      "Key": "pending-choice|error",
-      "Count": 2
-    },
-    {
       "Key": "pending-choice|warning",
-      "Count": 8
+      "Count": 10
     }
   ],
   "AbilityScores": [
