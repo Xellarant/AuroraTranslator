@@ -5,6 +5,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - canonical Aurora XML -> SQLite import
 - package precedence and parity checks
 - source-integrity and unresolved-link diagnostics
+- first WPF-authoritative parity baselines for core DB loader surfaces
 - builder-facing SQLite views
 - first-pass character-state evaluation
 - second-stage ASI/feat choice expansion
@@ -33,6 +34,13 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Repeatable unresolved-link summaries
 - Source-integrity summaries
 - Committed first-party diagnostics baseline for `core` + `supplements`
+- Committed first-pass WPF parity baseline for first-party `core` + `supplements`, covering:
+  - total/type/package counts
+  - multiclass rows
+  - spellcasting profile surfaces
+  - spell-access rows
+  - companion distributions
+  - a curated set of known-good archetype/profile/companion/spell samples
 
 ### Builder-facing data layer
 
@@ -69,6 +77,8 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Granted rule-owning elements such as racial traits and nested archetype features now participate in select evaluation, which lets builder flows surface picks like High Elf Wizard cantrips and Abjurer school-restricted spells
 - Null-profile and constrained `spell-pick` rows now resolve real option pools instead of falling back to empty generic behavior
 - Support-driven fixed pools now resolve real element options even when Aurora encoded them only in `supports_text`, which makes nested feat families such as PHB 2024 `Magic Initiate` behave like normal builder choices
+- Broad feat pools now honor support tags and explicit allowlists, so origin-feat slots and general-feat slots do not bleed into one another
+- Ritual-only spell picks can now resolve against the global ritual corpus without a spell-list owner, which makes PHB 2024 `Ritual Caster` behave like a real feat package
 - Nested class-feature spell picks now inherit their parent class spell list when Aurora encoded them without a local profile, which makes early PHB 2024 flows like Cleric `Thaumaturge` complete cleanly
 - Over-selected first-party choice states now fail loudly, either as explicit over-selection warnings or immediate `select-full` application errors
 - Derived character output for:
@@ -148,9 +158,8 @@ Likely target families:
   - additional PHB 2024 replacement-style families beyond Cleric/Monk
   - spell-grant scenarios such as domain or oath spells
   - completed player-facing class/race/background packages beyond the new Life Domain + Human + Acolyte fixture
-  - dedicated feat-package scenarios beyond the new `Magic Initiate` fixture, such as `Ritual Caster`
   - more `feature-pick` families such as Metamagic, Weapon Mastery, and Eldritch Adept
-  - more `spell-pick` families such as Magic Initiate, Ritual Caster, and broader subclass spell-selection cases
+  - more `spell-pick` families beyond Magic Initiate and Ritual Caster, especially broader subclass spell-selection cases
   - explicit duplicate-pick and over-pick validation scenarios beyond the current first-party language oversubscribe fixture
 - use focused fixtures to lock down computed-trait scenarios such as Darkvision and typed movement entries like fly/climb/swim/burrow speeds
 - add guardrails for semantic expansion counts if useful
@@ -179,6 +188,17 @@ Likely target families:
   - why a choice is pending or blocked
   - which package/source contributed a resolved item
 - use the computed-character contract to inform future loader-oriented projection views and effect summaries
+
+### 5.5. Broaden WPF-authoritative parity coverage
+
+- extend the new parity harness beyond first-pass structural surfaces
+- add more curated authoritative cases for:
+  - spellcasting extension lists
+  - append/overlay behavior where the source corpus uses it
+  - companion reconstruction edge cases
+  - race/subrace/variant parent relationships
+  - representative feat/background/class progression families
+- keep the parity harness aimed at Aurora Lights WPF behavior first, with Aurora App loader concerns treated as secondary follow-up checks
 
 ### 6. Eventually add profile-aware precedence
 

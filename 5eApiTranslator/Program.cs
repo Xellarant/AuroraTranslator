@@ -43,6 +43,10 @@ namespace AuroraTranslator
             projectRootPath,
             "Data",
             "aurora-first-party-regression.sqlite");
+        static string defaultWpfParityBaselinePath = Path.Combine(
+            projectRootPath,
+            "Data",
+            "wpf-parity-baseline.json");
 
         static async Task Main(string[] args)
         {
@@ -245,6 +249,37 @@ namespace AuroraTranslator
             }
 
             if (args.Length > 0
+                && string.Equals(args[0], "capture-wpf-parity-baseline", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultFirstPartyBaselineSqlitePath;
+                string baselinePath = args.Length > 2 ? args[2] : defaultWpfParityBaselinePath;
+
+                CaptureWpfParityBaseline(sqlitePath, baselinePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "capture-first-party-wpf-parity-baseline", StringComparison.OrdinalIgnoreCase))
+            {
+                string auroraRootPath = args.Length > 1 ? args[1] : defaultAuroraPath;
+                string sqlitePath = args.Length > 2 ? args[2] : defaultFirstPartyBaselineSqlitePath;
+                string baselinePath = args.Length > 3 ? args[3] : defaultWpfParityBaselinePath;
+
+                CaptureFirstPartyWpfParityBaseline(auroraRootPath, sqlitePath, baselinePath);
+                return;
+            }
+
+            if (args.Length > 0
+                && string.Equals(args[0], "check-wpf-parity-regression", StringComparison.OrdinalIgnoreCase))
+            {
+                string sqlitePath = args.Length > 1 ? args[1] : defaultFirstPartyBaselineSqlitePath;
+                string baselinePath = args.Length > 2 ? args[2] : defaultWpfParityBaselinePath;
+
+                CheckWpfParityRegression(sqlitePath, baselinePath);
+                return;
+            }
+
+            if (args.Length > 0
                 && string.Equals(args[0], "evaluate-character-state", StringComparison.OrdinalIgnoreCase))
             {
                 string sqlitePath = args.Length > 1 ? args[1] : defaultSqlitePath;
@@ -289,6 +324,12 @@ namespace AuroraTranslator
             Console.WriteLine("                                                      Save a computed-character regression baseline for a state fixture.");
             Console.WriteLine("  check-character-state-regression [sqlitePath] [stateJson] [baselinePath]");
             Console.WriteLine("                                                      Compare computed-character output against a saved baseline.");
+            Console.WriteLine("  capture-wpf-parity-baseline [sqlitePath] [baselinePath]");
+            Console.WriteLine("                                                      Save a WPF-authoritative parity snapshot for core DB loader surfaces.");
+            Console.WriteLine("  capture-first-party-wpf-parity-baseline [auroraRoot] [sqlitePath] [baselinePath]");
+            Console.WriteLine("                                                      Rebuild a canonical first-party DB and capture a WPF parity baseline.");
+            Console.WriteLine("  check-wpf-parity-regression [sqlitePath] [baselinePath]");
+            Console.WriteLine("                                                      Compare current DB loader surfaces against a saved WPF parity baseline.");
             Console.WriteLine("  evaluate-character-state [sqlitePath] [stateJson]");
             Console.WriteLine("                                                      Resolve a character state into active features, grants, and selects.");
             Console.WriteLine("  evaluate-character-state-json [sqlitePath] [stateJson] [outputPath]");
@@ -299,6 +340,7 @@ namespace AuroraTranslator
             Console.WriteLine($"Default state JSON:   {defaultCharacterStatePath}");
             Console.WriteLine($"Default state base:   {defaultCharacterStateBaselinePath}");
             Console.WriteLine($"Default 1P SQLite:    {defaultFirstPartyBaselineSqlitePath}");
+            Console.WriteLine($"Default WPF base:     {defaultWpfParityBaselinePath}");
             Console.WriteLine($"Default SRD JSON:     {defaultSrdMonstersPath}");
             Console.WriteLine($"Default XML output:   {defaultXellarantXmlPath}");
         }
@@ -444,6 +486,31 @@ namespace AuroraTranslator
                 Console.Error.WriteLine($"Default SQLite path:   {defaultFirstPartyBaselineSqlitePath}");
                 Console.Error.WriteLine($"Default state path:    {defaultCharacterStatePath}");
                 Console.Error.WriteLine($"Default baseline path: {defaultCharacterStateBaselinePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "capture-wpf-parity-baseline", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: capture-wpf-parity-baseline [sqlitePath] [baselinePath]");
+                Console.Error.WriteLine($"Default SQLite path:   {defaultFirstPartyBaselineSqlitePath}");
+                Console.Error.WriteLine($"Default baseline path: {defaultWpfParityBaselinePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "capture-first-party-wpf-parity-baseline", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: capture-first-party-wpf-parity-baseline [auroraRoot] [sqlitePath] [baselinePath]");
+                Console.Error.WriteLine($"Default Aurora path:   {defaultAuroraPath}");
+                Console.Error.WriteLine($"Default SQLite path:   {defaultFirstPartyBaselineSqlitePath}");
+                Console.Error.WriteLine($"Default baseline path: {defaultWpfParityBaselinePath}");
+            }
+            else if (args.Length > 0
+                && string.Equals(args[0], "check-wpf-parity-regression", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Usage: check-wpf-parity-regression [sqlitePath] [baselinePath]");
+                Console.Error.WriteLine($"Default SQLite path:   {defaultFirstPartyBaselineSqlitePath}");
+                Console.Error.WriteLine($"Default baseline path: {defaultWpfParityBaselinePath}");
             }
             else if (args.Length > 0
                 && string.Equals(args[0], "evaluate-character-state", StringComparison.OrdinalIgnoreCase))
@@ -1444,6 +1511,147 @@ namespace AuroraTranslator
             Environment.ExitCode = 1;
         }
 
+        private static void CaptureWpfParityBaseline(string sqlitePath, string baselinePath)
+        {
+            WpfParityRegressionBaseline baseline = BuildWpfParityRegressionBaseline(
+                sqlitePath,
+                "Current SQLite content set");
+
+            string baselineDirectory = Path.GetDirectoryName(baselinePath);
+            if (!string.IsNullOrWhiteSpace(baselineDirectory))
+                Directory.CreateDirectory(baselineDirectory);
+
+            string json = JsonSerializer.Serialize(
+                baseline,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+
+            File.WriteAllText(baselinePath, json);
+            Console.WriteLine($"Captured WPF parity baseline to {baselinePath}.");
+            Console.WriteLine($"  total elements:      {baseline.TotalElementCount}");
+            Console.WriteLine($"  spell profiles:      {baseline.SpellcastingProfileCount}");
+            Console.WriteLine($"  extended profiles:   {baseline.ExtendedSpellcastingProfileCount}");
+            Console.WriteLine($"  spell access rows:   {baseline.SpellAccessCount}");
+            Console.WriteLine($"  companions:          {baseline.CompanionCount}");
+        }
+
+        private static void CaptureFirstPartyWpfParityBaseline(string auroraRootPath, string sqlitePath, string baselinePath)
+        {
+            if (!Directory.Exists(auroraRootPath))
+                throw new DirectoryNotFoundException($"Aurora root path was not found: {auroraRootPath}");
+
+            string[] requiredDirectories = { "core", "supplements" };
+            foreach (string directoryName in requiredDirectories)
+            {
+                string sourceDirectory = Path.Combine(auroraRootPath, directoryName);
+                if (!Directory.Exists(sourceDirectory))
+                    throw new DirectoryNotFoundException($"Required first-party directory was not found: {sourceDirectory}");
+            }
+
+            string stagingRoot = Path.Combine(Path.GetTempPath(), "AuroraTranslatorFirstParty", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(stagingRoot);
+
+            try
+            {
+                foreach (string directoryName in requiredDirectories)
+                {
+                    CopyDirectory(
+                        Path.Combine(auroraRootPath, directoryName),
+                        Path.Combine(stagingRoot, directoryName));
+
+                    string indexPath = Path.Combine(auroraRootPath, $"{directoryName}.index");
+                    if (File.Exists(indexPath))
+                    {
+                        File.Copy(indexPath, Path.Combine(stagingRoot, $"{directoryName}.index"), overwrite: true);
+                    }
+                }
+
+                string sqliteDirectory = Path.GetDirectoryName(sqlitePath);
+                if (!string.IsNullOrWhiteSpace(sqliteDirectory))
+                    Directory.CreateDirectory(sqliteDirectory);
+
+                if (File.Exists(sqlitePath))
+                    File.Delete(sqlitePath);
+
+                ImportAuroraToSqlite(stagingRoot, sqlitePath);
+                AuroraSqliteImporter.RefreshPackageResolution(sqlitePath, sqliteSchemaPath);
+
+                WpfParityRegressionBaseline baseline = BuildWpfParityRegressionBaseline(
+                    sqlitePath,
+                    "WPF-authoritative first-party core + supplements");
+
+                string baselineDirectory = Path.GetDirectoryName(baselinePath);
+                if (!string.IsNullOrWhiteSpace(baselineDirectory))
+                    Directory.CreateDirectory(baselineDirectory);
+
+                string json = JsonSerializer.Serialize(
+                    baseline,
+                    new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    });
+
+                File.WriteAllText(baselinePath, json);
+
+                Console.WriteLine($"Captured first-party WPF parity baseline to {baselinePath}.");
+                Console.WriteLine($"SQLite source: {sqlitePath}");
+                Console.WriteLine($"  total elements:      {baseline.TotalElementCount}");
+                Console.WriteLine($"  spell profiles:      {baseline.SpellcastingProfileCount}");
+                Console.WriteLine($"  extended profiles:   {baseline.ExtendedSpellcastingProfileCount}");
+                Console.WriteLine($"  spell access rows:   {baseline.SpellAccessCount}");
+                Console.WriteLine($"  companions:          {baseline.CompanionCount}");
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(stagingRoot))
+                        Directory.Delete(stagingRoot, recursive: true);
+                }
+                catch
+                {
+                    // Best-effort temp cleanup only.
+                }
+            }
+        }
+
+        private static void CheckWpfParityRegression(string sqlitePath, string baselinePath)
+        {
+            if (!File.Exists(baselinePath))
+                throw new FileNotFoundException($"WPF parity baseline not found: {baselinePath}");
+
+            WpfParityRegressionBaseline expected = JsonSerializer.Deserialize<WpfParityRegressionBaseline>(
+                File.ReadAllText(baselinePath))
+                ?? throw new InvalidDataException($"Could not deserialize WPF parity baseline: {baselinePath}");
+
+            WpfParityRegressionBaseline actual = BuildWpfParityRegressionBaseline(
+                sqlitePath,
+                expected.CorpusLabel ?? "Current SQLite content set");
+            List<string> failures = CompareWpfParityRegressionBaseline(expected, actual);
+
+            Console.WriteLine($"WPF parity regression check for {sqlitePath}:");
+            Console.WriteLine($"Baseline: {baselinePath}");
+
+            if (failures.Count == 0)
+            {
+                Console.WriteLine("PASS");
+                Console.WriteLine($"  total elements:      {actual.TotalElementCount}");
+                Console.WriteLine($"  spell profiles:      {actual.SpellcastingProfileCount}");
+                Console.WriteLine($"  extended profiles:   {actual.ExtendedSpellcastingProfileCount}");
+                Console.WriteLine($"  spell access rows:   {actual.SpellAccessCount}");
+                Console.WriteLine($"  companions:          {actual.CompanionCount}");
+                return;
+            }
+
+            Console.WriteLine("FAIL");
+            foreach (string failure in failures)
+                Console.WriteLine($"  - {failure}");
+
+            Environment.ExitCode = 1;
+        }
+
         private static CharacterStateRegressionBaseline BuildCharacterStateRegressionBaseline(string sqlitePath, string stateJsonPath)
         {
             CharacterEvaluationResult result = AuroraCharacterStateEngine.Evaluate(sqlitePath, stateJsonPath);
@@ -1520,6 +1728,76 @@ namespace AuroraTranslator
                     .ToArray());
         }
 
+        private static WpfParityRegressionBaseline BuildWpfParityRegressionBaseline(string sqlitePath, string corpusLabel)
+        {
+            using var connection = OpenSqliteConnection(sqlitePath);
+
+            var metadata = ReadDatabaseMetadata(connection);
+
+            return new WpfParityRegressionBaseline(
+                CapturedAtUtc: DateTime.UtcNow,
+                CorpusLabel: corpusLabel,
+                SchemaVersion: metadata.SchemaVersion,
+                DataVersion: metadata.DataVersion,
+                SourceFileCount: metadata.SourceFileCount,
+                MetadataElementCount: metadata.ElementCount,
+                TotalElementCount: QueryInt64(connection, "SELECT COUNT(*) FROM elements;"),
+                ElementTypeCounts: QueryCountList(
+                    connection,
+                    @"SELECT et.type_name AS key, COUNT(*) AS count
+                      FROM elements AS e
+                      JOIN element_types AS et
+                        ON et.element_type_id = e.element_type_id
+                      GROUP BY et.type_name"),
+                ResolvedPackageCounts: QueryCountList(
+                    connection,
+                    @"SELECT COALESCE(package_key, '(none)') AS key, COUNT(*) AS count
+                      FROM resolved_elements_cache
+                      GROUP BY COALESCE(package_key, '(none)')"),
+                FeatureKindCounts: QueryCountList(
+                    connection,
+                    @"SELECT feature_kind AS key, COUNT(*) AS count
+                      FROM features
+                      GROUP BY feature_kind"),
+                SpellCount: QueryInt64(connection, "SELECT COUNT(*) FROM spells;"),
+                SpellAccessCount: QueryInt64(connection, "SELECT COUNT(*) FROM spell_access;"),
+                ClassCount: QueryInt64(connection, "SELECT COUNT(*) FROM classes;"),
+                ArchetypeCount: QueryInt64(connection, "SELECT COUNT(*) FROM archetypes;"),
+                MulticlassCount: QueryInt64(connection, "SELECT COUNT(*) FROM class_multiclass;"),
+                SubraceCount: QueryInt64(connection, "SELECT COUNT(*) FROM subraces;"),
+                RaceVariantCount: QueryInt64(connection, "SELECT COUNT(*) FROM race_variants;"),
+                CompanionCount: QueryInt64(connection, "SELECT COUNT(*) FROM companions;"),
+                CompanionCrTypeCounts: QueryCountList(
+                    connection,
+                    @"SELECT
+                          COALESCE(creature_type, '(none)') || '|' || COALESCE(challenge_text, '(none)') AS key,
+                          COUNT(*) AS count
+                      FROM companions
+                      GROUP BY COALESCE(creature_type, '(none)'), COALESCE(challenge_text, '(none)')"),
+                SpellcastingProfileCount: QueryInt64(connection, "SELECT COUNT(*) FROM spellcasting_profiles;"),
+                ExtendedSpellcastingProfileCount: QueryInt64(connection, "SELECT COUNT(*) FROM spellcasting_profiles WHERE is_extended = 1;"),
+                PreparedSpellcastingProfileCount: QueryInt64(connection, "SELECT COUNT(*) FROM spellcasting_profiles WHERE prepare_spells = 1;"),
+                AllowReplaceSpellcastingProfileCount: QueryInt64(connection, "SELECT COUNT(*) FROM spellcasting_profiles WHERE allow_replace = 1;"),
+                SpellcastingProfilesWithExtendTextCount: QueryInt64(
+                    connection,
+                    "SELECT COUNT(*) FROM spellcasting_profiles WHERE extend_text IS NOT NULL AND trim(extend_text) <> '';"),
+                RuleScopeCount: QueryInt64(connection, "SELECT COUNT(*) FROM rule_scopes;"),
+                GrantCount: QueryInt64(connection, "SELECT COUNT(*) FROM grants;"),
+                SelectCount: QueryInt64(connection, "SELECT COUNT(*) FROM selects;"),
+                StatCount: QueryInt64(connection, "SELECT COUNT(*) FROM stats;"),
+                SetterScopeCount: QueryInt64(connection, "SELECT COUNT(*) FROM setter_scopes;"),
+                SetterEntryCount: QueryInt64(connection, "SELECT COUNT(*) FROM setter_entries;"),
+                SetterAttributeCount: QueryInt64(connection, "SELECT COUNT(*) FROM setter_entry_attributes;"),
+                RawGrantXmlCount: QueryInt64(connection, "SELECT COUNT(*) FROM grants WHERE raw_xml IS NOT NULL AND trim(raw_xml) <> '';"),
+                RawSelectXmlCount: QueryInt64(connection, "SELECT COUNT(*) FROM selects WHERE raw_xml IS NOT NULL AND trim(raw_xml) <> '';"),
+                RawStatXmlCount: QueryInt64(connection, "SELECT COUNT(*) FROM stats WHERE raw_xml IS NOT NULL AND trim(raw_xml) <> '';"),
+                CuratedArchetypeLinks: BuildCuratedArchetypeLinks(connection),
+                CuratedMulticlassRows: BuildCuratedMulticlassRows(connection),
+                CuratedSpellcastingProfiles: BuildCuratedSpellcastingProfiles(connection),
+                CuratedCompanionRows: BuildCuratedCompanionRows(connection),
+                CuratedSpellAccessRows: BuildCuratedSpellAccessRows(connection));
+        }
+
         private static List<string> CompareCharacterStateRegressionBaseline(
             CharacterStateRegressionBaseline expected,
             CharacterStateRegressionBaseline actual)
@@ -1550,6 +1828,54 @@ namespace AuroraTranslator
             CompareStringList(expected.PendingChoiceKeys, actual.PendingChoiceKeys, "PendingChoiceKeys", failures);
             CompareCountSet("Provenance kind", expected.ProvenanceKindCounts, actual.ProvenanceKindCounts, failures);
             CompareStringList(expected.AppliedChoiceStates, actual.AppliedChoiceStates, "AppliedChoiceStates", failures);
+
+            return failures;
+        }
+
+        private static List<string> CompareWpfParityRegressionBaseline(
+            WpfParityRegressionBaseline expected,
+            WpfParityRegressionBaseline actual)
+        {
+            var failures = new List<string>();
+
+            CompareScalar(expected.CorpusLabel, actual.CorpusLabel, "CorpusLabel", failures);
+            CompareScalar(expected.SchemaVersion, actual.SchemaVersion, "SchemaVersion", failures);
+            CompareScalar(expected.DataVersion, actual.DataVersion, "DataVersion", failures);
+            CompareScalar(expected.SourceFileCount, actual.SourceFileCount, "SourceFileCount", failures);
+            CompareScalar(expected.MetadataElementCount, actual.MetadataElementCount, "MetadataElementCount", failures);
+            CompareScalar(expected.TotalElementCount, actual.TotalElementCount, "TotalElementCount", failures);
+            CompareCountSet("Element type", expected.ElementTypeCounts, actual.ElementTypeCounts, failures);
+            CompareCountSet("Resolved package", expected.ResolvedPackageCounts, actual.ResolvedPackageCounts, failures);
+            CompareCountSet("Feature kind", expected.FeatureKindCounts, actual.FeatureKindCounts, failures);
+            CompareScalar(expected.SpellCount, actual.SpellCount, "SpellCount", failures);
+            CompareScalar(expected.SpellAccessCount, actual.SpellAccessCount, "SpellAccessCount", failures);
+            CompareScalar(expected.ClassCount, actual.ClassCount, "ClassCount", failures);
+            CompareScalar(expected.ArchetypeCount, actual.ArchetypeCount, "ArchetypeCount", failures);
+            CompareScalar(expected.MulticlassCount, actual.MulticlassCount, "MulticlassCount", failures);
+            CompareScalar(expected.SubraceCount, actual.SubraceCount, "SubraceCount", failures);
+            CompareScalar(expected.RaceVariantCount, actual.RaceVariantCount, "RaceVariantCount", failures);
+            CompareScalar(expected.CompanionCount, actual.CompanionCount, "CompanionCount", failures);
+            CompareCountSet("Companion CR/type", expected.CompanionCrTypeCounts, actual.CompanionCrTypeCounts, failures);
+            CompareScalar(expected.SpellcastingProfileCount, actual.SpellcastingProfileCount, "SpellcastingProfileCount", failures);
+            CompareScalar(expected.ExtendedSpellcastingProfileCount, actual.ExtendedSpellcastingProfileCount, "ExtendedSpellcastingProfileCount", failures);
+            CompareScalar(expected.PreparedSpellcastingProfileCount, actual.PreparedSpellcastingProfileCount, "PreparedSpellcastingProfileCount", failures);
+            CompareScalar(expected.AllowReplaceSpellcastingProfileCount, actual.AllowReplaceSpellcastingProfileCount, "AllowReplaceSpellcastingProfileCount", failures);
+            CompareScalar(expected.SpellcastingProfilesWithExtendTextCount, actual.SpellcastingProfilesWithExtendTextCount, "SpellcastingProfilesWithExtendTextCount", failures);
+            CompareScalar(expected.RuleScopeCount, actual.RuleScopeCount, "RuleScopeCount", failures);
+            CompareScalar(expected.GrantCount, actual.GrantCount, "GrantCount", failures);
+            CompareScalar(expected.SelectCount, actual.SelectCount, "SelectCount", failures);
+            CompareScalar(expected.StatCount, actual.StatCount, "StatCount", failures);
+            CompareScalar(expected.SetterScopeCount, actual.SetterScopeCount, "SetterScopeCount", failures);
+            CompareScalar(expected.SetterEntryCount, actual.SetterEntryCount, "SetterEntryCount", failures);
+            CompareScalar(expected.SetterAttributeCount, actual.SetterAttributeCount, "SetterAttributeCount", failures);
+            CompareScalar(expected.RawGrantXmlCount, actual.RawGrantXmlCount, "RawGrantXmlCount", failures);
+            CompareScalar(expected.RawSelectXmlCount, actual.RawSelectXmlCount, "RawSelectXmlCount", failures);
+            CompareScalar(expected.RawStatXmlCount, actual.RawStatXmlCount, "RawStatXmlCount", failures);
+            CompareStringList(expected.CuratedArchetypeLinks, actual.CuratedArchetypeLinks, "CuratedArchetypeLinks", failures);
+            CompareStringList(expected.CuratedMulticlassRows, actual.CuratedMulticlassRows, "CuratedMulticlassRows", failures);
+            CompareStringList(expected.CuratedSpellcastingProfiles, actual.CuratedSpellcastingProfiles, "CuratedSpellcastingProfiles", failures);
+            CompareStringList(expected.CuratedCompanionRows, actual.CuratedCompanionRows, "CuratedCompanionRows", failures);
+            CompareStringList(expected.CuratedSpellAccessRows, actual.CuratedSpellAccessRows, "CuratedSpellAccessRows", failures);
 
             return failures;
         }
@@ -1585,6 +1911,310 @@ namespace AuroraTranslator
                 UnresolvedKindCounts: unresolvedKindCounts,
                 TotalSourceIntegrityCount: sourceIntegrity.TotalIssueCount,
                 SourceIntegrityKindCounts: sourceIntegrityKindCounts);
+        }
+
+        private static SqliteConnection OpenSqliteConnection(string sqlitePath)
+        {
+            if (string.IsNullOrWhiteSpace(sqlitePath))
+                throw new ArgumentException("SQLite path is required.", nameof(sqlitePath));
+            if (!File.Exists(sqlitePath))
+                throw new FileNotFoundException($"SQLite database was not found: {sqlitePath}");
+
+            var connection = new SqliteConnection($"Data Source={sqlitePath}");
+            connection.Open();
+            return connection;
+        }
+
+        private static SqliteCommand CreateSqliteCommand(
+            SqliteConnection connection,
+            string sql,
+            params (string Name, object Value)[] parameters)
+        {
+            var command = connection.CreateCommand();
+            command.CommandText = sql;
+
+            if (parameters != null)
+            {
+                foreach ((string name, object value) in parameters)
+                {
+                    command.Parameters.AddWithValue(name, value ?? DBNull.Value);
+                }
+            }
+
+            return command;
+        }
+
+        private static long QueryInt64(
+            SqliteConnection connection,
+            string sql,
+            params (string Name, object Value)[] parameters)
+        {
+            using SqliteCommand command = CreateSqliteCommand(connection, sql, parameters);
+            object value = command.ExecuteScalar();
+            return value == null || value == DBNull.Value
+                ? 0L
+                : Convert.ToInt64(value);
+        }
+
+        private static DiagnosticsRegressionCount[] QueryCountList(
+            SqliteConnection connection,
+            string sql,
+            params (string Name, object Value)[] parameters)
+        {
+            var counts = new List<DiagnosticsRegressionCount>();
+
+            using SqliteCommand command = CreateSqliteCommand(connection, sql, parameters);
+            using SqliteDataReader reader = command.ExecuteReader();
+
+            while (reader.Read())
+            {
+                counts.Add(new DiagnosticsRegressionCount(
+                    reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                    reader.IsDBNull(1) ? 0L : reader.GetInt64(1)));
+            }
+
+            return counts
+                .OrderBy(x => x.Key, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string[] QueryStringList(
+            SqliteConnection connection,
+            string sql,
+            params (string Name, object Value)[] parameters)
+        {
+            var values = new List<string>();
+
+            using SqliteCommand command = CreateSqliteCommand(connection, sql, parameters);
+            using SqliteDataReader reader = command.ExecuteReader();
+
+            while (reader.Read())
+            {
+                values.Add(reader.IsDBNull(0) ? string.Empty : reader.GetString(0));
+            }
+
+            return values
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        private static DatabaseMetadataRow ReadDatabaseMetadata(SqliteConnection connection)
+        {
+            using SqliteCommand command = CreateSqliteCommand(
+                connection,
+                @"SELECT
+                      schema_version,
+                      data_version,
+                      source_file_count,
+                      element_count
+                  FROM database_metadata
+                  WHERE singleton_id = 1;");
+            using SqliteDataReader reader = command.ExecuteReader();
+
+            if (!reader.Read())
+                return new DatabaseMetadataRow(0, 0, 0, 0);
+
+            return new DatabaseMetadataRow(
+                SchemaVersion: reader.IsDBNull(0) ? 0 : reader.GetInt32(0),
+                DataVersion: reader.IsDBNull(1) ? 0 : reader.GetInt32(1),
+                SourceFileCount: reader.IsDBNull(2) ? 0 : reader.GetInt32(2),
+                ElementCount: reader.IsDBNull(3) ? 0 : reader.GetInt32(3));
+        }
+
+        private static string[] BuildCuratedArchetypeLinks(SqliteConnection connection)
+        {
+            return QueryStringList(
+                connection,
+                @"SELECT
+                      e.aurora_id || '|' ||
+                      e.name || '|parent=' ||
+                      COALESCE(parent.aurora_id, '') || '|' ||
+                      COALESCE(parent.name, '') || '|support=' ||
+                      COALESCE(a.parent_support_text, '')
+                  FROM archetypes AS a
+                  JOIN elements AS e
+                    ON e.element_id = a.element_id
+                  LEFT JOIN elements AS parent
+                    ON parent.element_id = a.parent_class_element_id
+                  WHERE e.aurora_id IN
+                  (
+                      'ID_WOTC_PHB_ARCHETYPE_LIFEDOMAIN',
+                      'ID_WOTC_PHB_ARCHETYPE_OTHERWORLDLY_PATRON_FIEND'
+                  );");
+        }
+
+        private static string[] BuildCuratedMulticlassRows(SqliteConnection connection)
+        {
+            return QueryStringList(
+                connection,
+                @"SELECT
+                      e.aurora_id || '|' ||
+                      e.name || '|multiclass=' ||
+                      COALESCE(cm.multiclass_aurora_id, '') || '|prerequisite=' ||
+                      COALESCE(cm.prerequisite_text, '') || '|requirements=' ||
+                      COALESCE(cm.requirements_text, '') || '|proficiencies=' ||
+                      COALESCE(cm.proficiencies_text, '')
+                  FROM class_multiclass AS cm
+                  JOIN elements AS e
+                    ON e.element_id = cm.class_element_id
+                  WHERE e.aurora_id IN
+                  (
+                      'ID_WOTC_PHB_CLASS_CLERIC',
+                      'ID_WOTC_PHB_CLASS_WARLOCK',
+                      'ID_WOTC_PHB_CLASS_WIZARD'
+                  );");
+        }
+
+        private static string[] BuildCuratedSpellcastingProfiles(SqliteConnection connection)
+        {
+            var results = new List<string>();
+
+            using SqliteCommand command = CreateSqliteCommand(
+                connection,
+                @"SELECT
+                      e.aurora_id,
+                      e.name,
+                      sp.owner_kind,
+                      sp.profile_name,
+                      sp.ability_name,
+                      sp.is_extended,
+                      sp.prepare_spells,
+                      sp.allow_replace,
+                      sp.list_text,
+                      sp.extend_text
+                  FROM spellcasting_profiles AS sp
+                  JOIN elements AS e
+                    ON e.element_id = sp.owner_element_id
+                  WHERE e.aurora_id IN
+                  (
+                      'ID_WOTC_PHB_CLASS_CLERIC',
+                      'ID_WOTC_PHB_CLASS_WARLOCK',
+                      'ID_WOTC_PHB_ARCHETYPE_OTHERWORLDLY_PATRON_FIEND'
+                  );");
+            using SqliteDataReader reader = command.ExecuteReader();
+
+            while (reader.Read())
+            {
+                string ownerAuroraId = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
+                string ownerName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
+                string ownerKind = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
+                string profileName = reader.IsDBNull(3) ? string.Empty : reader.GetString(3);
+                string abilityName = reader.IsDBNull(4) ? string.Empty : reader.GetString(4);
+                bool isExtended = !reader.IsDBNull(5) && reader.GetInt64(5) != 0;
+                bool? prepareSpells = reader.IsDBNull(6) ? (bool?)null : reader.GetInt64(6) != 0;
+                bool? allowReplace = reader.IsDBNull(7) ? (bool?)null : reader.GetInt64(7) != 0;
+                string listText = reader.IsDBNull(8) ? null : reader.GetString(8);
+                string extendText = reader.IsDBNull(9) ? null : reader.GetString(9);
+
+                results.Add(
+                    ownerAuroraId + "|" +
+                    ownerName + "|kind=" + ownerKind +
+                    "|profile=" + profileName +
+                    "|ability=" + abilityName +
+                    "|extended=" + isExtended +
+                    "|prepare=" + (prepareSpells?.ToString() ?? string.Empty) +
+                    "|replace=" + (allowReplace?.ToString() ?? string.Empty) +
+                    "|listCount=" + CountTextCollectionItems(listText) +
+                    "|extendCount=" + CountTextCollectionItems(extendText) +
+                    "|list=" + NormalizeTextCollection(listText) +
+                    "|extend=" + NormalizeTextCollection(extendText));
+            }
+
+            return results
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        private static string[] BuildCuratedCompanionRows(SqliteConnection connection)
+        {
+            return QueryStringList(
+                connection,
+                @"SELECT
+                      COALESCE(cp.package_key, '') || '|' ||
+                      e.aurora_id || '|' ||
+                      e.name || '|type=' ||
+                      COALESCE(c.creature_type, '') || '|size=' ||
+                      COALESCE(c.size_text, '') || '|cr=' ||
+                      COALESCE(c.challenge_text, '') || '|speed=' ||
+                      COALESCE(c.speed_text, '')
+                  FROM companions AS c
+                  JOIN elements AS e
+                    ON e.element_id = c.element_id
+                  LEFT JOIN source_files AS sf
+                    ON sf.source_file_id = e.source_file_id
+                  LEFT JOIN content_packages AS cp
+                    ON cp.content_package_id = sf.content_package_id
+                  WHERE e.name IN ('Badger', 'Giant Badger');");
+        }
+
+        private static string[] BuildCuratedSpellAccessRows(SqliteConnection connection)
+        {
+            var accessBySpell = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+            using SqliteCommand command = CreateSqliteCommand(
+                connection,
+                @"SELECT
+                      e.aurora_id,
+                      e.name,
+                      sa.access_text
+                  FROM spell_access AS sa
+                  JOIN elements AS e
+                    ON e.element_id = sa.spell_element_id
+                  WHERE e.aurora_id IN
+                  (
+                      'ID_PHB_SPELL_AID',
+                      'ID_PHB_SPELL_BURNING_HANDS',
+                      'ID_PHB_SPELL_ELDRITCH_BLAST',
+                      'ID_PHB_SPELL_FIND_FAMILIAR'
+                  );");
+            using SqliteDataReader reader = command.ExecuteReader();
+
+            while (reader.Read())
+            {
+                string auroraId = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
+                string spellName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
+                string accessText = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
+                string key = auroraId + "|" + spellName;
+
+                if (!accessBySpell.TryGetValue(key, out List<string> accessList))
+                {
+                    accessList = new List<string>();
+                    accessBySpell[key] = accessList;
+                }
+
+                accessList.Add(accessText);
+            }
+
+            return accessBySpell
+                .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(x => x.Key + "|access=" + string.Join(
+                    ",",
+                    x.Value
+                        .Where(value => !string.IsNullOrWhiteSpace(value))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)))
+                .ToArray();
+        }
+
+        private static int CountTextCollectionItems(string rawText)
+        {
+            AuroraTextCollection collection = ParseAuroraTextCollection(rawText);
+            return collection?.Count ?? 0;
+        }
+
+        private static string NormalizeTextCollection(string rawText)
+        {
+            AuroraTextCollection collection = ParseAuroraTextCollection(rawText);
+            if (collection == null || collection.Count == 0)
+                return string.Empty;
+
+            return string.Join(
+                ",",
+                collection
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Select(value => value.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(value => value, StringComparer.OrdinalIgnoreCase));
         }
 
         private static List<string> CompareDiagnosticsRegressionBaseline(
@@ -1779,6 +2409,47 @@ namespace AuroraTranslator
             IReadOnlyList<DiagnosticsRegressionCount> ProvenanceKindCounts,
             IReadOnlyList<string> AppliedChoiceStates);
 
+        private sealed record WpfParityRegressionBaseline(
+            DateTime CapturedAtUtc,
+            string CorpusLabel,
+            int SchemaVersion,
+            int DataVersion,
+            int SourceFileCount,
+            int MetadataElementCount,
+            long TotalElementCount,
+            IReadOnlyList<DiagnosticsRegressionCount> ElementTypeCounts,
+            IReadOnlyList<DiagnosticsRegressionCount> ResolvedPackageCounts,
+            IReadOnlyList<DiagnosticsRegressionCount> FeatureKindCounts,
+            long SpellCount,
+            long SpellAccessCount,
+            long ClassCount,
+            long ArchetypeCount,
+            long MulticlassCount,
+            long SubraceCount,
+            long RaceVariantCount,
+            long CompanionCount,
+            IReadOnlyList<DiagnosticsRegressionCount> CompanionCrTypeCounts,
+            long SpellcastingProfileCount,
+            long ExtendedSpellcastingProfileCount,
+            long PreparedSpellcastingProfileCount,
+            long AllowReplaceSpellcastingProfileCount,
+            long SpellcastingProfilesWithExtendTextCount,
+            long RuleScopeCount,
+            long GrantCount,
+            long SelectCount,
+            long StatCount,
+            long SetterScopeCount,
+            long SetterEntryCount,
+            long SetterAttributeCount,
+            long RawGrantXmlCount,
+            long RawSelectXmlCount,
+            long RawStatXmlCount,
+            IReadOnlyList<string> CuratedArchetypeLinks,
+            IReadOnlyList<string> CuratedMulticlassRows,
+            IReadOnlyList<string> CuratedSpellcastingProfiles,
+            IReadOnlyList<string> CuratedCompanionRows,
+            IReadOnlyList<string> CuratedSpellAccessRows);
+
         private sealed record DiagnosticsRegressionBaseline(
             DateTime CapturedAtUtc,
             string CorpusLabel,
@@ -1788,6 +2459,12 @@ namespace AuroraTranslator
             IReadOnlyList<DiagnosticsRegressionCount> UnresolvedKindCounts,
             int TotalSourceIntegrityCount,
             IReadOnlyList<DiagnosticsRegressionCount> SourceIntegrityKindCounts);
+
+        private sealed record DatabaseMetadataRow(
+            int SchemaVersion,
+            int DataVersion,
+            int SourceFileCount,
+            int ElementCount);
 
         private static string DescribeExpressionNode(AuroraExpressionNode node)
         {

@@ -1,0 +1,1057 @@
+{
+  "CapturedAtUtc": "2026-05-27T09:58:04.5211051Z",
+  "CorpusLabel": "WPF-authoritative first-party core \u002B supplements",
+  "SchemaVersion": 1,
+  "DataVersion": 9,
+  "SourceFileCount": 631,
+  "MetadataElementCount": 10827,
+  "TotalElementCount": 10827,
+  "ElementTypeCounts": [
+    {
+      "Key": "Ability Score Improvement",
+      "Count": 116
+    },
+    {
+      "Key": "Alignment",
+      "Count": 9
+    },
+    {
+      "Key": "Archetype",
+      "Count": 175
+    },
+    {
+      "Key": "Archetype Feature",
+      "Count": 1202
+    },
+    {
+      "Key": "Armor",
+      "Count": 27
+    },
+    {
+      "Key": "Background",
+      "Count": 106
+    },
+    {
+      "Key": "Background Feature",
+      "Count": 167
+    },
+    {
+      "Key": "Background Variant",
+      "Count": 6
+    },
+    {
+      "Key": "Class",
+      "Count": 26
+    },
+    {
+      "Key": "Class Feature",
+      "Count": 859
+    },
+    {
+      "Key": "Companion",
+      "Count": 389
+    },
+    {
+      "Key": "Companion Action",
+      "Count": 930
+    },
+    {
+      "Key": "Companion Reaction",
+      "Count": 7
+    },
+    {
+      "Key": "Companion Trait",
+      "Count": 597
+    },
+    {
+      "Key": "Deity",
+      "Count": 295
+    },
+    {
+      "Key": "Dragonmark",
+      "Count": 12
+    },
+    {
+      "Key": "Feat",
+      "Count": 207
+    },
+    {
+      "Key": "Feat Feature",
+      "Count": 198
+    },
+    {
+      "Key": "Grants",
+      "Count": 1037
+    },
+    {
+      "Key": "Information",
+      "Count": 62
+    },
+    {
+      "Key": "Item",
+      "Count": 752
+    },
+    {
+      "Key": "Language",
+      "Count": 72
+    },
+    {
+      "Key": "Magic Item",
+      "Count": 1248
+    },
+    {
+      "Key": "Option",
+      "Count": 6
+    },
+    {
+      "Key": "Proficiency",
+      "Count": 188
+    },
+    {
+      "Key": "Race",
+      "Count": 101
+    },
+    {
+      "Key": "Race Variant",
+      "Count": 16
+    },
+    {
+      "Key": "Racial Trait",
+      "Count": 810
+    },
+    {
+      "Key": "Rule",
+      "Count": 5
+    },
+    {
+      "Key": "Source",
+      "Count": 67
+    },
+    {
+      "Key": "Spell",
+      "Count": 967
+    },
+    {
+      "Key": "Sub Race",
+      "Count": 50
+    },
+    {
+      "Key": "Support",
+      "Count": 4
+    },
+    {
+      "Key": "Vision",
+      "Count": 6
+    },
+    {
+      "Key": "Weapon",
+      "Count": 88
+    },
+    {
+      "Key": "Weapon Group",
+      "Count": 2
+    },
+    {
+      "Key": "Weapon Property",
+      "Count": 18
+    }
+  ],
+  "ResolvedPackageCounts": [
+    {
+      "Key": "core-ale-xml",
+      "Count": 195
+    },
+    {
+      "Key": "core-dungeon-masters-guide",
+      "Count": 698
+    },
+    {
+      "Key": "core-internal-xml",
+      "Count": 281
+    },
+    {
+      "Key": "core-monster-manual",
+      "Count": 113
+    },
+    {
+      "Key": "core-players-handbook",
+      "Count": 1970
+    },
+    {
+      "Key": "core-players-handbook-2024",
+      "Count": 2165
+    },
+    {
+      "Key": "supplements-acquisitions-incorporated",
+      "Count": 33
+    },
+    {
+      "Key": "supplements-adventurers-league",
+      "Count": 66
+    },
+    {
+      "Key": "supplements-astral-adventurers-guide",
+      "Count": 62
+    },
+    {
+      "Key": "supplements-boos-astral-menagerie",
+      "Count": 30
+    },
+    {
+      "Key": "supplements-candlekeep-mysteries",
+      "Count": 14
+    },
+    {
+      "Key": "supplements-critical-role-call-of-the-netherdeep",
+      "Count": 36
+    },
+    {
+      "Key": "supplements-curse-of-strahd",
+      "Count": 15
+    },
+    {
+      "Key": "supplements-descent-into-avernus",
+      "Count": 37
+    },
+    {
+      "Key": "supplements-dnd-beyond",
+      "Count": 37
+    },
+    {
+      "Key": "supplements-dragonlance-shadow-of-the-dragon-queen",
+      "Count": 99
+    },
+    {
+      "Key": "supplements-eberron-rising-from-the-last-war",
+      "Count": 354
+    },
+    {
+      "Key": "supplements-explorers-guide-to-wildemount",
+      "Count": 191
+    },
+    {
+      "Key": "supplements-extra-life",
+      "Count": 40
+    },
+    {
+      "Key": "supplements-fizbans-treasury-of-dragons",
+      "Count": 127
+    },
+    {
+      "Key": "supplements-ghosts-of-saltmarsh",
+      "Count": 18
+    },
+    {
+      "Key": "supplements-glory-of-the-giants",
+      "Count": 73
+    },
+    {
+      "Key": "supplements-guildmasters-guide-to-ravnica",
+      "Count": 154
+    },
+    {
+      "Key": "supplements-hoard-of-the-dragon-queen",
+      "Count": 11
+    },
+    {
+      "Key": "supplements-journeys-through-the-radiant-citadel",
+      "Count": 7
+    },
+    {
+      "Key": "supplements-keys-from-the-golden-vault",
+      "Count": 9
+    },
+    {
+      "Key": "supplements-light-of-xaryxis",
+      "Count": 1
+    },
+    {
+      "Key": "supplements-lost-mines-phandelver",
+      "Count": 6
+    },
+    {
+      "Key": "supplements-misc",
+      "Count": 4
+    },
+    {
+      "Key": "supplements-monsters-of-the-multiverse",
+      "Count": 205
+    },
+    {
+      "Key": "supplements-mordenkainens-tome-of-foes",
+      "Count": 45
+    },
+    {
+      "Key": "supplements-mortes-planar-parade",
+      "Count": 14
+    },
+    {
+      "Key": "supplements-mythic-odysseys-of-theros",
+      "Count": 123
+    },
+    {
+      "Key": "supplements-out-of-the-abyss",
+      "Count": 18
+    },
+    {
+      "Key": "supplements-phandelver-and-below-the-shattered-obelisk",
+      "Count": 26
+    },
+    {
+      "Key": "supplements-princes-of-the-apocalypse",
+      "Count": 78
+    },
+    {
+      "Key": "supplements-quests-from-the-infinite-staircase",
+      "Count": 11
+    },
+    {
+      "Key": "supplements-ranger-favored-enemies-xml",
+      "Count": 23
+    },
+    {
+      "Key": "supplements-rime-of-the-frostmaiden",
+      "Count": 48
+    },
+    {
+      "Key": "supplements-rise-of-tiamat",
+      "Count": 4
+    },
+    {
+      "Key": "supplements-sigil-and-the-outlands",
+      "Count": 32
+    },
+    {
+      "Key": "supplements-storm-kings-thunder",
+      "Count": 18
+    },
+    {
+      "Key": "supplements-strixhaven-a-curriculum-of-chaos",
+      "Count": 72
+    },
+    {
+      "Key": "supplements-sword-coast-adventurers-guide",
+      "Count": 258
+    },
+    {
+      "Key": "supplements-tales-from-the-yawning-portal",
+      "Count": 18
+    },
+    {
+      "Key": "supplements-tashas-cauldron-of-everything",
+      "Count": 638
+    },
+    {
+      "Key": "supplements-the-book-of-many-things",
+      "Count": 111
+    },
+    {
+      "Key": "supplements-the-book-of-xellarant",
+      "Count": 1502
+    },
+    {
+      "Key": "supplements-tomb-of-annihilation",
+      "Count": 5
+    },
+    {
+      "Key": "supplements-van-richtens-guide-to-ravenloft",
+      "Count": 90
+    },
+    {
+      "Key": "supplements-vecna-eve-of-ruin",
+      "Count": 12
+    },
+    {
+      "Key": "supplements-volos-guide-to-monsters",
+      "Count": 66
+    },
+    {
+      "Key": "supplements-waterdeep-dragon-heist",
+      "Count": 24
+    },
+    {
+      "Key": "supplements-waterdeep-dungeon-of-the-mad-mage",
+      "Count": 38
+    },
+    {
+      "Key": "supplements-wild-beyond-the-witchlight",
+      "Count": 34
+    },
+    {
+      "Key": "supplements-xanathars-guide-to-everything",
+      "Count": 467
+    }
+  ],
+  "FeatureKindCounts": [
+    {
+      "Key": "Ability Score Improvement",
+      "Count": 116
+    },
+    {
+      "Key": "Archetype Feature",
+      "Count": 1202
+    },
+    {
+      "Key": "Background Feature",
+      "Count": 167
+    },
+    {
+      "Key": "Class Feature",
+      "Count": 859
+    },
+    {
+      "Key": "Feat Feature",
+      "Count": 198
+    },
+    {
+      "Key": "Racial Trait",
+      "Count": 810
+    }
+  ],
+  "SpellCount": 967,
+  "SpellAccessCount": 3197,
+  "ClassCount": 26,
+  "ArchetypeCount": 175,
+  "MulticlassCount": 26,
+  "SubraceCount": 50,
+  "RaceVariantCount": 28,
+  "CompanionCount": 389,
+  "CompanionCrTypeCounts": [
+    {
+      "Key": "Aberration|0",
+      "Count": 1
+    },
+    {
+      "Key": "Aberration|1/8",
+      "Count": 1
+    },
+    {
+      "Key": "Aberration|10",
+      "Count": 1
+    },
+    {
+      "Key": "Aberration|2",
+      "Count": 1
+    },
+    {
+      "Key": "Aberration|3",
+      "Count": 1
+    },
+    {
+      "Key": "Aberration|4",
+      "Count": 1
+    },
+    {
+      "Key": "Aberration|5",
+      "Count": 1
+    },
+    {
+      "Key": "Aberration|8",
+      "Count": 1
+    },
+    {
+      "Key": "Beast|0",
+      "Count": 44
+    },
+    {
+      "Key": "Beast|1",
+      "Count": 6
+    },
+    {
+      "Key": "Beast|1/2",
+      "Count": 6
+    },
+    {
+      "Key": "Beast|1/4",
+      "Count": 21
+    },
+    {
+      "Key": "Beast|1/8",
+      "Count": 14
+    },
+    {
+      "Key": "Beast|2",
+      "Count": 8
+    },
+    {
+      "Key": "Beast|3",
+      "Count": 2
+    },
+    {
+      "Key": "Beast|4",
+      "Count": 1
+    },
+    {
+      "Key": "Beast|5",
+      "Count": 3
+    },
+    {
+      "Key": "Beast|6",
+      "Count": 1
+    },
+    {
+      "Key": "Beast|7",
+      "Count": 1
+    },
+    {
+      "Key": "Beast|8",
+      "Count": 1
+    },
+    {
+      "Key": "Beast|\u2014",
+      "Count": 6
+    },
+    {
+      "Key": "Celestial|0",
+      "Count": 1
+    },
+    {
+      "Key": "Celestial|1",
+      "Count": 1
+    },
+    {
+      "Key": "Celestial|10",
+      "Count": 1
+    },
+    {
+      "Key": "Celestial|16",
+      "Count": 1
+    },
+    {
+      "Key": "Celestial|2",
+      "Count": 1
+    },
+    {
+      "Key": "Celestial|21",
+      "Count": 1
+    },
+    {
+      "Key": "Celestial|4",
+      "Count": 1
+    },
+    {
+      "Key": "Celestial|5",
+      "Count": 1
+    },
+    {
+      "Key": "Construct|-",
+      "Count": 1
+    },
+    {
+      "Key": "Construct|0",
+      "Count": 1
+    },
+    {
+      "Key": "Construct|1",
+      "Count": 2
+    },
+    {
+      "Key": "Construct|1/4",
+      "Count": 3
+    },
+    {
+      "Key": "Construct|10",
+      "Count": 1
+    },
+    {
+      "Key": "Construct|16",
+      "Count": 1
+    },
+    {
+      "Key": "Construct|2",
+      "Count": 1
+    },
+    {
+      "Key": "Construct|5",
+      "Count": 1
+    },
+    {
+      "Key": "Construct|7",
+      "Count": 1
+    },
+    {
+      "Key": "Construct|9",
+      "Count": 1
+    },
+    {
+      "Key": "Construct|\u2014",
+      "Count": 1
+    },
+    {
+      "Key": "Dragon|1",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|1/4",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|10",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|13",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|14",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|15",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|16",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|17",
+      "Count": 3
+    },
+    {
+      "Key": "Dragon|2",
+      "Count": 5
+    },
+    {
+      "Key": "Dragon|20",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|21",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|22",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|23",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|24",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|3",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|4",
+      "Count": 1
+    },
+    {
+      "Key": "Dragon|6",
+      "Count": 3
+    },
+    {
+      "Key": "Dragon|7",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|8",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|9",
+      "Count": 2
+    },
+    {
+      "Key": "Dragon|\u2014",
+      "Count": 3
+    },
+    {
+      "Key": "Elemental|0",
+      "Count": 1
+    },
+    {
+      "Key": "Elemental|1/2",
+      "Count": 4
+    },
+    {
+      "Key": "Elemental|1/4",
+      "Count": 3
+    },
+    {
+      "Key": "Elemental|11",
+      "Count": 2
+    },
+    {
+      "Key": "Elemental|2",
+      "Count": 2
+    },
+    {
+      "Key": "Elemental|5",
+      "Count": 6
+    },
+    {
+      "Key": "Elemental|6",
+      "Count": 1
+    },
+    {
+      "Key": "Fey|1",
+      "Count": 1
+    },
+    {
+      "Key": "Fey|1/2",
+      "Count": 1
+    },
+    {
+      "Key": "Fey|1/4",
+      "Count": 2
+    },
+    {
+      "Key": "Fey|2",
+      "Count": 1
+    },
+    {
+      "Key": "Fey|3",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend (Demon)|1",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend (Devil)|1",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend|0",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend|1",
+      "Count": 3
+    },
+    {
+      "Key": "Fiend|1/4",
+      "Count": 2
+    },
+    {
+      "Key": "Fiend|11",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend|12",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend|13",
+      "Count": 2
+    },
+    {
+      "Key": "Fiend|14",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend|16",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend|19",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend|20",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend|3",
+      "Count": 3
+    },
+    {
+      "Key": "Fiend|4",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend|5",
+      "Count": 2
+    },
+    {
+      "Key": "Fiend|6",
+      "Count": 1
+    },
+    {
+      "Key": "Fiend|8",
+      "Count": 2
+    },
+    {
+      "Key": "Fiend|9",
+      "Count": 2
+    },
+    {
+      "Key": "Giant|13",
+      "Count": 1
+    },
+    {
+      "Key": "Giant|2",
+      "Count": 1
+    },
+    {
+      "Key": "Giant|4",
+      "Count": 1
+    },
+    {
+      "Key": "Giant|5",
+      "Count": 2
+    },
+    {
+      "Key": "Giant|7",
+      "Count": 2
+    },
+    {
+      "Key": "Giant|8",
+      "Count": 1
+    },
+    {
+      "Key": "Giant|9",
+      "Count": 2
+    },
+    {
+      "Key": "Humanoid|0",
+      "Count": 1
+    },
+    {
+      "Key": "Humanoid|1",
+      "Count": 3
+    },
+    {
+      "Key": "Humanoid|1/2",
+      "Count": 8
+    },
+    {
+      "Key": "Humanoid|1/4",
+      "Count": 4
+    },
+    {
+      "Key": "Humanoid|1/8",
+      "Count": 7
+    },
+    {
+      "Key": "Humanoid|12",
+      "Count": 1
+    },
+    {
+      "Key": "Humanoid|2",
+      "Count": 8
+    },
+    {
+      "Key": "Humanoid|3",
+      "Count": 5
+    },
+    {
+      "Key": "Humanoid|4",
+      "Count": 6
+    },
+    {
+      "Key": "Humanoid|5",
+      "Count": 5
+    },
+    {
+      "Key": "Humanoid|6",
+      "Count": 1
+    },
+    {
+      "Key": "Humanoid|8",
+      "Count": 1
+    },
+    {
+      "Key": "Monstrosity|1",
+      "Count": 3
+    },
+    {
+      "Key": "Monstrosity|1/2",
+      "Count": 4
+    },
+    {
+      "Key": "Monstrosity|1/4",
+      "Count": 2
+    },
+    {
+      "Key": "Monstrosity|10",
+      "Count": 1
+    },
+    {
+      "Key": "Monstrosity|11",
+      "Count": 4
+    },
+    {
+      "Key": "Monstrosity|15",
+      "Count": 1
+    },
+    {
+      "Key": "Monstrosity|17",
+      "Count": 1
+    },
+    {
+      "Key": "Monstrosity|2",
+      "Count": 7
+    },
+    {
+      "Key": "Monstrosity|23",
+      "Count": 1
+    },
+    {
+      "Key": "Monstrosity|3",
+      "Count": 7
+    },
+    {
+      "Key": "Monstrosity|30",
+      "Count": 1
+    },
+    {
+      "Key": "Monstrosity|4",
+      "Count": 1
+    },
+    {
+      "Key": "Monstrosity|5",
+      "Count": 3
+    },
+    {
+      "Key": "Monstrosity|6",
+      "Count": 3
+    },
+    {
+      "Key": "Monstrosity|8",
+      "Count": 2
+    },
+    {
+      "Key": "Ooze|1/2",
+      "Count": 1
+    },
+    {
+      "Key": "Ooze|1/4",
+      "Count": 2
+    },
+    {
+      "Key": "Ooze|2",
+      "Count": 2
+    },
+    {
+      "Key": "Ooze|4",
+      "Count": 1
+    },
+    {
+      "Key": "Plant|0",
+      "Count": 2
+    },
+    {
+      "Key": "Plant|1",
+      "Count": 1
+    },
+    {
+      "Key": "Plant|1/4",
+      "Count": 1
+    },
+    {
+      "Key": "Plant|2",
+      "Count": 1
+    },
+    {
+      "Key": "Plant|5",
+      "Count": 1
+    },
+    {
+      "Key": "Plant|9",
+      "Count": 1
+    },
+    {
+      "Key": "Swarm of Tiny beasts|1",
+      "Count": 1
+    },
+    {
+      "Key": "Swarm of Tiny beasts|1/2",
+      "Count": 5
+    },
+    {
+      "Key": "Swarm of Tiny beasts|1/4",
+      "Count": 3
+    },
+    {
+      "Key": "Swarm of Tiny beasts|2",
+      "Count": 1
+    },
+    {
+      "Key": "Undead|1",
+      "Count": 3
+    },
+    {
+      "Key": "Undead|1/2",
+      "Count": 2
+    },
+    {
+      "Key": "Undead|1/4",
+      "Count": 2
+    },
+    {
+      "Key": "Undead|13",
+      "Count": 3
+    },
+    {
+      "Key": "Undead|15",
+      "Count": 1
+    },
+    {
+      "Key": "Undead|2",
+      "Count": 4
+    },
+    {
+      "Key": "Undead|21",
+      "Count": 1
+    },
+    {
+      "Key": "Undead|3",
+      "Count": 2
+    },
+    {
+      "Key": "Undead|4",
+      "Count": 1
+    },
+    {
+      "Key": "Undead|5",
+      "Count": 2
+    },
+    {
+      "Key": "fey|1/4",
+      "Count": 1
+    }
+  ],
+  "SpellcastingProfileCount": 72,
+  "ExtendedSpellcastingProfileCount": 50,
+  "PreparedSpellcastingProfileCount": 9,
+  "AllowReplaceSpellcastingProfileCount": 13,
+  "SpellcastingProfilesWithExtendTextCount": 50,
+  "RuleScopeCount": 3274,
+  "GrantCount": 5104,
+  "SelectCount": 2259,
+  "StatCount": 4541,
+  "SetterScopeCount": 4154,
+  "SetterEntryCount": 32254,
+  "SetterAttributeCount": 3777,
+  "RawGrantXmlCount": 5104,
+  "RawSelectXmlCount": 2259,
+  "RawStatXmlCount": 4541,
+  "CuratedArchetypeLinks": [
+    "ID_WOTC_PHB_ARCHETYPE_LIFEDOMAIN|Life Domain|parent=ID_WOTC_PHB24_CLASS_CLERIC|Cleric|support=Divine Domain",
+    "ID_WOTC_PHB_ARCHETYPE_OTHERWORLDLY_PATRON_FIEND|The Fiend|parent=ID_WOTC_PHB24_CLASS_WARLOCK|Warlock|support=Otherworldly Patron"
+  ],
+  "CuratedMulticlassRows": [
+    "ID_WOTC_PHB_CLASS_CLERIC|Cleric|multiclass=ID_WOTC_PHB_MULTICLASS_CLERIC|prerequisite=Wisdom 13|requirements=([wis:13],!(ID_WOTC_PHB24_CLASS_CLERIC||ID_WOTC_PHB24_MULTICLASS_CLERIC))||ID_INTERNAL_GRANTS_MULTICLASS_UNLOCKER|proficiencies=Light armor, medium armor, shields",
+    "ID_WOTC_PHB_CLASS_WARLOCK|Warlock|multiclass=ID_WOTC_PHB_MULTICLASS_WARLOCK|prerequisite=Charisma 13|requirements=([cha:13],!(ID_WOTC_PHB24_CLASS_WARLOCK||ID_WOTC_PHB24_MULTICLASS_WARLOCK))||ID_INTERNAL_GRANTS_MULTICLASS_UNLOCKER|proficiencies=Light armor, simple weapons",
+    "ID_WOTC_PHB_CLASS_WIZARD|Wizard|multiclass=ID_WOTC_PHB_MULTICLASS_WIZARD|prerequisite=Intelligence 13|requirements=([int:13],!(ID_WOTC_PHB24_CLASS_WIZARD||ID_WOTC_PHB24_MULTICLASS_WIZARD))||ID_INTERNAL_GRANTS_MULTICLASS_UNLOCKER|proficiencies=\u2014"
+  ],
+  "CuratedSpellcastingProfiles": [],
+  "CuratedCompanionRows": [
+    "core-players-handbook-2024|ID_WOTC_MM25_COMPANION_BADGER|Badger|type=Beast|size=Tiny|cr=0|speed=20 ft., Burrow 5 ft.",
+    "core-players-handbook|ID_WOTC_PHB_COMPANION_BADGER|Badger|type=Beast|size=Tiny|cr=0|speed=20 ft., burrow 5 ft.",
+    "core-players-handbook|ID_WOTC_PHB_COMPANION_GIANT_BADGER|Giant Badger|type=Beast|size=Medium|cr=1/4|speed=30 ft., burrow 10 ft."
+  ],
+  "CuratedSpellAccessRows": [
+    "ID_PHB_SPELL_AID|Aid|access=Artificer,Cleric,Paladin",
+    "ID_PHB_SPELL_BURNING_HANDS|Burning Hands|access=Sorcerer,Spell Saving Throw,Wizard",
+    "ID_PHB_SPELL_ELDRITCH_BLAST|Eldritch Blast|access=Ranged,Spell Attack,Warlock",
+    "ID_PHB_SPELL_FIND_FAMILIAR|Find Familiar|access=Wizard"
+  ]
+}
