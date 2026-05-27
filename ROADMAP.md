@@ -66,6 +66,10 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Multi-select `feature-pick` families such as classic Rogue `Expertise` and Warlock `Eldritch Invocation` now behave like real builder slots, including saved-state satisfaction from direct feature elements
 - Classic Rogue `Expertise` is now covered by partial, direct-state, and fully completed first-party fixtures so we can detect regressions across the whole progression
 - Warlock Pact Magic spell-pick rows now resolve through spellcasting profiles, fill real spell option pools, and participate in slot-aware over-pick validation
+- Granted rule-owning elements such as racial traits and nested archetype features now participate in select evaluation, which lets builder flows surface picks like High Elf Wizard cantrips and Abjurer school-restricted spells
+- Null-profile and constrained `spell-pick` rows now resolve real option pools instead of falling back to empty generic behavior
+- Support-driven fixed pools now resolve real element options even when Aurora encoded them only in `supports_text`, which makes nested feat families such as PHB 2024 `Magic Initiate` behave like normal builder choices
+- Nested class-feature spell picks now inherit their parent class spell list when Aurora encoded them without a local profile, which makes early PHB 2024 flows like Cleric `Thaumaturge` complete cleanly
 - Over-selected first-party choice states now fail loudly, either as explicit over-selection warnings or immediate `select-full` application errors
 - Derived character output for:
   - computed ability scores
@@ -143,8 +147,10 @@ Likely target families:
   - duplicate-pick validation for selected-choice flows
   - additional PHB 2024 replacement-style families beyond Cleric/Monk
   - spell-grant scenarios such as domain or oath spells
+  - completed player-facing class/race/background packages beyond the new Life Domain + Human + Acolyte fixture
+  - dedicated feat-package scenarios beyond the new `Magic Initiate` fixture, such as `Ritual Caster`
   - more `feature-pick` families such as Metamagic, Weapon Mastery, and Eldritch Adept
-  - more `spell-pick` families such as Wizard spellbook/cantrip flows and broader subclass spell-selection cases
+  - more `spell-pick` families such as Magic Initiate, Ritual Caster, and broader subclass spell-selection cases
   - explicit duplicate-pick and over-pick validation scenarios beyond the current first-party language oversubscribe fixture
 - use focused fixtures to lock down computed-trait scenarios such as Darkvision and typed movement entries like fly/climb/swim/burrow speeds
 - add guardrails for semantic expansion counts if useful
@@ -157,6 +163,7 @@ Likely target families:
 
 - add more views tailored to real character-building screens
 - identify places where the builder should query SQLite directly versus evaluating in code
+- ensure app-facing choice/projection views preserve the mutual-exclusion rule between 2014 racial ability score increases and 2024 background ability score increases; a character should resolve only one origin ASI source
 - tighten distinction between:
   - canonical content storage
   - runtime query projections

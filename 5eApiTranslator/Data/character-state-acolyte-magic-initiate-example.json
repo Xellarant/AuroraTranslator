@@ -1,0 +1,60 @@
+{
+  "classes": [],
+  "archetypes": [],
+  "race": null,
+  "subRace": null,
+  "raceVariants": [],
+  "background": {
+    "name": "Acolyte",
+    "packageKey": "core-players-handbook-2024"
+  },
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [
+    {
+      "ownerName": "Cleric",
+      "ownerTypeName": "Feat Feature",
+      "selectName": "Spellcasting Ability (Magic Initiate)",
+      "selectType": "Feat Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_FEAT_FEATURE_MAGIC_INITIATE_CLERIC_WISDOM",
+      "optionName": "Wisdom"
+    },
+    {
+      "ownerName": "Cleric",
+      "ownerTypeName": "Feat Feature",
+      "selectName": "Cantrip (Magic Initiate)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_PHB_SPELL_GUIDANCE",
+      "optionName": "Guidance"
+    },
+    {
+      "ownerName": "Cleric",
+      "ownerTypeName": "Feat Feature",
+      "selectName": "Cantrip (Magic Initiate)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_PHB_SPELL_SACRED_FLAME",
+      "optionName": "Sacred Flame"
+    },
+    {
+      "ownerName": "Cleric",
+      "ownerTypeName": "Feat Feature",
+      "selectName": "Level 1 Spell (Magic Initiate)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_PHB_SPELL_BLESS",
+      "optionName": "Bless"
+    }
+  ],
+  "tokens": [],
+  "numericValues": {
+    "str": 10,
+    "dex": 10,
+    "con": 14,
+    "int": 10,
+    "wis": 16,
+    "cha": 10
+  },
+  "scalarValues": {},
+  "macroValues": {}
+}

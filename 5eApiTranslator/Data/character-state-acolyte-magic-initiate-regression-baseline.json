@@ -1,0 +1,102 @@
+{
+  "CapturedAtUtc": "2026-05-20T22:20:02.7023952Z",
+  "StateLabel": "character-state-acolyte-magic-initiate-example.json",
+  "DirectSelectionCount": 5,
+  "DirectSelections": [
+    "Background|Acolyte|core-players-handbook-2024|",
+    "Feat Feature|Wisdom|core-players-handbook-2024|",
+    "Spell|Bless|core-players-handbook|",
+    "Spell|Guidance|core-players-handbook|",
+    "Spell|Sacred Flame|core-players-handbook|"
+  ],
+  "ActiveFeatureCount": 0,
+  "ActiveFeatures": [],
+  "ActiveGrantCount": 6,
+  "AvailableSelectCount": 3,
+  "PendingChoiceCount": 0,
+  "BlockingPendingChoiceCount": 0,
+  "WarningCount": 0,
+  "WarningKindCounts": [],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 16
+    }
+  ],
+  "ProficiencyKeys": [
+    "ID_PROFICIENCY_SKILL_INSIGHT",
+    "ID_PROFICIENCY_SKILL_RELIGION",
+    "ID_PROFICIENCY_TOOL_PROFICIENCY_CALLIGRAPHERS_SUPPLIES"
+  ],
+  "LanguageKeys": [],
+  "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
+  "FeatKeys": [],
+  "FeatureKeys": [
+    "ID_WOTC_PHB24_FEAT_FEATURE_MAGIC_INITIATE_CLERIC_WISDOM"
+  ],
+  "ChoiceSelectionKeys": [
+    "$(choice||Feat Feature||Cleric||Cantrip (Magic Initiate))|ID_PHB_SPELL_GUIDANCE",
+    "$(choice||Feat Feature||Cleric||Cantrip (Magic Initiate))|ID_PHB_SPELL_SACRED_FLAME",
+    "$(choice||Feat Feature||Cleric||Level 1 Spell (Magic Initiate))|ID_PHB_SPELL_BLESS",
+    "$(choice||Feat Feature||Cleric||Spellcasting Ability (Magic Initiate))|ID_WOTC_PHB24_FEAT_FEATURE_MAGIC_INITIATE_CLERIC_WISDOM"
+  ],
+  "TraitKeys": [],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|10",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|10",
+    "ability-score|int|ability:int|10",
+    "ability-score|str|ability:str|10",
+    "ability-score|wis|ability:wis|16",
+    "feature|feat-feature|ID_WOTC_PHB24_FEAT_FEATURE_MAGIC_INITIATE_CLERIC_WISDOM|Wisdom",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_INSIGHT|Insight",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_RELIGION|Religion",
+    "proficiency|tool|ID_PROFICIENCY_TOOL_PROFICIENCY_CALLIGRAPHERS_SUPPLIES|Tool Proficiency (Calligrapher\u0027s supplies)"
+  ],
+  "PendingChoiceKeys": [],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "choice-selection|selected-choice",
+      "Count": 4
+    },
+    {
+      "Key": "feature|direct-selection",
+      "Count": 1
+    },
+    {
+      "Key": "proficiency|grant",
+      "Count": 3
+    }
+  ],
+  "AppliedChoiceStates": [
+    "0|applied|Feat Feature|Cleric|Spellcasting Ability (Magic Initiate)|family=generic-element-pick|Wisdom",
+    "1|applied|Feat Feature|Cleric|Cantrip (Magic Initiate)|family=spell-pick|Guidance",
+    "2|applied|Feat Feature|Cleric|Cantrip (Magic Initiate)|family=spell-pick|Sacred Flame",
+    "3|applied|Feat Feature|Cleric|Level 1 Spell (Magic Initiate)|family=spell-pick|Bless"
+  ]
+}

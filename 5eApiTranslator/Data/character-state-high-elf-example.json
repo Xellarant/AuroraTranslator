@@ -1,0 +1,17 @@
+{
+  "classes": [],
+  "archetypes": [],
+  "race": { "name": "Elf", "packageKey": "core-players-handbook" },
+  "subRace": { "name": "High Elf", "packageKey": "core-players-handbook" },
+  "raceVariants": [],
+  "background": null,
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [],
+  "tokens": [],
+  "numericValues": { "str": 8, "dex": 16, "con": 12, "int": 14, "wis": 10, "cha": 10 },
+  "scalarValues": {},
+  "macroValues": {}
+}

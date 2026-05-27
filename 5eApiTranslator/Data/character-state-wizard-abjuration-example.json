@@ -1,0 +1,17 @@
+{
+  "classes": [ { "name": "Wizard", "packageKey": "core-players-handbook-2024", "level": 3 } ],
+  "archetypes": [ { "name": "Abjurer", "packageKey": "core-players-handbook-2024" } ],
+  "race": null,
+  "subRace": null,
+  "raceVariants": [],
+  "background": null,
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [],
+  "tokens": [],
+  "numericValues": { "str": 8, "dex": 14, "con": 14, "int": 16, "wis": 12, "cha": 10 },
+  "scalarValues": {},
+  "macroValues": {}
+}

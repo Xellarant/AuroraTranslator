@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-15T23:18:34.6585072Z",
+  "CapturedAtUtc": "2026-05-20T22:09:00.8959057Z",
   "StateLabel": "character-state-monk-focus-example.json",
   "DirectSelectionCount": 6,
   "DirectSelections": [
@@ -19,18 +19,18 @@
     "Class|Monk|Level 2: Uncanny Metabolism|2"
   ],
   "ActiveGrantCount": 22,
-  "AvailableSelectCount": 4,
-  "PendingChoiceCount": 4,
-  "BlockingPendingChoiceCount": 4,
-  "WarningCount": 4,
+  "AvailableSelectCount": 9,
+  "PendingChoiceCount": 9,
+  "BlockingPendingChoiceCount": 9,
+  "WarningCount": 9,
   "WarningKindCounts": [
     {
       "Key": "pending-choice|error",
-      "Count": 1
+      "Count": 2
     },
     {
       "Key": "pending-choice|warning",
-      "Count": 3
+      "Count": 7
     }
   ],
   "AbilityScores": [
@@ -134,8 +134,13 @@
   "PendingChoiceKeys": [
     "Class|Monk|Skill Proficiency (Monk)|family=skill-pick|remaining=2|blocking=True",
     "Class|Monk|Tool Proficiency (Monk)|family=tool-pick|remaining=1|blocking=True",
+    "Feat Feature|Cleric|Cantrip (Magic Initiate)|family=spell-pick|remaining=2|blocking=True",
+    "Feat Feature|Cleric|Level 1 Spell (Magic Initiate)|family=spell-pick|remaining=1|blocking=True",
+    "Feat Feature|Cleric|Spellcasting Ability (Magic Initiate)|family=generic-element-pick|remaining=1|blocking=True",
     "Race|Human|Language (Human)|family=language-pick|remaining=2|blocking=True",
-    "Race|Human|Size (Human)|family=generic-element-pick|remaining=1|blocking=True"
+    "Race|Human|Size (Human)|family=generic-element-pick|remaining=1|blocking=True",
+    "Racial Trait|Skillful|Skill Proficiency (Skillful)|family=skill-pick|remaining=1|blocking=True",
+    "Racial Trait|Versatile|Feat (Versatile)|family=feat-pick|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {

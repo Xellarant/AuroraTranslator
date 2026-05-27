@@ -84,11 +84,15 @@ namespace AuroraTranslator
         string PackageKey,
         string SourcePath,
         int UnlockLevel,
+        int OwnerElementId,
+        int OwnerLevel,
         string OwnerName,
         string OwnerTypeName);
 
     internal sealed record ActiveGrantResult(
         int GrantId,
+        int OwnerElementId,
+        int OwnerLevel,
         string OwnerName,
         string OwnerTypeName,
         string GrantType,
@@ -104,6 +108,18 @@ namespace AuroraTranslator
         string TargetSemanticKey,
         string TargetSemanticKind,
         string TargetSemanticName);
+
+    internal sealed class SpellSelectFilter
+    {
+        public bool UsesSlotCap { get; init; }
+        public bool RequiresRitual { get; set; }
+        public HashSet<int> ExplicitSpellLevels { get; } = new();
+        public HashSet<string> AllowedLists { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> AllowedSchools { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> AllowedAuroraIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> ExcludedAuroraIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> ExcludedSpellNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
 
     internal sealed record CharacterSelectOptionResult(
         string OptionKind,
@@ -370,12 +386,14 @@ namespace AuroraTranslator
             Dictionary<int, int> ownerLevels = BuildOwnerLevelMap(directSelections, activeFeatures, connection);
             var activeGrants = LoadActiveGrants(connection, ownerLevels, evaluationContext);
 
-            for (int iteration = 0; iteration < 3; iteration++)
+            for (int iteration = 0; iteration < 5; iteration++)
             {
                 int tokenCountBefore = evaluationContext.Tokens.Count;
                 int macroCountBefore = evaluationContext.MacroValues.Sum(x => x.Value.Count);
                 AddGrantTokensToContext(evaluationContext, activeGrants, connection);
-                if (evaluationContext.Tokens.Count == tokenCountBefore
+                bool expandedOwners = ExpandOwnerLevelsFromGrants(connection, ownerLevels, activeGrants);
+                if (!expandedOwners
+                    && evaluationContext.Tokens.Count == tokenCountBefore
                     && evaluationContext.MacroValues.Sum(x => x.Value.Count) == macroCountBefore)
                 {
                     break;
@@ -541,6 +559,8 @@ WHERE
         ($aurora_id <> '' AND e.aurora_id = $aurora_id)
         OR
         (
+            $aurora_id = ''
+            AND
             $name <> ''
             AND e.name = $name
             AND ($package_key = '' OR rec.package_key = $package_key)
@@ -1058,6 +1078,8 @@ ORDER BY unlock_level ASC, feature_name ASC;";
                         reader.IsDBNull(4) ? null : reader.GetString(4),
                         reader.IsDBNull(5) ? null : reader.GetString(5),
                         reader.GetInt32(6),
+                        classSelection.ElementId,
+                        classLevel,
                         classSelection.Name,
                         classSelection.TypeName));
                 }
@@ -1094,6 +1116,8 @@ ORDER BY unlock_level ASC, feature_name ASC;";
                         reader.IsDBNull(4) ? null : reader.GetString(4),
                         reader.IsDBNull(5) ? null : reader.GetString(5),
                         reader.GetInt32(6),
+                        archetypeSelection.ElementId,
+                        archetypeLevel,
                         archetypeSelection.Name,
                         archetypeSelection.TypeName));
                 }
@@ -1152,6 +1176,8 @@ ORDER BY unlock_level ASC, feature_element.name ASC;";
                         reader.IsDBNull(4) ? null : reader.GetString(4),
                         reader.IsDBNull(5) ? null : reader.GetString(5),
                         reader.GetInt32(6),
+                        parentSelection.ElementId,
+                        parentSelection.Level ?? 1,
                         parentSelection.Name,
                         parentSelection.TypeName));
                 }
@@ -1289,7 +1315,7 @@ ORDER BY ordinal ASC;";
             }
 
             foreach (ActiveCharacterFeature feature in activeFeatures)
-                levels[feature.ElementId] = Math.Max(1, feature.UnlockLevel);
+                levels[feature.ElementId] = Math.Max(1, feature.OwnerLevel);
 
             return levels;
         }
@@ -1358,6 +1384,8 @@ ORDER BY owner.name ASC, g.ordinal ASC;";
 
                 grants.Add(new ActiveGrantResult(
                     reader.GetInt32(0),
+                    ownerElementId,
+                    ownerLevel,
                     reader.GetString(2),
                     reader.GetString(3),
                     reader.GetString(4),
@@ -1376,6 +1404,63 @@ ORDER BY owner.name ASC, g.ordinal ASC;";
             }
 
             return grants;
+        }
+
+        private static bool ExpandOwnerLevelsFromGrants(
+            SqliteConnection connection,
+            IDictionary<int, int> ownerLevels,
+            IReadOnlyList<ActiveGrantResult> activeGrants)
+        {
+            if (ownerLevels == null || activeGrants == null || activeGrants.Count == 0)
+                return false;
+
+            Dictionary<int, int> candidateLevels = activeGrants
+                .Where(ShouldExpandGrantTargetOwner)
+                .GroupBy(x => x.TargetElementId!.Value)
+                .ToDictionary(
+                    x => x.Key,
+                    x => x.Max(grant => Math.Max(1, grant.GrantLevel ?? grant.OwnerLevel)));
+
+            if (candidateLevels.Count == 0)
+                return false;
+
+            string targetIdList = string.Join(",", candidateLevels.Keys.OrderBy(x => x));
+            using var command = connection.CreateCommand();
+            command.CommandText = $@"
+SELECT DISTINCT rs.owner_element_id
+FROM rule_scopes AS rs
+WHERE rs.owner_kind = 'element'
+  AND rs.owner_element_id IN ({targetIdList});";
+
+            bool changed = false;
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                int ownerElementId = reader.GetInt32(0);
+                int candidateLevel = candidateLevels.TryGetValue(ownerElementId, out int level)
+                    ? level
+                    : 1;
+
+                if (!ownerLevels.TryGetValue(ownerElementId, out int existingLevel) || candidateLevel > existingLevel)
+                {
+                    ownerLevels[ownerElementId] = candidateLevel;
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
+        private static bool ShouldExpandGrantTargetOwner(ActiveGrantResult grant)
+        {
+            if (!grant.TargetElementId.HasValue || string.IsNullOrWhiteSpace(grant.TargetTypeName))
+                return false;
+
+            return string.Equals(grant.TargetTypeName, "Racial Trait", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(grant.TargetTypeName, "Class Feature", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(grant.TargetTypeName, "Archetype Feature", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(grant.TargetTypeName, "Feat Feature", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(grant.TargetTypeName, "Background Feature", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void AddGrantTokensToContext(
@@ -1544,6 +1629,7 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
                 connection,
                 selectId,
                 selectType,
+                supportsText,
                 context,
                 ownerName,
                 ownerTypeName,
@@ -1555,6 +1641,7 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
             SqliteConnection connection,
             int selectId,
             string selectType,
+            string supportsText,
             AuroraExpressionEvaluationContext context,
             string ownerName,
             string ownerTypeName,
@@ -1646,10 +1733,117 @@ ORDER BY
                     followUpOptions));
             }
 
+            foreach (CharacterSelectOptionResult supportLinkedOption in LoadSupportLinkedElementOptions(
+                         connection,
+                         selectType,
+                         supportsText,
+                         context,
+                         ownerName,
+                         ownerTypeName,
+                         selectName,
+                         includeElementOptionFollowUps))
+            {
+                options.Add(supportLinkedOption);
+            }
+
             return options
                 .GroupBy(x => $"{x.OptionKind}|{x.OptionElementId?.ToString() ?? ""}|{x.OptionText ?? ""}")
                 .Select(x => x.First())
                 .ToList();
+        }
+
+        private static List<CharacterSelectOptionResult> LoadSupportLinkedElementOptions(
+            SqliteConnection connection,
+            string selectType,
+            string supportsText,
+            AuroraExpressionEvaluationContext context,
+            string ownerName,
+            string ownerTypeName,
+            string selectName,
+            bool includeElementOptionFollowUps)
+        {
+            List<string> supportIds = ExtractSupportAtoms(supportsText)
+                .Where(x => x.StartsWith("ID_", StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (supportIds.Count == 0)
+                return new List<CharacterSelectOptionResult>();
+
+            using var command = connection.CreateCommand();
+            var parameterNames = new List<string>();
+            for (int index = 0; index < supportIds.Count; index++)
+            {
+                string parameterName = $"$support_id_{index}";
+                parameterNames.Add(parameterName);
+                command.Parameters.AddWithValue(parameterName, supportIds[index]);
+            }
+
+            command.CommandText = $@"
+SELECT
+    e.element_id,
+    e.aurora_id,
+    e.name,
+    et.type_name,
+    rec.package_key
+FROM elements AS e
+JOIN element_types AS et
+    ON et.element_type_id = e.element_type_id
+JOIN resolved_elements_cache AS rec
+    ON rec.winning_element_id = e.element_id
+WHERE e.aurora_id IN ({string.Join(", ", parameterNames)})
+ORDER BY e.name ASC;";
+
+            var options = new List<CharacterSelectOptionResult>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                int optionElementId = reader.GetInt32(0);
+                string optionAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
+                string optionName = reader.IsDBNull(2) ? null : reader.GetString(2);
+                string optionTypeName = reader.IsDBNull(3) ? null : reader.GetString(3);
+                string optionPackageKey = reader.IsDBNull(4) ? null : reader.GetString(4);
+
+                if (!OptionMatchesSelectType(selectType, optionTypeName))
+                    continue;
+
+                string requirementText = LoadElementRequirementText(connection, optionElementId);
+                bool isAvailable = IsRequirementSatisfied(requirementText, context);
+                bool isAlreadyOwned = (!string.IsNullOrWhiteSpace(optionAuroraId) && context.MatchesToken(optionAuroraId))
+                                     || (!string.IsNullOrWhiteSpace(optionName) && context.MatchesToken(optionName));
+                bool isChosenForSelect = IsStoredChoiceValue(
+                    context,
+                    ownerTypeName,
+                    ownerName,
+                    selectName,
+                    optionAuroraId,
+                    optionName);
+
+                IReadOnlyList<CharacterSelectOptionResult> followUpOptions = null;
+                string followUpKind = null;
+                if (includeElementOptionFollowUps && isAvailable)
+                {
+                    followUpOptions = LoadDirectSelectPreviewOptions(connection, optionElementId, context);
+                    if (followUpOptions.Count > 0)
+                        followUpKind = "unlocked-selects";
+                }
+
+                options.Add(new CharacterSelectOptionResult(
+                    "element",
+                    optionElementId,
+                    optionAuroraId,
+                    optionName,
+                    optionTypeName,
+                    optionPackageKey,
+                    null,
+                    isAvailable,
+                    isAlreadyOwned,
+                    isChosenForSelect,
+                    requirementText,
+                    followUpKind,
+                    followUpOptions));
+            }
+
+            return options;
         }
 
         private static List<CharacterSelectOptionResult> LoadSpellOptions(
@@ -1663,54 +1857,72 @@ ORDER BY
             string ownerTypeName,
             string selectName)
         {
-            if (!spellcastingProfileId.HasValue)
+            (string profileName, string listText) = spellcastingProfileId.HasValue
+                ? LoadSpellcastingProfileSelectInfo(connection, spellcastingProfileId.Value)
+                : (null, null);
+
+            SpellSelectFilter filter = BuildSpellSelectFilter(supportsText, profileName, listText);
+            if (filter.AllowedLists.Count == 0
+                && supportsText?.Contains("$(spellcasting:list)", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                string inheritedSpellList = ResolveImplicitSpellListName(connection, ownerElementId, context);
+                if (!string.IsNullOrWhiteSpace(inheritedSpellList))
+                    filter.AllowedLists.Add(inheritedSpellList);
+            }
+
+            if (filter.AllowedAuroraIds.Count == 0 && filter.AllowedLists.Count == 0)
                 return new List<CharacterSelectOptionResult>();
 
-            (string profileName, string listText) = LoadSpellcastingProfileSelectInfo(connection, spellcastingProfileId.Value);
-            string spellListName = !string.IsNullOrWhiteSpace(listText)
-                ? listText.Trim()
-                : profileName?.Trim();
-            if (string.IsNullOrWhiteSpace(spellListName))
-                return new List<CharacterSelectOptionResult>();
+            string slotCapProfileName = !string.IsNullOrWhiteSpace(profileName)
+                ? profileName
+                : filter.AllowedLists.Count == 1
+                    ? filter.AllowedLists.First()
+                    : null;
 
-            bool usesSlotCap = supportsText?.Contains("$(spellcasting:slots)", StringComparison.OrdinalIgnoreCase) == true;
-            HashSet<int> explicitSpellLevels = ExtractExplicitSpellLevels(supportsText);
-            int slotCap = usesSlotCap
-                ? ResolveSpellLevelCap(connection, ownerElementId, ownerLevel, profileName)
+            int slotCap = filter.UsesSlotCap
+                ? ResolveSpellLevelCap(connection, ownerElementId, ownerLevel, slotCapProfileName, context)
                 : 0;
 
-            bool includeCantrips = explicitSpellLevels.Contains(0);
-            int maxAllowedSpellLevel = usesSlotCap
+            bool includeCantrips = filter.ExplicitSpellLevels.Contains(0);
+            int maxAllowedSpellLevel = filter.UsesSlotCap
                 ? Math.Max(0, slotCap)
-                : explicitSpellLevels.Count > 0
-                    ? explicitSpellLevels.Where(x => x > 0).DefaultIfEmpty(0).Max()
+                : filter.ExplicitSpellLevels.Count > 0
+                    ? filter.ExplicitSpellLevels.Where(x => x > 0).DefaultIfEmpty(0).Max()
                     : 0;
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-SELECT DISTINCT
+SELECT
     spell.element_id,
     spell.aurora_id,
     spell.name,
     spell_rec.package_key,
     spell_type.type_name,
-    sp.spell_level
-FROM spellcasting_profiles AS profile
-JOIN spell_access AS sa
-    ON sa.access_text = profile.list_text
-JOIN spells AS sp
-    ON sp.element_id = sa.spell_element_id
+    sp.spell_level,
+    sp.school_name,
+    sp.is_ritual,
+    GROUP_CONCAT(DISTINCT sa.access_text) AS access_summary
+FROM spells AS sp
 JOIN elements AS spell
     ON spell.element_id = sp.element_id
 JOIN resolved_elements_cache AS spell_rec
     ON spell_rec.winning_element_id = spell.element_id
 JOIN element_types AS spell_type
     ON spell_type.element_type_id = spell.element_type_id
-WHERE profile.spellcasting_profile_id = $spellcasting_profile_id
+LEFT JOIN spell_access AS sa
+    ON sa.spell_element_id = spell.element_id
+GROUP BY
+    spell.element_id,
+    spell.aurora_id,
+    spell.name,
+    spell_rec.package_key,
+    spell_type.type_name,
+    sp.spell_level,
+    sp.school_name,
+    sp.is_ritual
 ORDER BY
     sp.spell_level ASC,
     spell.name ASC;";
-            command.Parameters.AddWithValue("$spellcasting_profile_id", spellcastingProfileId.Value);
 
             var options = new List<CharacterSelectOptionResult>();
             using var reader = command.ExecuteReader();
@@ -1722,20 +1934,45 @@ ORDER BY
                 string optionPackageKey = reader.IsDBNull(3) ? null : reader.GetString(3);
                 string optionTypeName = reader.IsDBNull(4) ? null : reader.GetString(4);
                 int spellLevel = reader.IsDBNull(5) ? 0 : reader.GetInt32(5);
+                string schoolName = reader.IsDBNull(6) ? null : reader.GetString(6);
+                bool isRitual = !reader.IsDBNull(7) && reader.GetInt32(7) != 0;
+                HashSet<string> accessTexts = Regex
+                    .Split(reader.IsDBNull(8) ? string.Empty : reader.GetString(8), @"\s*(?:\||,)\s*")
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                if (spellLevel == 0)
+                if (filter.AllowedAuroraIds.Count > 0 && !filter.AllowedAuroraIds.Contains(optionAuroraId))
+                    continue;
+                if (filter.ExcludedAuroraIds.Contains(optionAuroraId))
+                    continue;
+                if (!string.IsNullOrWhiteSpace(optionName) && filter.ExcludedSpellNames.Contains(optionName))
+                    continue;
+                if (filter.RequiresRitual && !isRitual)
+                    continue;
+                if (filter.AllowedSchools.Count > 0 && !filter.AllowedSchools.Contains(schoolName))
+                    continue;
+                if (filter.AllowedAuroraIds.Count == 0
+                    && filter.AllowedLists.Count > 0
+                    && !accessTexts.Any(filter.AllowedLists.Contains))
+                    continue;
+
+                bool hasLevelConstraint = filter.UsesSlotCap || filter.ExplicitSpellLevels.Count > 0;
+                if (filter.AllowedAuroraIds.Count == 0 || hasLevelConstraint)
                 {
-                    if (!includeCantrips)
-                        continue;
-                }
-                else
-                {
-                    if (explicitSpellLevels.Count > 0 && !explicitSpellLevels.Contains(spellLevel) && !usesSlotCap)
-                        continue;
-                    if (usesSlotCap && (spellLevel < 1 || spellLevel > maxAllowedSpellLevel))
-                        continue;
-                    if (!usesSlotCap && explicitSpellLevels.Count == 0)
-                        continue;
+                    if (spellLevel == 0)
+                    {
+                        if (!includeCantrips)
+                            continue;
+                    }
+                    else
+                    {
+                        if (filter.ExplicitSpellLevels.Count > 0 && !filter.ExplicitSpellLevels.Contains(spellLevel) && !filter.UsesSlotCap)
+                            continue;
+                        if (filter.UsesSlotCap && (spellLevel < 1 || spellLevel > maxAllowedSpellLevel))
+                            continue;
+                        if (!filter.UsesSlotCap && filter.ExplicitSpellLevels.Count == 0)
+                            continue;
+                    }
                 }
 
                 string requirementText = LoadElementRequirementText(connection, optionElementId);
@@ -1792,6 +2029,302 @@ WHERE spellcasting_profile_id = $spellcasting_profile_id;";
                 reader.IsDBNull(1) ? null : reader.GetString(1));
         }
 
+        private static SpellSelectFilter BuildSpellSelectFilter(
+            string supportsText,
+            string profileName,
+            string listText)
+        {
+            var filter = new SpellSelectFilter
+            {
+                UsesSlotCap = supportsText?.Contains("$(spellcasting:slots)", StringComparison.OrdinalIgnoreCase) == true,
+                RequiresRitual = supportsText?.Contains("Ritual", StringComparison.OrdinalIgnoreCase) == true
+            };
+
+            foreach (int level in ExtractExplicitSpellLevels(supportsText))
+                filter.ExplicitSpellLevels.Add(level);
+
+            AnalyzeSpellSupportToken(supportsText, filter);
+
+            if (!string.IsNullOrWhiteSpace(listText) && (filter.AllowedLists.Count == 0 || supportsText?.Contains("$(spellcasting:list)", StringComparison.OrdinalIgnoreCase) == true))
+                filter.AllowedLists.Add(listText.Trim());
+            else if (!string.IsNullOrWhiteSpace(profileName) && filter.AllowedLists.Count == 0)
+                filter.AllowedLists.Add(profileName.Trim());
+
+            return filter;
+        }
+
+        private static string ResolveImplicitSpellListName(
+            SqliteConnection connection,
+            int ownerElementId,
+            AuroraExpressionEvaluationContext context)
+        {
+            string inheritedFromOwnerChain = ResolveImplicitSpellListNameFromOwnerChain(connection, ownerElementId);
+            if (!string.IsNullOrWhiteSpace(inheritedFromOwnerChain))
+                return inheritedFromOwnerChain;
+
+            if (context?.NumericValues == null || context.NumericValues.Count == 0)
+                return null;
+
+            List<string> classNames = context.NumericValues.Keys
+                .Where(x => x.EndsWith(":level", StringComparison.OrdinalIgnoreCase))
+                .Select(x => x[..^":level".Length])
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return classNames.Count == 1 ? classNames[0] : null;
+        }
+
+        private static string ResolveImplicitSpellListNameFromOwnerChain(
+            SqliteConnection connection,
+            int ownerElementId)
+        {
+            var visited = new HashSet<int>();
+            var pending = new Queue<int>();
+            pending.Enqueue(ownerElementId);
+
+            while (pending.Count > 0)
+            {
+                int currentOwnerElementId = pending.Dequeue();
+                if (!visited.Add(currentOwnerElementId))
+                    continue;
+
+                using var command = connection.CreateCommand();
+                command.CommandText = @"
+SELECT
+    parent.element_id,
+    parent.aurora_id,
+    parent.name,
+    parent_type.type_name
+FROM grants AS g
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = g.rule_scope_id
+   AND rs.owner_kind = 'element'
+JOIN elements AS parent
+    ON parent.element_id = rs.owner_element_id
+JOIN element_types AS parent_type
+    ON parent_type.element_type_id = parent.element_type_id
+WHERE g.target_element_id = $target_element_id
+ORDER BY g.grant_id ASC;";
+                command.Parameters.AddWithValue("$target_element_id", currentOwnerElementId);
+
+                {
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        int parentElementId = reader.GetInt32(0);
+                        string parentName = reader.IsDBNull(2) ? null : reader.GetString(2);
+                        string parentTypeName = reader.IsDBNull(3) ? null : reader.GetString(3);
+
+                        if (string.Equals(parentTypeName, "Class", StringComparison.OrdinalIgnoreCase))
+                            return parentName;
+
+                        if (parentElementId != currentOwnerElementId)
+                            pending.Enqueue(parentElementId);
+                    }
+                }
+
+                using var selectOwnerCommand = connection.CreateCommand();
+                selectOwnerCommand.CommandText = @"
+SELECT
+    owner.element_id,
+    owner.name,
+    owner_type.type_name
+FROM select_option_links AS sol
+JOIN selects AS s
+    ON s.select_id = sol.select_id
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = s.rule_scope_id
+   AND rs.owner_kind = 'element'
+JOIN elements AS owner
+    ON owner.element_id = rs.owner_element_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id
+WHERE sol.option_element_id = $option_element_id
+ORDER BY sol.select_id ASC;";
+                selectOwnerCommand.Parameters.AddWithValue("$option_element_id", currentOwnerElementId);
+
+                {
+                    using var selectOwnerReader = selectOwnerCommand.ExecuteReader();
+                    while (selectOwnerReader.Read())
+                    {
+                        int parentElementId = selectOwnerReader.GetInt32(0);
+                        string parentName = selectOwnerReader.IsDBNull(1) ? null : selectOwnerReader.GetString(1);
+                        string parentTypeName = selectOwnerReader.IsDBNull(2) ? null : selectOwnerReader.GetString(2);
+
+                        if (string.Equals(parentTypeName, "Class", StringComparison.OrdinalIgnoreCase))
+                            return parentName;
+
+                        if (parentElementId != currentOwnerElementId)
+                            pending.Enqueue(parentElementId);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static void AnalyzeSpellSupportToken(string token, SpellSelectFilter filter)
+        {
+            if (filter == null || string.IsNullOrWhiteSpace(token))
+                return;
+
+            foreach (string segment in SplitTopLevel(token.Trim(), ','))
+            {
+                AnalyzeSpellSupportSegment(segment, filter);
+            }
+        }
+
+        private static void AnalyzeSpellSupportSegment(string segment, SpellSelectFilter filter)
+        {
+            if (string.IsNullOrWhiteSpace(segment))
+                return;
+
+            string trimmed = segment.Trim();
+            string unwrapped = UnwrapParenthesized(trimmed);
+
+            if (unwrapped.Contains('|')
+                && !unwrapped.Contains("||", StringComparison.Ordinal)
+                && unwrapped.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .All(x => x.StartsWith("ID_", StringComparison.OrdinalIgnoreCase)))
+            {
+                foreach (string spellId in unwrapped.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    filter.AllowedAuroraIds.Add(spellId);
+                return;
+            }
+
+            List<string> orParts = SplitTopLevel(unwrapped, "||");
+            if (orParts.Count > 1)
+            {
+                foreach (string part in orParts)
+                    AnalyzeSpellSupportSegment(part, filter);
+                return;
+            }
+
+            if (trimmed.StartsWith("ID_", StringComparison.OrdinalIgnoreCase))
+            {
+                filter.AllowedAuroraIds.Add(trimmed);
+                return;
+            }
+
+            if (int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out int numericLevel))
+            {
+                filter.ExplicitSpellLevels.Add(numericLevel);
+                return;
+            }
+
+            if (string.Equals(trimmed, "$(spellcasting:slots)", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "$(spellcasting:list)", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (string.Equals(trimmed, "Ritual", StringComparison.OrdinalIgnoreCase))
+            {
+                filter.RequiresRitual = true;
+                return;
+            }
+
+            if (IsSpellSchoolName(trimmed))
+            {
+                filter.AllowedSchools.Add(trimmed);
+                return;
+            }
+
+            if (trimmed.StartsWith("ID_", StringComparison.OrdinalIgnoreCase))
+            {
+                filter.AllowedAuroraIds.Add(trimmed);
+                return;
+            }
+
+            if (trimmed.Contains(' '))
+            {
+                filter.ExcludedSpellNames.Add(trimmed);
+                return;
+            }
+
+            filter.AllowedLists.Add(trimmed);
+        }
+
+        private static List<string> SplitTopLevel(string text, char separator)
+        {
+            var parts = new List<string>();
+            if (string.IsNullOrWhiteSpace(text))
+                return parts;
+
+            int depth = 0;
+            int start = 0;
+            for (int index = 0; index < text.Length; index++)
+            {
+                char current = text[index];
+                if (current == '(')
+                    depth++;
+                else if (current == ')' && depth > 0)
+                    depth--;
+                else if (current == separator && depth == 0)
+                {
+                    parts.Add(text.Substring(start, index - start).Trim());
+                    start = index + 1;
+                }
+            }
+
+            parts.Add(text.Substring(start).Trim());
+            return parts.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        }
+
+        private static List<string> SplitTopLevel(string text, string separator)
+        {
+            var parts = new List<string>();
+            if (string.IsNullOrWhiteSpace(text))
+                return parts;
+
+            int depth = 0;
+            int start = 0;
+            for (int index = 0; index < text.Length; index++)
+            {
+                char current = text[index];
+                if (current == '(')
+                    depth++;
+                else if (current == ')' && depth > 0)
+                    depth--;
+                else if (depth == 0
+                         && index <= text.Length - separator.Length
+                         && string.Compare(text, index, separator, 0, separator.Length, StringComparison.Ordinal) == 0)
+                {
+                    parts.Add(text.Substring(start, index - start).Trim());
+                    start = index + separator.Length;
+                    index += separator.Length - 1;
+                }
+            }
+
+            parts.Add(text.Substring(start).Trim());
+            return parts.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        }
+
+        private static string UnwrapParenthesized(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return text;
+
+            string trimmed = text.Trim();
+            if (trimmed.Length >= 2 && trimmed[0] == '(' && trimmed[^1] == ')')
+                return trimmed.Substring(1, trimmed.Length - 2).Trim();
+
+            return trimmed;
+        }
+
+        private static bool IsSpellSchoolName(string token)
+        {
+            return token.Equals("Abjuration", StringComparison.OrdinalIgnoreCase)
+                   || token.Equals("Conjuration", StringComparison.OrdinalIgnoreCase)
+                   || token.Equals("Divination", StringComparison.OrdinalIgnoreCase)
+                   || token.Equals("Enchantment", StringComparison.OrdinalIgnoreCase)
+                   || token.Equals("Evocation", StringComparison.OrdinalIgnoreCase)
+                   || token.Equals("Illusion", StringComparison.OrdinalIgnoreCase)
+                   || token.Equals("Necromancy", StringComparison.OrdinalIgnoreCase)
+                   || token.Equals("Transmutation", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static HashSet<int> ExtractExplicitSpellLevels(string supportsText)
         {
             var levels = new HashSet<int>();
@@ -1811,13 +2344,65 @@ WHERE spellcasting_profile_id = $spellcasting_profile_id;";
             SqliteConnection connection,
             int ownerElementId,
             int ownerLevel,
-            string profileName)
+            string profileName,
+            AuroraExpressionEvaluationContext context)
         {
             if (string.IsNullOrWhiteSpace(profileName))
                 return 0;
 
             string statPrefix = $"{profileName.Trim().ToLowerInvariant()}:spellcasting:slots:";
+            int slotOwnerLevel = ownerLevel;
+            if (context?.NumericValues != null
+                && context.NumericValues.TryGetValue($"{profileName}:level", out decimal classLevelValue))
+            {
+                slotOwnerLevel = Math.Max(slotOwnerLevel, (int)Math.Truncate(classLevelValue));
+            }
 
+            var resolvedStatValues = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            int maxSpellLevel = ResolveSpellLevelCapForOwner(
+                connection,
+                ownerElementId,
+                slotOwnerLevel,
+                statPrefix,
+                resolvedStatValues);
+            if (maxSpellLevel > 0)
+                return maxSpellLevel;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT
+    DISTINCT rs.owner_element_id
+FROM stats AS s
+JOIN rule_scopes AS rs
+    ON rs.rule_scope_id = s.rule_scope_id
+WHERE rs.owner_kind = 'element'
+  AND lower(s.stat_name) LIKE $stat_name_prefix;";
+            command.Parameters.AddWithValue("$stat_name_prefix", $"{statPrefix}%");
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                int candidateOwnerElementId = reader.GetInt32(0);
+                maxSpellLevel = Math.Max(
+                    maxSpellLevel,
+                    ResolveSpellLevelCapForOwner(
+                        connection,
+                        candidateOwnerElementId,
+                        slotOwnerLevel,
+                        statPrefix,
+                        resolvedStatValues));
+            }
+
+            return maxSpellLevel;
+        }
+
+        private static int ResolveSpellLevelCapForOwner(
+            SqliteConnection connection,
+            int ownerElementId,
+            int ownerLevel,
+            string statPrefix,
+            Dictionary<string, decimal> resolvedStatValues)
+        {
             using var command = connection.CreateCommand();
             command.CommandText = @"
 SELECT
@@ -1832,12 +2417,10 @@ WHERE rs.owner_kind = 'element'
             command.Parameters.AddWithValue("$stat_name_prefix", $"{statPrefix}%");
 
             int maxSpellLevel = 0;
-            var resolvedStatValues = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
                 string statName = reader.IsDBNull(0) ? null : reader.GetString(0);
-
                 string suffix = statName?.Split(':').LastOrDefault();
                 if (!int.TryParse(suffix, NumberStyles.Integer, CultureInfo.InvariantCulture, out int spellLevel))
                     continue;
@@ -4129,6 +4712,7 @@ ORDER BY owner.element_id ASC, st.ordinal ASC;";
                 || string.Equals(selectType, "Sub Race", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(selectType, "Race", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(selectType, "Background", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectType, "Feat Feature", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(selectType, "Racial Trait", StringComparison.OrdinalIgnoreCase))
             {
                 return true;

@@ -1,0 +1,118 @@
+{
+  "CapturedAtUtc": "2026-05-20T22:08:57.4924285Z",
+  "StateLabel": "character-state-high-elf-example.json",
+  "DirectSelectionCount": 2,
+  "DirectSelections": [
+    "Race|Elf|core-players-handbook|",
+    "Sub Race|High Elf|core-players-handbook|"
+  ],
+  "ActiveFeatureCount": 0,
+  "ActiveFeatures": [],
+  "ActiveGrantCount": 18,
+  "AvailableSelectCount": 3,
+  "PendingChoiceCount": 2,
+  "BlockingPendingChoiceCount": 2,
+  "WarningCount": 2,
+  "WarningKindCounts": [
+    {
+      "Key": "pending-choice|warning",
+      "Count": 2
+    }
+  ],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 12
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 16
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 8
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 10
+    }
+  ],
+  "ProficiencyKeys": [
+    "ID_PROFICIENCY_SKILL_PERCEPTION",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_LONGBOW",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_LONGSWORD",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SHORTBOW",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SHORTSWORD"
+  ],
+  "LanguageKeys": [
+    "ID_LANGUAGE_COMMON",
+    "ID_LANGUAGE_ELVISH"
+  ],
+  "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
+  "FeatKeys": [],
+  "FeatureKeys": [],
+  "ChoiceSelectionKeys": [],
+  "TraitKeys": [
+    "ID_SIZE_MEDIUM",
+    "ID_VISION_DARKVISION",
+    "movement:walk:30"
+  ],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|10",
+    "ability-score|con|ability:con|12",
+    "ability-score|dex|ability:dex|16",
+    "ability-score|int|ability:int|14",
+    "ability-score|str|ability:str|8",
+    "ability-score|wis|ability:wis|10",
+    "language|language|ID_LANGUAGE_COMMON|Common",
+    "language|language|ID_LANGUAGE_ELVISH|Elvish",
+    "movement|walk|movement:walk:30|30",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_PERCEPTION|Perception",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_LONGBOW|Weapon Proficiency (Longbow)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_LONGSWORD|Weapon Proficiency (Longsword)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SHORTBOW|Weapon Proficiency (Shortbow)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SHORTSWORD|Weapon Proficiency (Shortsword)",
+    "sense|darkvision|ID_VISION_DARKVISION|Darkvision",
+    "size|size|ID_SIZE_MEDIUM|MEDIUM"
+  ],
+  "PendingChoiceKeys": [
+    "Racial Trait|Cantrip|Wizard Cantrip (High Elf)|family=spell-pick|remaining=1|blocking=True",
+    "Racial Trait|Extra Language|Language (Elf)|family=language-pick|remaining=1|blocking=True"
+  ],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "language|grant",
+      "Count": 2
+    },
+    {
+      "Key": "movement|stat",
+      "Count": 1
+    },
+    {
+      "Key": "proficiency|grant",
+      "Count": 5
+    },
+    {
+      "Key": "trait|grant",
+      "Count": 1
+    },
+    {
+      "Key": "trait|semantic-grant",
+      "Count": 1
+    }
+  ],
+  "AppliedChoiceStates": []
+}

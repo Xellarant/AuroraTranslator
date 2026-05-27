@@ -1,0 +1,170 @@
+{
+  "classes": [
+    {
+      "name": "Cleric",
+      "packageKey": "core-players-handbook-2024",
+      "level": 3
+    }
+  ],
+  "archetypes": [
+    {
+      "name": "Life Domain",
+      "packageKey": "core-players-handbook-2024"
+    }
+  ],
+  "race": {
+    "name": "Human",
+    "packageKey": "core-players-handbook-2024"
+  },
+  "subRace": null,
+  "raceVariants": [],
+  "background": {
+    "name": "Acolyte",
+    "packageKey": "core-players-handbook-2024"
+  },
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [
+    {
+      "ownerName": "Cleric",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Cleric)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_HISTORY",
+      "optionName": "History"
+    },
+    {
+      "ownerName": "Cleric",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Cleric)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_MEDICINE",
+      "optionName": "Medicine"
+    },
+    {
+      "ownerName": "Level 1: Divine Order",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Sacred Role (Divine Order)",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_DIVINE_ORDER_THAUMATURGE",
+      "optionName": "Thaumaturge"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Cleric)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_LIGHT",
+      "optionName": "Light"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Cleric)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_SACRED_FLAME",
+      "optionName": "Sacred Flame"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Cleric)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_THAUMATURGY",
+      "optionName": "Thaumaturgy"
+    },
+    {
+      "ownerName": "Cleric",
+      "ownerTypeName": "Feat Feature",
+      "selectName": "Spellcasting Ability (Magic Initiate)",
+      "selectType": "Feat Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_FEAT_FEATURE_MAGIC_INITIATE_CLERIC_WISDOM",
+      "optionName": "Wisdom"
+    },
+    {
+      "ownerName": "Cleric",
+      "ownerTypeName": "Feat Feature",
+      "selectName": "Cantrip (Magic Initiate)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_GUIDANCE",
+      "optionName": "Guidance"
+    },
+    {
+      "ownerName": "Cleric",
+      "ownerTypeName": "Feat Feature",
+      "selectName": "Cantrip (Magic Initiate)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_SPARE_THE_DYING",
+      "optionName": "Spare the Dying"
+    },
+    {
+      "ownerName": "Cleric",
+      "ownerTypeName": "Feat Feature",
+      "selectName": "Level 1 Spell (Magic Initiate)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_BLESS",
+      "optionName": "Bless"
+    },
+    {
+      "ownerName": "Human",
+      "ownerTypeName": "Race",
+      "selectName": "Language (Human)",
+      "selectType": "Language",
+      "optionAuroraId": "ID_LANGUAGE_DWARVISH",
+      "optionName": "Dwarvish"
+    },
+    {
+      "ownerName": "Human",
+      "ownerTypeName": "Race",
+      "selectName": "Language (Human)",
+      "selectType": "Language",
+      "optionAuroraId": "ID_LANGUAGE_ELVISH",
+      "optionName": "Elvish"
+    },
+    {
+      "ownerName": "Human",
+      "ownerTypeName": "Race",
+      "selectName": "Size (Human)",
+      "selectType": "Racial Trait",
+      "optionAuroraId": "ID_INTERNAL_RACIAL_TRAIT_MEDIUM",
+      "optionName": "Medium"
+    },
+    {
+      "ownerName": "Skillful",
+      "ownerTypeName": "Racial Trait",
+      "selectName": "Skill Proficiency (Skillful)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_ARCANA",
+      "optionName": "Arcana"
+    },
+    {
+      "ownerName": "Versatile",
+      "ownerTypeName": "Racial Trait",
+      "selectName": "Feat (Versatile)",
+      "selectType": "Feat",
+      "optionAuroraId": "ID_WOTC_PHB24_FEAT_ALERT",
+      "optionName": "Alert"
+    },
+    {
+      "ownerName": "Thaumaturge",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Thaumaturge)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_MENDING",
+      "optionName": "Mending"
+    }
+  ],
+  "tokens": [],
+  "numericValues": {
+    "str": 10,
+    "dex": 10,
+    "con": 14,
+    "int": 10,
+    "wis": 16,
+    "cha": 10
+  },
+  "scalarValues": {},
+  "macroValues": {}
+}

@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T22:02:55.0305288Z",
+  "CapturedAtUtc": "2026-05-20T22:09:03.7156354Z",
   "StateLabel": "character-state-triton-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
@@ -7,12 +7,16 @@
   ],
   "ActiveFeatureCount": 0,
   "ActiveFeatures": [],
-  "ActiveGrantCount": 8,
-  "AvailableSelectCount": 2,
-  "PendingChoiceCount": 2,
-  "BlockingPendingChoiceCount": 2,
-  "WarningCount": 2,
+  "ActiveGrantCount": 10,
+  "AvailableSelectCount": 3,
+  "PendingChoiceCount": 3,
+  "BlockingPendingChoiceCount": 3,
+  "WarningCount": 3,
   "WarningKindCounts": [
+    {
+      "Key": "pending-choice|error",
+      "Count": 1
+    },
     {
       "Key": "pending-choice|warning",
       "Count": 2
@@ -23,12 +27,15 @@
   "LanguageKeys": [
     "ID_LANGUAGE_COMMON"
   ],
-  "GrantedSpellKeys": [],
+  "GrantedSpellKeys": [
+    "ID_PHB_SPELL_FOG_CLOUD||prepared="
+  ],
   "SpellcastingProfileKeys": [],
   "FeatKeys": [],
   "FeatureKeys": [],
   "ChoiceSelectionKeys": [],
   "TraitKeys": [
+    "ID_INTERNAL_CONDITION_DAMAGE_RESISTANCE_COLD",
     "ID_SIZE_MEDIUM",
     "ID_VISION_DARKVISION",
     "movement:swim:30",
@@ -39,13 +46,20 @@
     "movement|swim|movement:swim:30|30",
     "movement|walk|movement:walk:30|30",
     "sense|darkvision|ID_VISION_DARKVISION|Darkvision",
-    "size|size|ID_SIZE_MEDIUM|MEDIUM"
+    "size|size|ID_SIZE_MEDIUM|MEDIUM",
+    "spell-grant|spell|spell:ID_PHB_SPELL_FOG_CLOUD||prepared=|",
+    "trait|damage-resistance|ID_INTERNAL_CONDITION_DAMAGE_RESISTANCE_COLD|COLD"
   ],
   "PendingChoiceKeys": [
     "Race|Triton|Ability Score Improvement Option (Triton)|family=generic-element-pick|remaining=1|blocking=True",
-    "Race|Triton|Language (Triton)|family=language-pick|remaining=1|blocking=True"
+    "Race|Triton|Language (Triton)|family=language-pick|remaining=1|blocking=True",
+    "Racial Trait|Control Air and Water|Spellcasting Ability (Control Air and Water)|family=generic-element-pick|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
+    {
+      "Key": "granted-spell|grant",
+      "Count": 1
+    },
     {
       "Key": "language|grant",
       "Count": 1
@@ -60,7 +74,7 @@
     },
     {
       "Key": "trait|semantic-grant",
-      "Count": 1
+      "Count": 2
     }
   ],
   "AppliedChoiceStates": []

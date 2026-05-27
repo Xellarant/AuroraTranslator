@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-11T22:02:54.6350848Z",
+  "CapturedAtUtc": "2026-05-20T22:09:03.3963062Z",
   "StateLabel": "character-state-tabaxi-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
@@ -7,7 +7,7 @@
   ],
   "ActiveFeatureCount": 0,
   "ActiveFeatures": [],
-  "ActiveGrantCount": 6,
+  "ActiveGrantCount": 8,
   "AvailableSelectCount": 3,
   "PendingChoiceCount": 3,
   "BlockingPendingChoiceCount": 3,
@@ -23,7 +23,10 @@
     }
   ],
   "AbilityScores": [],
-  "ProficiencyKeys": [],
+  "ProficiencyKeys": [
+    "ID_PROFICIENCY_SKILL_PERCEPTION",
+    "ID_PROFICIENCY_SKILL_STEALTH"
+  ],
   "LanguageKeys": [
     "ID_LANGUAGE_COMMON"
   ],
@@ -41,6 +44,8 @@
     "language|language|ID_LANGUAGE_COMMON|Common",
     "movement|climb|movement:climb:30|30",
     "movement|walk|movement:walk:30|30",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_PERCEPTION|Perception",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_STEALTH|Stealth",
     "sense|darkvision|ID_VISION_DARKVISION|Darkvision"
   ],
   "PendingChoiceKeys": [
@@ -55,6 +60,10 @@
     },
     {
       "Key": "movement|stat",
+      "Count": 2
+    },
+    {
+      "Key": "proficiency|grant",
       "Count": 2
     },
     {

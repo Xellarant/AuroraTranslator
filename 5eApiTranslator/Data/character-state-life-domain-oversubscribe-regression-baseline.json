@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-20T09:59:12.1659687Z",
+  "CapturedAtUtc": "2026-05-20T22:08:58.2968549Z",
   "StateLabel": "character-state-life-domain-oversubscribe-example.json",
   "DirectSelectionCount": 9,
   "DirectSelections": [
@@ -23,18 +23,18 @@
     "Class|Cleric|Level 3: Cleric Subclass|3"
   ],
   "ActiveGrantCount": 31,
-  "AvailableSelectCount": 5,
-  "PendingChoiceCount": 4,
-  "BlockingPendingChoiceCount": 4,
-  "WarningCount": 4,
+  "AvailableSelectCount": 11,
+  "PendingChoiceCount": 10,
+  "BlockingPendingChoiceCount": 10,
+  "WarningCount": 10,
   "WarningKindCounts": [
     {
       "Key": "pending-choice|error",
-      "Count": 1
+      "Count": 2
     },
     {
       "Key": "pending-choice|warning",
-      "Count": 3
+      "Count": 8
     }
   ],
   "AbilityScores": [
@@ -146,10 +146,16 @@
     "trait|ritual-casting|ID_INTERNAL_RITUAL_CASTING|RITUAL CASTING"
   ],
   "PendingChoiceKeys": [
+    "Class Feature|Level 1: Divine Order|Sacred Role (Divine Order)|family=feature-pick|remaining=1|blocking=True",
     "Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=spell-pick|remaining=3|blocking=True",
     "Class|Cleric|Skill Proficiency (Cleric)|family=skill-pick|remaining=2|blocking=True",
+    "Feat Feature|Cleric|Cantrip (Magic Initiate)|family=spell-pick|remaining=2|blocking=True",
+    "Feat Feature|Cleric|Level 1 Spell (Magic Initiate)|family=spell-pick|remaining=1|blocking=True",
+    "Feat Feature|Cleric|Spellcasting Ability (Magic Initiate)|family=generic-element-pick|remaining=1|blocking=True",
     "Race|Human|Language (Human)|family=language-pick|remaining=2|blocking=True",
-    "Race|Human|Size (Human)|family=generic-element-pick|remaining=1|blocking=True"
+    "Race|Human|Size (Human)|family=generic-element-pick|remaining=1|blocking=True",
+    "Racial Trait|Skillful|Skill Proficiency (Skillful)|family=skill-pick|remaining=1|blocking=True",
+    "Racial Trait|Versatile|Feat (Versatile)|family=feat-pick|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {

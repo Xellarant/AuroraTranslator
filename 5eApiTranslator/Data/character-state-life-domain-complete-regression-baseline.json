@@ -1,14 +1,30 @@
 {
-  "CapturedAtUtc": "2026-05-20T22:08:58.98495Z",
-  "StateLabel": "character-state-life-domain-example.json",
-  "DirectSelectionCount": 6,
+  "CapturedAtUtc": "2026-05-27T08:51:37.0948195Z",
+  "StateLabel": "character-state-life-domain-complete-example.json",
+  "DirectSelectionCount": 22,
   "DirectSelections": [
     "Archetype|Life Domain|core-players-handbook-2024|",
     "Background|Acolyte|core-players-handbook-2024|",
     "Class Feature|Channel Divinity: Divine Spark|core-players-handbook-2024|",
     "Class Feature|Channel Divinity: Turn Undead|core-players-handbook-2024|",
+    "Class Feature|Thaumaturge|core-players-handbook-2024|",
     "Class|Cleric|core-players-handbook-2024|3",
-    "Race|Human|core-players-handbook-2024|"
+    "Feat Feature|Wisdom|core-players-handbook-2024|",
+    "Feat|Alert|core-players-handbook-2024|",
+    "Language|Dwarvish|core-ale-xml|",
+    "Language|Elvish|core-ale-xml|",
+    "Proficiency|Arcana|core-ale-xml|",
+    "Proficiency|History|core-ale-xml|",
+    "Proficiency|Medicine|core-ale-xml|",
+    "Race|Human|core-players-handbook-2024|",
+    "Racial Trait|Medium|core-internal-xml|",
+    "Spell|Bless|core-players-handbook-2024|",
+    "Spell|Guidance|core-players-handbook-2024|",
+    "Spell|Light|core-players-handbook-2024|",
+    "Spell|Mending|core-players-handbook-2024|",
+    "Spell|Sacred Flame|core-players-handbook-2024|",
+    "Spell|Spare the Dying|core-players-handbook-2024|",
+    "Spell|Thaumaturgy|core-players-handbook-2024|"
   ],
   "ActiveFeatureCount": 6,
   "ActiveFeatures": [
@@ -19,21 +35,12 @@
     "Class|Cleric|Level 2: Channel Divinity|2",
     "Class|Cleric|Level 3: Cleric Subclass|3"
   ],
-  "ActiveGrantCount": 31,
-  "AvailableSelectCount": 11,
-  "PendingChoiceCount": 10,
-  "BlockingPendingChoiceCount": 10,
-  "WarningCount": 10,
-  "WarningKindCounts": [
-    {
-      "Key": "pending-choice|error",
-      "Count": 2
-    },
-    {
-      "Key": "pending-choice|warning",
-      "Count": 8
-    }
-  ],
+  "ActiveGrantCount": 32,
+  "AvailableSelectCount": 12,
+  "PendingChoiceCount": 0,
+  "BlockingPendingChoiceCount": 0,
+  "WarningCount": 0,
+  "WarningKindCounts": [],
   "AbilityScores": [
     {
       "AbilityKey": "cha",
@@ -66,13 +73,18 @@
     "ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELD",
     "ID_PROFICIENCY_SAVINGTHROW_CHARISMA",
     "ID_PROFICIENCY_SAVINGTHROW_WISDOM",
+    "ID_PROFICIENCY_SKILL_ARCANA",
+    "ID_PROFICIENCY_SKILL_HISTORY",
     "ID_PROFICIENCY_SKILL_INSIGHT",
+    "ID_PROFICIENCY_SKILL_MEDICINE",
     "ID_PROFICIENCY_SKILL_RELIGION",
     "ID_PROFICIENCY_TOOL_PROFICIENCY_CALLIGRAPHERS_SUPPLIES",
     "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
   ],
   "LanguageKeys": [
-    "ID_LANGUAGE_COMMON"
+    "ID_LANGUAGE_COMMON",
+    "ID_LANGUAGE_DWARVISH",
+    "ID_LANGUAGE_ELVISH"
   ],
   "GrantedSpellKeys": [
     "ID_WOTC_PHB24_SPELL_AID|Cleric|prepared=True",
@@ -83,8 +95,11 @@
   "SpellcastingProfileKeys": [
     "spellcasting:cleric|granted=4|prepared=4|unprepared=0"
   ],
-  "FeatKeys": [],
+  "FeatKeys": [
+    "ID_WOTC_PHB24_FEAT_ALERT"
+  ],
   "FeatureKeys": [
+    "ID_INTERNAL_RACIAL_TRAIT_MEDIUM",
     "ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_DISCIPLE_OF_LIFE",
     "ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_LIFE_DOMAIN_SPELLS",
     "ID_WOTC_PHB24_ARCHETYPE_FEATURE_LIFE_DOMAIN_PRESERVE_LIFE",
@@ -92,15 +107,34 @@
     "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_DIVINE_SPARK",
     "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_TURN_UNDEAD",
     "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CLERIC_SUBCLASS",
-    "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_SPELLCASTING"
+    "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_DIVINE_ORDER_THAUMATURGE",
+    "ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_SPELLCASTING",
+    "ID_WOTC_PHB24_FEAT_FEATURE_MAGIC_INITIATE_CLERIC_WISDOM"
   ],
   "ChoiceSelectionKeys": [
+    "$(choice||Class Feature||Level 1: Divine Order||Sacred Role (Divine Order))|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_DIVINE_ORDER_THAUMATURGE",
+    "$(choice||Class Feature||Level 1: Spellcasting||Cantrip (Cleric))|ID_WOTC_PHB24_SPELL_LIGHT",
+    "$(choice||Class Feature||Level 1: Spellcasting||Cantrip (Cleric))|ID_WOTC_PHB24_SPELL_SACRED_FLAME",
+    "$(choice||Class Feature||Level 1: Spellcasting||Cantrip (Cleric))|ID_WOTC_PHB24_SPELL_THAUMATURGY",
     "$(choice||Class Feature||Level 2: Channel Divinity||Channel Divinity: Divine Spark)|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_DIVINE_SPARK",
-    "$(choice||Class Feature||Level 2: Channel Divinity||Channel Divinity: Turn Undead)|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_TURN_UNDEAD"
+    "$(choice||Class Feature||Level 2: Channel Divinity||Channel Divinity: Turn Undead)|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_TURN_UNDEAD",
+    "$(choice||Class Feature||Thaumaturge||Cantrip (Thaumaturge))|ID_WOTC_PHB24_SPELL_MENDING",
+    "$(choice||Class||Cleric||Skill Proficiency (Cleric))|ID_PROFICIENCY_SKILL_HISTORY",
+    "$(choice||Class||Cleric||Skill Proficiency (Cleric))|ID_PROFICIENCY_SKILL_MEDICINE",
+    "$(choice||Feat Feature||Cleric||Cantrip (Magic Initiate))|ID_WOTC_PHB24_SPELL_GUIDANCE",
+    "$(choice||Feat Feature||Cleric||Cantrip (Magic Initiate))|ID_WOTC_PHB24_SPELL_SPARE_THE_DYING",
+    "$(choice||Feat Feature||Cleric||Level 1 Spell (Magic Initiate))|ID_WOTC_PHB24_SPELL_BLESS",
+    "$(choice||Feat Feature||Cleric||Spellcasting Ability (Magic Initiate))|ID_WOTC_PHB24_FEAT_FEATURE_MAGIC_INITIATE_CLERIC_WISDOM",
+    "$(choice||Race||Human||Language (Human))|ID_LANGUAGE_DWARVISH",
+    "$(choice||Race||Human||Language (Human))|ID_LANGUAGE_ELVISH",
+    "$(choice||Race||Human||Size (Human))|ID_INTERNAL_RACIAL_TRAIT_MEDIUM",
+    "$(choice||Racial Trait||Skillful||Skill Proficiency (Skillful))|ID_PROFICIENCY_SKILL_ARCANA",
+    "$(choice||Racial Trait||Versatile||Feat (Versatile))|ID_WOTC_PHB24_FEAT_ALERT"
   ],
   "TraitKeys": [
     "ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_HOLY_SYMBOL",
     "ID_INTERNAL_RITUAL_CASTING",
+    "ID_SIZE_MEDIUM",
     "movement:walk:30"
   ],
   "EffectRowKeys": [
@@ -117,18 +151,28 @@
     "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY_TURN_UNDEAD|Channel Divinity: Turn Undead",
     "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CHANNEL_DIVINITY|Level 2: Channel Divinity",
     "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_CLERIC_SUBCLASS|Level 3: Cleric Subclass",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_DIVINE_ORDER_THAUMATURGE|Thaumaturge",
     "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_CLERIC_SPELLCASTING|Level 1: Spellcasting",
+    "feature|feat-feature|ID_WOTC_PHB24_FEAT_FEATURE_MAGIC_INITIATE_CLERIC_WISDOM|Wisdom",
+    "feature|racial-trait|ID_INTERNAL_RACIAL_TRAIT_MEDIUM|Medium",
+    "feat|feat|ID_WOTC_PHB24_FEAT_ALERT|Alert",
     "language|language|ID_LANGUAGE_COMMON|Common",
+    "language|language|ID_LANGUAGE_DWARVISH|Dwarvish",
+    "language|language|ID_LANGUAGE_ELVISH|Elvish",
     "movement|walk|movement:walk:30|30",
     "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR|Armor Proficiency (Light Armor)",
     "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_MEDIUM_ARMOR|Armor Proficiency (Medium Armor)",
     "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELD|Armor Proficiency (Shield)",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_ARCANA|Arcana",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_HISTORY|History",
     "proficiency|proficiency|ID_PROFICIENCY_SKILL_INSIGHT|Insight",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_MEDICINE|Medicine",
     "proficiency|proficiency|ID_PROFICIENCY_SKILL_RELIGION|Religion",
     "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_CHARISMA|Saving Throw Proficiency (Charisma)",
     "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_WISDOM|Saving Throw Proficiency (Wisdom)",
     "proficiency|tool|ID_PROFICIENCY_TOOL_PROFICIENCY_CALLIGRAPHERS_SUPPLIES|Tool Proficiency (Calligrapher\u0027s supplies)",
     "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
+    "size|size|ID_SIZE_MEDIUM|MEDIUM",
     "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_AID|Cleric|prepared=True|Cleric",
     "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_BLESS|Cleric|prepared=True|Cleric",
     "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_CURE_WOUNDS|Cleric|prepared=True|Cleric",
@@ -136,18 +180,7 @@
     "trait|proficiency-spellfocus-group-holy-symbol|ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_HOLY_SYMBOL|PROFICIENCY SPELLFOCUS GROUP HOLY SYMBOL",
     "trait|ritual-casting|ID_INTERNAL_RITUAL_CASTING|RITUAL CASTING"
   ],
-  "PendingChoiceKeys": [
-    "Class Feature|Level 1: Divine Order|Sacred Role (Divine Order)|family=feature-pick|remaining=1|blocking=True",
-    "Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=spell-pick|remaining=3|blocking=True",
-    "Class|Cleric|Skill Proficiency (Cleric)|family=skill-pick|remaining=2|blocking=True",
-    "Feat Feature|Cleric|Cantrip (Magic Initiate)|family=spell-pick|remaining=2|blocking=True",
-    "Feat Feature|Cleric|Level 1 Spell (Magic Initiate)|family=spell-pick|remaining=1|blocking=True",
-    "Feat Feature|Cleric|Spellcasting Ability (Magic Initiate)|family=generic-element-pick|remaining=1|blocking=True",
-    "Race|Human|Language (Human)|family=language-pick|remaining=2|blocking=True",
-    "Race|Human|Size (Human)|family=generic-element-pick|remaining=1|blocking=True",
-    "Racial Trait|Skillful|Skill Proficiency (Skillful)|family=skill-pick|remaining=1|blocking=True",
-    "Racial Trait|Versatile|Feat (Versatile)|family=feat-pick|remaining=1|blocking=True"
-  ],
+  "PendingChoiceKeys": [],
   "ProvenanceKindCounts": [
     {
       "Key": "ability-score|base-state",
@@ -155,7 +188,7 @@
     },
     {
       "Key": "choice-selection|selected-choice",
-      "Count": 2
+      "Count": 18
     },
     {
       "Key": "feature|active-feature",
@@ -163,11 +196,19 @@
     },
     {
       "Key": "feature|direct-selection",
-      "Count": 2
+      "Count": 5
+    },
+    {
+      "Key": "feat|direct-selection",
+      "Count": 1
     },
     {
       "Key": "granted-spell|grant",
       "Count": 4
+    },
+    {
+      "Key": "language|direct-selection",
+      "Count": 2
     },
     {
       "Key": "language|grant",
@@ -178,13 +219,34 @@
       "Count": 1
     },
     {
+      "Key": "proficiency|direct-selection",
+      "Count": 3
+    },
+    {
       "Key": "proficiency|grant",
       "Count": 9
     },
     {
       "Key": "trait|semantic-grant",
-      "Count": 2
+      "Count": 3
     }
   ],
-  "AppliedChoiceStates": []
+  "AppliedChoiceStates": [
+    "0|applied|Class|Cleric|Skill Proficiency (Cleric)|family=skill-pick|History",
+    "10|applied|Race|Human|Language (Human)|family=language-pick|Dwarvish",
+    "11|applied|Race|Human|Language (Human)|family=language-pick|Elvish",
+    "12|applied|Race|Human|Size (Human)|family=generic-element-pick|Medium",
+    "13|applied|Racial Trait|Skillful|Skill Proficiency (Skillful)|family=skill-pick|Arcana",
+    "14|applied|Racial Trait|Versatile|Feat (Versatile)|family=feat-pick|Alert",
+    "15|applied|Class Feature|Thaumaturge|Cantrip (Thaumaturge)|family=spell-pick|Mending",
+    "1|applied|Class|Cleric|Skill Proficiency (Cleric)|family=skill-pick|Medicine",
+    "2|applied|Class Feature|Level 1: Divine Order|Sacred Role (Divine Order)|family=feature-pick|Thaumaturge",
+    "3|applied|Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=spell-pick|Light",
+    "4|applied|Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=spell-pick|Sacred Flame",
+    "5|applied|Class Feature|Level 1: Spellcasting|Cantrip (Cleric)|family=spell-pick|Thaumaturgy",
+    "6|applied|Feat Feature|Cleric|Spellcasting Ability (Magic Initiate)|family=generic-element-pick|Wisdom",
+    "7|applied|Feat Feature|Cleric|Cantrip (Magic Initiate)|family=spell-pick|Guidance",
+    "8|applied|Feat Feature|Cleric|Cantrip (Magic Initiate)|family=spell-pick|Spare the Dying",
+    "9|applied|Feat Feature|Cleric|Level 1 Spell (Magic Initiate)|family=spell-pick|Bless"
+  ]
 }

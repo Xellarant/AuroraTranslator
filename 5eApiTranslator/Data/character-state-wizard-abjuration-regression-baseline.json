@@ -1,0 +1,131 @@
+{
+  "CapturedAtUtc": "2026-05-20T22:09:08.2334032Z",
+  "StateLabel": "character-state-wizard-abjuration-example.json",
+  "DirectSelectionCount": 2,
+  "DirectSelections": [
+    "Archetype|Abjurer|core-players-handbook-2024|",
+    "Class|Wizard|core-players-handbook-2024|3"
+  ],
+  "ActiveFeatureCount": 7,
+  "ActiveFeatures": [
+    "Archetype|Abjurer|Level 3: Abjuration Savant|3",
+    "Archetype|Abjurer|Level 3: Arcane Ward|3",
+    "Class|Wizard|Level 1: Arcane Recovery|1",
+    "Class|Wizard|Level 1: Ritual Adept|1",
+    "Class|Wizard|Level 1: Spellcasting|1",
+    "Class|Wizard|Level 2: Scholar|2",
+    "Class|Wizard|Level 3: Wizard Subclass|3"
+  ],
+  "ActiveGrantCount": 13,
+  "AvailableSelectCount": 8,
+  "PendingChoiceCount": 7,
+  "BlockingPendingChoiceCount": 7,
+  "WarningCount": 7,
+  "WarningKindCounts": [
+    {
+      "Key": "pending-choice|error",
+      "Count": 1
+    },
+    {
+      "Key": "pending-choice|warning",
+      "Count": 6
+    }
+  ],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 16
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 8
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 12
+    }
+  ],
+  "ProficiencyKeys": [
+    "ID_PROFICIENCY_SAVINGTHROW_INTELLIGENCE",
+    "ID_PROFICIENCY_SAVINGTHROW_WISDOM",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
+  ],
+  "LanguageKeys": [],
+  "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
+  "FeatKeys": [],
+  "FeatureKeys": [
+    "ID_WOTC_PHB24_ARCHETYPE_WIZARD_ABJURER_ABJURATION_SAVANT",
+    "ID_WOTC_PHB24_ARCHETYPE_WIZARD_ABJURER_ARCANE_WARD",
+    "ID_WOTC_PHB24_CLASS_FEATURE_WIZARD_ARCANE_RECOVERY",
+    "ID_WOTC_PHB24_CLASS_FEATURE_WIZARD_RITUAL_ADEPT",
+    "ID_WOTC_PHB24_CLASS_FEATURE_WIZARD_SCHOLAR",
+    "ID_WOTC_PHB24_CLASS_FEATURE_WIZARD_SPELLCASTING",
+    "ID_WOTC_PHB24_CLASS_FEATURE_WIZARD_SUBCLASS"
+  ],
+  "ChoiceSelectionKeys": [],
+  "TraitKeys": [
+    "ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_ARCANE_FOCUS",
+    "ID_INTERNAL_RITUAL_CASTING"
+  ],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|10",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|14",
+    "ability-score|int|ability:int|16",
+    "ability-score|str|ability:str|8",
+    "ability-score|wis|ability:wis|12",
+    "feature|archetype-feature|ID_WOTC_PHB24_ARCHETYPE_WIZARD_ABJURER_ABJURATION_SAVANT|Level 3: Abjuration Savant",
+    "feature|archetype-feature|ID_WOTC_PHB24_ARCHETYPE_WIZARD_ABJURER_ARCANE_WARD|Level 3: Arcane Ward",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_WIZARD_ARCANE_RECOVERY|Level 1: Arcane Recovery",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_WIZARD_RITUAL_ADEPT|Level 1: Ritual Adept",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_WIZARD_SCHOLAR|Level 2: Scholar",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_WIZARD_SPELLCASTING|Level 1: Spellcasting",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_WIZARD_SUBCLASS|Level 3: Wizard Subclass",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_INTELLIGENCE|Saving Throw Proficiency (Intelligence)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_WISDOM|Saving Throw Proficiency (Wisdom)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
+    "trait|proficiency-spellfocus-group-arcane-focus|ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_ARCANE_FOCUS|PROFICIENCY SPELLFOCUS GROUP ARCANE FOCUS",
+    "trait|ritual-casting|ID_INTERNAL_RITUAL_CASTING|RITUAL CASTING"
+  ],
+  "PendingChoiceKeys": [
+    "Archetype Feature|Level 3: Abjuration Savant|Abjuration Spell (Abjuration Savant)|family=spell-pick|remaining=2|blocking=True",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Wizard)|family=spell-pick|remaining=3|blocking=True",
+    "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|family=spell-pick|remaining=2|blocking=True",
+    "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|family=spell-pick|remaining=2|blocking=True",
+    "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|family=spell-pick|remaining=6|blocking=True",
+    "Class Feature|Level 2: Scholar|Skill Expertise (Scholar)|family=skill-pick|remaining=1|blocking=True",
+    "Class|Wizard|Skill Proficiency (Wizard)|family=skill-pick|remaining=2|blocking=True"
+  ],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "feature|active-feature",
+      "Count": 7
+    },
+    {
+      "Key": "proficiency|grant",
+      "Count": 3
+    },
+    {
+      "Key": "trait|semantic-grant",
+      "Count": 2
+    }
+  ],
+  "AppliedChoiceStates": []
+}

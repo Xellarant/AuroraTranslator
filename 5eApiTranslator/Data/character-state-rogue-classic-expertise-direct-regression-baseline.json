@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-20T08:21:10.7031581Z",
+  "CapturedAtUtc": "2026-05-20T22:09:02.4939372Z",
   "StateLabel": "character-state-rogue-classic-expertise-direct-example.json",
   "DirectSelectionCount": 8,
   "DirectSelections": [
@@ -18,15 +18,15 @@
     "Class|Rogue|Sneak Attack|1",
     "Class|Rogue|Thieves\u2019 Cant|1"
   ],
-  "ActiveGrantCount": 24,
-  "AvailableSelectCount": 2,
-  "PendingChoiceCount": 1,
-  "BlockingPendingChoiceCount": 1,
-  "WarningCount": 1,
+  "ActiveGrantCount": 25,
+  "AvailableSelectCount": 3,
+  "PendingChoiceCount": 2,
+  "BlockingPendingChoiceCount": 2,
+  "WarningCount": 2,
   "WarningKindCounts": [
     {
       "Key": "pending-choice|warning",
-      "Count": 1
+      "Count": 2
     }
   ],
   "AbilityScores": [
@@ -128,7 +128,8 @@
     "size|size|ID_SIZE_MEDIUM|MEDIUM"
   ],
   "PendingChoiceKeys": [
-    "Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|remaining=4|blocking=True"
+    "Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|remaining=4|blocking=True",
+    "Racial Trait|Elven Subrace|Elven Subrace|family=generic-element-pick|remaining=1|blocking=True"
   ],
   "ProvenanceKindCounts": [
     {
@@ -157,7 +158,7 @@
     },
     {
       "Key": "proficiency|grant",
-      "Count": 11
+      "Count": 12
     },
     {
       "Key": "trait|grant",

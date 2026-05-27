@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-05-20T09:59:12.7179912Z",
+  "CapturedAtUtc": "2026-05-20T22:09:05.2470238Z",
   "StateLabel": "character-state-warlock-invocations-complete-example.json",
   "DirectSelectionCount": 11,
   "DirectSelections": [
@@ -23,12 +23,21 @@
     "Class|Warlock|Otherworldly Patron|1",
     "Class|Warlock|Pact Magic|1"
   ],
-  "ActiveGrantCount": 20,
-  "AvailableSelectCount": 5,
-  "PendingChoiceCount": 0,
-  "BlockingPendingChoiceCount": 0,
-  "WarningCount": 0,
-  "WarningKindCounts": [],
+  "ActiveGrantCount": 21,
+  "AvailableSelectCount": 7,
+  "PendingChoiceCount": 1,
+  "BlockingPendingChoiceCount": 1,
+  "WarningCount": 2,
+  "WarningKindCounts": [
+    {
+      "Key": "over-selected-choice|error",
+      "Count": 1
+    },
+    {
+      "Key": "pending-choice|warning",
+      "Count": 1
+    }
+  ],
   "AbilityScores": [
     {
       "AbilityKey": "cha",
@@ -61,6 +70,7 @@
     "ID_PROFICIENCY_SAVINGTHROW_WISDOM",
     "ID_PROFICIENCY_SKILL_ARCANA",
     "ID_PROFICIENCY_SKILL_DECEPTION",
+    "ID_PROFICIENCY_SKILL_PERCEPTION",
     "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
   ],
   "LanguageKeys": [
@@ -117,6 +127,7 @@
     "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR|Armor Proficiency (Light Armor)",
     "proficiency|proficiency|ID_PROFICIENCY_SKILL_ARCANA|Arcana",
     "proficiency|proficiency|ID_PROFICIENCY_SKILL_DECEPTION|Deception",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_PERCEPTION|Perception",
     "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_CHARISMA|Saving Throw Proficiency (Charisma)",
     "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_WISDOM|Saving Throw Proficiency (Wisdom)",
     "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
@@ -124,7 +135,9 @@
     "size|size|ID_SIZE_MEDIUM|MEDIUM",
     "spell-grant|spell|spell:ID_PHB_SPELL_MAGE_ARMOR||prepared=|"
   ],
-  "PendingChoiceKeys": [],
+  "PendingChoiceKeys": [
+    "Racial Trait|Elven Subrace|Elven Subrace|family=generic-element-pick|remaining=1|blocking=True"
+  ],
   "ProvenanceKindCounts": [
     {
       "Key": "ability-score|base-state",
@@ -160,7 +173,7 @@
     },
     {
       "Key": "proficiency|grant",
-      "Count": 4
+      "Count": 5
     },
     {
       "Key": "trait|grant",
