@@ -1,0 +1,215 @@
+{
+  "CapturedAtUtc": "2026-06-15T17:43:48.807554Z",
+  "StateLabel": "character-state-paladin-ranger-weapon-mastery-identity-ambiguous-example.json",
+  "DirectSelectionCount": 2,
+  "DirectSelections": [
+    "Class|Paladin|core-players-handbook-2024|1",
+    "Class|Ranger|core-players-handbook-2024|1"
+  ],
+  "ActiveFeatureCount": 6,
+  "ActiveFeatures": [
+    "Class|Paladin|Level 1: Lay On Hands|1",
+    "Class|Paladin|Level 1: Spellcasting|1",
+    "Class|Paladin|Level 1: Weapon Mastery|1",
+    "Class|Ranger|Level 1: Favored Enemy|1",
+    "Class|Ranger|Level 1: Spellcasting|1",
+    "Class|Ranger|Level 1: Weapon Mastery|1"
+  ],
+  "ActiveGrantCount": 24,
+  "AvailableSelectCount": 6,
+  "PendingChoiceCount": 6,
+  "BlockingPendingChoiceCount": 6,
+  "WarningCount": 10,
+  "WarningKindCounts": [
+    {
+      "Key": "choice-application|warning",
+      "Count": 4
+    },
+    {
+      "Key": "pending-choice|warning",
+      "Count": 6
+    }
+  ],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 13
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 16
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 13
+    }
+  ],
+  "ProficiencyKeys": [
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_HEAVY_ARMOR",
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR",
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_MEDIUM_ARMOR",
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELDS",
+    "ID_PROFICIENCY_SAVINGTHROW_CHARISMA",
+    "ID_PROFICIENCY_SAVINGTHROW_DEXTERITY",
+    "ID_PROFICIENCY_SAVINGTHROW_STRENGTH",
+    "ID_PROFICIENCY_SAVINGTHROW_WISDOM",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_MARTIAL_WEAPONS",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
+  ],
+  "LanguageKeys": [],
+  "GrantedSpellKeys": [
+    "ID_WOTC_PHB24_SPELL_HUNTERS_MARK|Ranger|prepared="
+  ],
+  "SpellcastingProfileKeys": [
+    "spellcasting:ranger|granted=1|prepared=0|unprepared=0"
+  ],
+  "FeatKeys": [],
+  "FeatureKeys": [
+    "ID_WOTC_PHB24_CLASS_FEATURE_PALADIN_LAY_ON_HANDS",
+    "ID_WOTC_PHB24_CLASS_FEATURE_PALADIN_SPELLCASTING",
+    "ID_WOTC_PHB24_CLASS_FEATURE_PALADIN_WEAPON_MASTERY",
+    "ID_WOTC_PHB24_CLASS_FEATURE_RANGER_FAVORED_ENEMY",
+    "ID_WOTC_PHB24_CLASS_FEATURE_RANGER_SPELLCASTING",
+    "ID_WOTC_PHB24_CLASS_FEATURE_RANGER_WEAPON_MASTERY"
+  ],
+  "ChoiceSelectionKeys": [],
+  "TraitKeys": [],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|13",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|14",
+    "ability-score|int|ability:int|10",
+    "ability-score|str|ability:str|16",
+    "ability-score|wis|ability:wis|13",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_PALADIN_LAY_ON_HANDS|Level 1: Lay On Hands",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_PALADIN_SPELLCASTING|Level 1: Spellcasting",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_PALADIN_WEAPON_MASTERY|Level 1: Weapon Mastery",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_RANGER_FAVORED_ENEMY|Level 1: Favored Enemy",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_RANGER_SPELLCASTING|Level 1: Spellcasting",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_RANGER_WEAPON_MASTERY|Level 1: Weapon Mastery",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_HEAVY_ARMOR|Armor Proficiency (Heavy Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR|Armor Proficiency (Light Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_MEDIUM_ARMOR|Armor Proficiency (Medium Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELDS|Armor Proficiency (Shields)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_CHARISMA|Saving Throw Proficiency (Charisma)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_DEXTERITY|Saving Throw Proficiency (Dexterity)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_STRENGTH|Saving Throw Proficiency (Strength)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_WISDOM|Saving Throw Proficiency (Wisdom)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_MARTIAL_WEAPONS|Weapon Proficiency (Martial Weapons)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
+    "spell-grant|spell|spell:ID_WOTC_PHB24_SPELL_HUNTERS_MARK|Ranger|prepared=|Ranger"
+  ],
+  "PendingChoiceKeys": [
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|family=spell-pick|remaining=2|blocking=True",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|family=spell-pick|remaining=2|blocking=True",
+    "Class Feature|Level 1: Weapon Mastery|Weapon Mastery|family=feature-pick|remaining=2|blocking=True",
+    "Class Feature|Level 1: Weapon Mastery|Weapon Mastery|family=feature-pick|remaining=2|blocking=True",
+    "Class|Paladin|Skill Proficiency (Paladin)|family=skill-pick|remaining=2|blocking=True",
+    "Class|Ranger|Skill Proficiency (Ranger)|family=skill-pick|remaining=3|blocking=True"
+  ],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "feature|active-feature",
+      "Count": 6
+    },
+    {
+      "Key": "granted-spell|grant",
+      "Count": 1
+    },
+    {
+      "Key": "proficiency|grant",
+      "Count": 15
+    }
+  ],
+  "AppliedChoiceStates": [
+    "0|select-ambiguous|Class Feature|Level 1: Weapon Mastery|Weapon Mastery|family=feature-pick|Battleaxe (Topple)",
+    "1|select-ambiguous|Class Feature|Level 1: Weapon Mastery|Weapon Mastery|family=feature-pick|Dagger (Nick)",
+    "2|select-ambiguous|Class Feature|Level 1: Weapon Mastery|Weapon Mastery|family=feature-pick|Longbow (Slow)",
+    "3|select-ambiguous|Class Feature|Level 1: Weapon Mastery|Weapon Mastery|family=feature-pick|Warhammer (Push)"
+  ],
+  "SpellSelectOptionCounts": [
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|options=32",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|options=31"
+  ],
+  "SpellSelectOptionKeys": [
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Bless|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_BLESS",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Bless|core-players-handbook|ID_PHB_SPELL_BLESS",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Ceremony|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_CEREMONY",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Command|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_COMMAND",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Command|core-players-handbook|ID_PHB_SPELL_COMMAND",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Compelled Duel|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_COMPELLED_DUEL",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Compelled Duel|core-players-handbook|ID_PHB_SPELL_COMPELLED_DUEL",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Cure Wounds|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_CURE_WOUNDS",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Cure Wounds|core-players-handbook|ID_PHB_SPELL_CURE_WOUNDS",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Detect Evil and Good|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DETECT_EVIL_AND_GOOD",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Detect Evil and Good|core-players-handbook|ID_PHB_SPELL_DETECT_EVIL_AND_GOOD",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Detect Magic|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DETECT_MAGIC",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Detect Magic|core-players-handbook|ID_PHB_SPELL_DETECT_MAGIC",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Detect Poison and Disease|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DETECT_POISON_AND_DISEASE",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Detect Poison and Disease|core-players-handbook|ID_PHB_SPELL_DETECT_POISON_AND_DISEASE",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Divine Favor|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DIVINE_FAVOR",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Divine Favor|core-players-handbook|ID_PHB_SPELL_DIVINE_FAVOR",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Divine Smite|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DIVINE_SMITE",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Heroism|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_HEROISM",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Heroism|core-players-handbook|ID_PHB_SPELL_HEROISM",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Protection from Evil and Good|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_PROTECTION_FROM_EVIL_AND_GOOD",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Protection from Evil and Good|core-players-handbook|ID_PHB_SPELL_PROTECTION_FROM_EVIL_AND_GOOD",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Purify Food and Drink|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_PURIFY_FOOD_AND_DRINK",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Purify Food and Drink|core-players-handbook|ID_PHB_SPELL_PURIFY_FOOD_AND_DRINK",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Searing Smite|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_SEARING_SMITE",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Searing Smite|core-players-handbook|ID_PHB_SPELL_SEARING_SMITE",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Shield of Faith|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_SHIELD_OF_FAITH",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Shield of Faith|core-players-handbook|ID_PHB_SPELL_SHIELD_OF_FAITH",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Thunderous Smite|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_THUNDEROUS_SMITE",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Thunderous Smite|core-players-handbook|ID_PHB_SPELL_THUNDEROUS_SMITE",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Wrathful Smite|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_WRATHFUL_SMITE",
+    "Class Feature|Level 1: Spellcasting|Spell (Paladin)|Wrathful Smite|core-players-handbook|ID_PHB_SPELL_WRATHFUL_SMITE",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Absorb Elements|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_ABSORBELEMENTS",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Alarm|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ALARM",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Alarm|core-players-handbook|ID_PHB_SPELL_ALARM",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Animal Friendship|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ANIMAL_FRIENDSHIP",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Animal Friendship|core-players-handbook|ID_PHB_SPELL_ANIMAL_FRIENDSHIP",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Beast Bond|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_BEASTBOND",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Cure Wounds|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_CURE_WOUNDS",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Cure Wounds|core-players-handbook|ID_PHB_SPELL_CURE_WOUNDS",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Detect Magic|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DETECT_MAGIC",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Detect Magic|core-players-handbook|ID_PHB_SPELL_DETECT_MAGIC",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Detect Poison and Disease|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DETECT_POISON_AND_DISEASE",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Detect Poison and Disease|core-players-handbook|ID_PHB_SPELL_DETECT_POISON_AND_DISEASE",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Ensnaring Strike|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ENSNARING_STRIKE",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Ensnaring Strike|core-players-handbook|ID_PHB_SPELL_ENSNARING_STRIKE",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Entangle|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ENTANGLE",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Fog Cloud|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_FOG_CLOUD",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Fog Cloud|core-players-handbook|ID_PHB_SPELL_FOG_CLOUD",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Goodberry|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_GOODBERRY",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Goodberry|core-players-handbook|ID_PHB_SPELL_GOODBERRY",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Hail of Thorns|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_HAIL_OF_THORNS",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Hail of Thorns|core-players-handbook|ID_PHB_SPELL_HAIL_OF_THORNS",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Hunter\u2019s Mark|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_HUNTERS_MARK",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Hunter\u2019s Mark|core-players-handbook|ID_PHB_SPELL_HUNTERS_MARK",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Jump|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_JUMP",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Jump|core-players-handbook|ID_PHB_SPELL_JUMP",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Longstrider|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_LONGSTRIDER",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Longstrider|core-players-handbook|ID_PHB_SPELL_LONGSTRIDER",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Snare|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_SNARE",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Speak with Animals|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_SPEAK_WITH_ANIMALS",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Speak with Animals|core-players-handbook|ID_PHB_SPELL_SPEAK_WITH_ANIMALS",
+    "Class Feature|Level 1: Spellcasting|Spell (Ranger)|Zephyr Strike|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_ZEPHYR_STRIKE"
+  ]
+}

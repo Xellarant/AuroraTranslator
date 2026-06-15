@@ -1,0 +1,76 @@
+{
+  "classes": [
+    {
+      "name": "Paladin",
+      "packageKey": "core-players-handbook-2024",
+      "level": 1
+    },
+    {
+      "name": "Ranger",
+      "packageKey": "core-players-handbook-2024",
+      "level": 1
+    }
+  ],
+  "archetypes": [],
+  "race": null,
+  "subRace": null,
+  "raceVariants": [],
+  "background": null,
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [
+    {
+      "choiceKey": "id_wotc_phb24_class_feature_paladin_weapon_mastery|core-players-handbook-2024|core\\players-handbook-2024\\class-paladin.xml|weapon mastery|feature-pick|class feature||2|0",
+      "choiceRowKey": "id_wotc_phb24_class_feature_paladin_weapon_mastery|class feature|core-players-handbook-2024|core\\players-handbook-2024\\class-paladin.xml|weapon mastery|feature-pick|class feature||2|0|fixed-element-pool|weapon mastery|",
+      "ownerName": "Level 1: Weapon Mastery",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Weapon Mastery",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_BATTLEAXE_TOPPLE",
+      "optionName": "Battleaxe (Topple)"
+    },
+    {
+      "choiceKey": "id_wotc_phb24_class_feature_paladin_weapon_mastery|core-players-handbook-2024|core\\players-handbook-2024\\class-paladin.xml|weapon mastery|feature-pick|class feature||2|0",
+      "choiceRowKey": "id_wotc_phb24_class_feature_paladin_weapon_mastery|class feature|core-players-handbook-2024|core\\players-handbook-2024\\class-paladin.xml|weapon mastery|feature-pick|class feature||2|0|fixed-element-pool|weapon mastery|",
+      "ownerName": "Level 1: Weapon Mastery",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Weapon Mastery",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_DAGGER_NICK",
+      "optionName": "Dagger (Nick)"
+    },
+    {
+      "choiceKey": "id_wotc_phb24_class_feature_ranger_weapon_mastery|core-players-handbook-2024|core\\players-handbook-2024\\class-ranger.xml|weapon mastery|feature-pick|class feature||2|0",
+      "choiceRowKey": "id_wotc_phb24_class_feature_ranger_weapon_mastery|class feature|core-players-handbook-2024|core\\players-handbook-2024\\class-ranger.xml|weapon mastery|feature-pick|class feature||2|0|fixed-element-pool|weapon mastery|",
+      "ownerName": "Level 1: Weapon Mastery",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Weapon Mastery",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_LONGBOW_SLOW",
+      "optionName": "Longbow (Slow)"
+    },
+    {
+      "choiceKey": "id_wotc_phb24_class_feature_ranger_weapon_mastery|core-players-handbook-2024|core\\players-handbook-2024\\class-ranger.xml|weapon mastery|feature-pick|class feature||2|0",
+      "choiceRowKey": "id_wotc_phb24_class_feature_ranger_weapon_mastery|class feature|core-players-handbook-2024|core\\players-handbook-2024\\class-ranger.xml|weapon mastery|feature-pick|class feature||2|0|fixed-element-pool|weapon mastery|",
+      "ownerName": "Level 1: Weapon Mastery",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Weapon Mastery",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_WARHAMMER_PUSH",
+      "optionName": "Warhammer (Push)"
+    }
+  ],
+  "tokens": [],
+  "numericValues": {
+    "str": 16,
+    "dex": 14,
+    "con": 14,
+    "int": 10,
+    "wis": 13,
+    "cha": 13
+  },
+  "scalarValues": {},
+  "macroValues": {}
+}

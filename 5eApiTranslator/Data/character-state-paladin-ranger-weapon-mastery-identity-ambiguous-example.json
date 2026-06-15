@@ -1,0 +1,68 @@
+{
+  "classes": [
+    {
+      "name": "Paladin",
+      "packageKey": "core-players-handbook-2024",
+      "level": 1
+    },
+    {
+      "name": "Ranger",
+      "packageKey": "core-players-handbook-2024",
+      "level": 1
+    }
+  ],
+  "archetypes": [],
+  "race": null,
+  "subRace": null,
+  "raceVariants": [],
+  "background": null,
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [
+    {
+      "ownerName": "Level 1: Weapon Mastery",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Weapon Mastery",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_BATTLEAXE_TOPPLE",
+      "optionName": "Battleaxe (Topple)"
+    },
+    {
+      "ownerName": "Level 1: Weapon Mastery",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Weapon Mastery",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_DAGGER_NICK",
+      "optionName": "Dagger (Nick)"
+    },
+    {
+      "ownerName": "Level 1: Weapon Mastery",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Weapon Mastery",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_LONGBOW_SLOW",
+      "optionName": "Longbow (Slow)"
+    },
+    {
+      "ownerName": "Level 1: Weapon Mastery",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Weapon Mastery",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_WARHAMMER_PUSH",
+      "optionName": "Warhammer (Push)"
+    }
+  ],
+  "tokens": [],
+  "numericValues": {
+    "str": 16,
+    "dex": 14,
+    "con": 14,
+    "int": 10,
+    "wis": 13,
+    "cha": 13
+  },
+  "scalarValues": {},
+  "macroValues": {}
+}

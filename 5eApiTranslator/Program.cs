@@ -817,6 +817,8 @@ namespace AuroraTranslator
                 {
                     choice.ChoiceIndex,
                     choice.SelectId,
+                    choice.ChoiceKey,
+                    choice.ChoiceRowKey,
                     choice.OwnerName,
                     choice.OwnerTypeName,
                     choice.SelectName,
@@ -864,6 +866,8 @@ namespace AuroraTranslator
                         pendingChoices = result.ComputedCharacter.PendingChoices.Select(choice => new
                         {
                             choice.SelectId,
+                            choice.ChoiceKey,
+                            choice.ChoiceRowKey,
                             choice.OwnerName,
                             choice.OwnerTypeName,
                             choice.OwnerPackageKey,
@@ -893,6 +897,8 @@ namespace AuroraTranslator
                 availableSelects = result.AvailableSelects.Select(select => new
                 {
                     select.SelectId,
+                    select.ChoiceKey,
+                    select.ChoiceRowKey,
                     select.OwnerName,
                     select.OwnerTypeName,
                     select.OwnerPackageKey,
@@ -1042,6 +1048,8 @@ namespace AuroraTranslator
             return new
             {
                 select.SelectId,
+                select.ChoiceKey,
+                select.ChoiceRowKey,
                 select.OwnerName,
                 select.OwnerTypeName,
                 select.OwnerPackageKey,
@@ -1064,6 +1072,8 @@ namespace AuroraTranslator
             return new
             {
                 choice.SelectId,
+                choice.ChoiceKey,
+                choice.ChoiceRowKey,
                 choice.OwnerName,
                 choice.OwnerTypeName,
                 choice.OwnerPackageKey,
