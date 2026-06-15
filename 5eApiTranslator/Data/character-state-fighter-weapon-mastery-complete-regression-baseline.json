@@ -1,0 +1,147 @@
+{
+  "CapturedAtUtc": "2026-06-15T16:39:20.4230932Z",
+  "StateLabel": "character-state-fighter-weapon-mastery-complete-example.json",
+  "DirectSelectionCount": 7,
+  "DirectSelections": [
+    "Class Feature|Battleaxe (Topple)|core-players-handbook-2024|",
+    "Class Feature|Dagger (Nick)|core-players-handbook-2024|",
+    "Class Feature|Longbow (Slow)|core-players-handbook-2024|",
+    "Class|Fighter|core-players-handbook-2024|1",
+    "Feat|Defense|core-players-handbook-2024|",
+    "Proficiency|Athletics|core-ale-xml|",
+    "Proficiency|Perception|core-ale-xml|"
+  ],
+  "ActiveFeatureCount": 1,
+  "ActiveFeatures": [
+    "Class|Fighter|Level 1: Weapon Mastery|1"
+  ],
+  "ActiveGrantCount": 12,
+  "AvailableSelectCount": 3,
+  "PendingChoiceCount": 0,
+  "BlockingPendingChoiceCount": 0,
+  "WarningCount": 0,
+  "WarningKindCounts": [],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 8
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 16
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 10
+    }
+  ],
+  "ProficiencyKeys": [
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_HEAVY_ARMOR",
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR",
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_MEDIUM_ARMOR",
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELDS",
+    "ID_PROFICIENCY_SAVINGTHROW_CONSTITUTION",
+    "ID_PROFICIENCY_SAVINGTHROW_STRENGTH",
+    "ID_PROFICIENCY_SKILL_ATHLETICS",
+    "ID_PROFICIENCY_SKILL_PERCEPTION",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_MARTIAL_WEAPONS",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
+  ],
+  "LanguageKeys": [],
+  "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
+  "FeatKeys": [
+    "ID_WOTC_PHB24_FEAT_DEFENSE"
+  ],
+  "FeatureKeys": [
+    "ID_WOTC_PHB24_CLASS_FEATURE_FIGHTER_WEAPON_MASTERY",
+    "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_BATTLEAXE_TOPPLE",
+    "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_DAGGER_NICK",
+    "ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_LONGBOW_SLOW"
+  ],
+  "ChoiceSelectionKeys": [
+    "$(choice||Class Feature||Level 1: Fighting Style||Fighting Style (Fighter 1))|ID_WOTC_PHB24_FEAT_DEFENSE",
+    "$(choice||Class Feature||Level 1: Weapon Mastery||Weapon Mastery (Fighter 1))|ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_BATTLEAXE_TOPPLE",
+    "$(choice||Class Feature||Level 1: Weapon Mastery||Weapon Mastery (Fighter 1))|ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_DAGGER_NICK",
+    "$(choice||Class Feature||Level 1: Weapon Mastery||Weapon Mastery (Fighter 1))|ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_LONGBOW_SLOW",
+    "$(choice||Class||Fighter||Skill Proficiency (Fighter))|ID_PROFICIENCY_SKILL_ATHLETICS",
+    "$(choice||Class||Fighter||Skill Proficiency (Fighter))|ID_PROFICIENCY_SKILL_PERCEPTION"
+  ],
+  "TraitKeys": [],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|8",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|14",
+    "ability-score|int|ability:int|10",
+    "ability-score|str|ability:str|16",
+    "ability-score|wis|ability:wis|10",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_FIGHTER_WEAPON_MASTERY|Level 1: Weapon Mastery",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_BATTLEAXE_TOPPLE|Battleaxe (Topple)",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_DAGGER_NICK|Dagger (Nick)",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_MASTERY_PROPERTY_LONGBOW_SLOW|Longbow (Slow)",
+    "feat|feat|ID_WOTC_PHB24_FEAT_DEFENSE|Defense",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_HEAVY_ARMOR|Armor Proficiency (Heavy Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR|Armor Proficiency (Light Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_MEDIUM_ARMOR|Armor Proficiency (Medium Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELDS|Armor Proficiency (Shields)",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_ATHLETICS|Athletics",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_PERCEPTION|Perception",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_CONSTITUTION|Saving Throw Proficiency (Constitution)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_STRENGTH|Saving Throw Proficiency (Strength)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_MARTIAL_WEAPONS|Weapon Proficiency (Martial Weapons)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)"
+  ],
+  "PendingChoiceKeys": [],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "choice-selection|selected-choice",
+      "Count": 6
+    },
+    {
+      "Key": "feature|active-feature",
+      "Count": 1
+    },
+    {
+      "Key": "feature|direct-selection",
+      "Count": 3
+    },
+    {
+      "Key": "feat|direct-selection",
+      "Count": 1
+    },
+    {
+      "Key": "proficiency|direct-selection",
+      "Count": 2
+    },
+    {
+      "Key": "proficiency|grant",
+      "Count": 8
+    }
+  ],
+  "AppliedChoiceStates": [
+    "0|applied|Class|Fighter|Skill Proficiency (Fighter)|family=skill-pick|Athletics",
+    "1|applied|Class|Fighter|Skill Proficiency (Fighter)|family=skill-pick|Perception",
+    "2|applied|Class Feature|Level 1: Fighting Style|Fighting Style (Fighter 1)|family=feat-pick|Defense",
+    "3|applied|Class Feature|Level 1: Weapon Mastery|Weapon Mastery (Fighter 1)|family=feature-pick|Battleaxe (Topple)",
+    "4|applied|Class Feature|Level 1: Weapon Mastery|Weapon Mastery (Fighter 1)|family=feature-pick|Dagger (Nick)",
+    "5|applied|Class Feature|Level 1: Weapon Mastery|Weapon Mastery (Fighter 1)|family=feature-pick|Longbow (Slow)"
+  ],
+  "SpellSelectOptionCounts": [],
+  "SpellSelectOptionKeys": []
+}

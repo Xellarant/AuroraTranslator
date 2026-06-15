@@ -1334,6 +1334,105 @@ ORDER BY ordinal ASC;";
                     context.AddMacroValues("$(spellcasting:list)", new[] { supportText });
                 }
             }
+
+            AddImpliedProficiencyTokensToContext(context, connection, elementId, auroraId, name);
+        }
+
+        private static void AddImpliedProficiencyTokensToContext(
+            AuroraExpressionEvaluationContext context,
+            SqliteConnection connection,
+            int elementId,
+            string auroraId,
+            string name)
+        {
+            string weaponSubgroup = ResolveBroadWeaponProficiencySubgroup(connection, elementId, auroraId, name);
+            if (string.IsNullOrWhiteSpace(weaponSubgroup))
+                return;
+
+            foreach ((string impliedAuroraId, string impliedName) in LoadSpecificWeaponProficiencyTokens(connection, weaponSubgroup))
+            {
+                if (!string.IsNullOrWhiteSpace(impliedAuroraId))
+                    context.AddToken(impliedAuroraId);
+
+                if (!string.IsNullOrWhiteSpace(impliedName))
+                    context.AddToken(impliedName);
+            }
+        }
+
+        private static string ResolveBroadWeaponProficiencySubgroup(
+            SqliteConnection connection,
+            int elementId,
+            string auroraId,
+            string name)
+        {
+            if (string.Equals(auroraId, "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "Weapon Proficiency (Simple Weapons)", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Simple";
+            }
+
+            if (string.Equals(auroraId, "ID_PROFICIENCY_WEAPON_PROFICIENCY_MARTIAL_WEAPONS", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "Weapon Proficiency (Martial Weapons)", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Martial";
+            }
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT proficiency_group, proficiency_subgroup
+FROM proficiencies
+WHERE element_id = $element_id
+LIMIT 1;";
+            command.Parameters.AddWithValue("$element_id", elementId);
+
+            using var reader = command.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            string proficiencyGroup = reader.IsDBNull(0) ? null : reader.GetString(0);
+            string proficiencySubgroup = reader.IsDBNull(1) ? null : reader.GetString(1);
+            if (!string.IsNullOrWhiteSpace(proficiencyGroup)
+                || !string.IsNullOrWhiteSpace(proficiencySubgroup))
+            {
+                return null;
+            }
+
+            if (name?.Contains("Simple Weapons", StringComparison.OrdinalIgnoreCase) ?? false)
+                return "Simple";
+
+            if (name?.Contains("Martial Weapons", StringComparison.OrdinalIgnoreCase) ?? false)
+                return "Martial";
+
+            return null;
+        }
+
+        private static List<(string AuroraId, string Name)> LoadSpecificWeaponProficiencyTokens(
+            SqliteConnection connection,
+            string subgroup)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT DISTINCT
+    e.aurora_id,
+    e.name
+FROM proficiencies AS p
+JOIN elements AS e
+    ON e.element_id = p.element_id
+WHERE p.proficiency_group = 'Weapon'
+  AND p.proficiency_subgroup = $subgroup
+ORDER BY e.name ASC, e.aurora_id ASC;";
+            command.Parameters.AddWithValue("$subgroup", subgroup);
+
+            var tokens = new List<(string AuroraId, string Name)>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                tokens.Add((
+                    reader.IsDBNull(0) ? null : reader.GetString(0),
+                    reader.IsDBNull(1) ? null : reader.GetString(1)));
+            }
+
+            return tokens;
         }
 
         private static bool IsElementAlreadyOwned(
