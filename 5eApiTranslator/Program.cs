@@ -2712,8 +2712,8 @@ namespace AuroraTranslator
                     handled = true;
                 }
 
-                // Fill requirements...
-                // TODO: figure out what to do with requirements (how to store/retrieve?)
+                // Preserve top-level requirements on the legacy catalog model.
+                // The SQLite importer is the authoritative persistence/evaluation path.
                 if (childName == "requirements")
                 {
                     auroraElement.requirements = ParseAuroraTextCollection(childElement.Value);
