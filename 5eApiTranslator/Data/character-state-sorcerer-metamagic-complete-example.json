@@ -1,0 +1,111 @@
+{
+  "classes": [
+    {
+      "name": "Sorcerer",
+      "packageKey": "core-players-handbook-2024",
+      "level": 2
+    }
+  ],
+  "archetypes": [],
+  "race": null,
+  "subRace": null,
+  "raceVariants": [],
+  "background": null,
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [
+    {
+      "ownerName": "Sorcerer",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Sorcerer)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_ARCANA",
+      "optionName": "Arcana"
+    },
+    {
+      "ownerName": "Sorcerer",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Sorcerer)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_DECEPTION",
+      "optionName": "Deception"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Sorcerer)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_FIRE_BOLT",
+      "optionName": "Fire Bolt"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Sorcerer)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_LIGHT",
+      "optionName": "Light"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Sorcerer)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_MAGE_HAND",
+      "optionName": "Mage Hand"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Sorcerer)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_MIND_SLIVER",
+      "optionName": "Mind Sliver"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Spell (Sorcerer)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_MAGIC_MISSILE",
+      "optionName": "Magic Missile"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Spell (Sorcerer)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_SHIELD",
+      "optionName": "Shield"
+    },
+    {
+      "ownerName": "Level 2: Metamagic",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Metamagic (Sorcerer 2)",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_METAMAGIC_QUICKEND_SPELL",
+      "optionName": "Quickened Spell"
+    },
+    {
+      "ownerName": "Level 2: Metamagic",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Metamagic (Sorcerer 2)",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_METAMAGIC_SUBTLE_SPELL",
+      "optionName": "Subtle Spell"
+    }
+  ],
+  "tokens": [],
+  "numericValues": {
+    "str": 8,
+    "dex": 14,
+    "con": 14,
+    "int": 10,
+    "wis": 12,
+    "cha": 16
+  },
+  "scalarValues": {},
+  "macroValues": {}
+}

@@ -71,7 +71,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Iterative choice application and re-evaluation
 - Pending multi-pick select counts now key off explicit applied choices rather than unrelated globally owned options
 - Common first-party multi-pick pools now behave like real slots across Acolyte/Fighter/Monk flows, and extra selected picks stop applying once a pool is full
-- Multi-select `feature-pick` families such as classic Rogue `Expertise` and Warlock `Eldritch Invocation` now behave like real builder slots, including saved-state satisfaction from direct feature elements
+- Multi-select `feature-pick` families such as classic Rogue `Expertise`, Warlock `Eldritch Invocation`, and PHB 2024 Sorcerer `Metamagic` now behave like real builder slots, including saved-state satisfaction from direct feature elements
 - Classic Rogue `Expertise` is now covered by partial, direct-state, and fully completed first-party fixtures so we can detect regressions across the whole progression
 - Warlock Pact Magic spell-pick rows now resolve through spellcasting profiles, fill real spell option pools, and participate in slot-aware over-pick validation
 - Granted rule-owning elements such as racial traits and nested archetype features now participate in select evaluation, which lets builder flows surface picks like High Elf Wizard cantrips and Abjurer school-restricted spells
@@ -80,6 +80,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Broad feat pools now honor support tags and explicit allowlists, so origin-feat slots and general-feat slots do not bleed into one another
 - Ritual-only spell picks can now resolve against the global ritual corpus without a spell-list owner, which makes PHB 2024 `Ritual Caster` behave like a real feat package
 - Nested class-feature spell picks now inherit their parent class spell list when Aurora encoded them without a local profile, which makes early PHB 2024 flows like Cleric `Thaumaturge` complete cleanly
+- Broad spell pools now collapse only exact-equivalent spell reprints, using the stored spell/text/rule shape instead of plain name matching, so distinct 2014/2024 spell variants remain separate
 - Over-selected first-party choice states now fail loudly, either as explicit over-selection warnings or immediate `select-full` application errors
 - Derived character output for:
   - computed ability scores
@@ -158,7 +159,7 @@ Likely target families:
   - additional PHB 2024 replacement-style families beyond Cleric/Monk
   - spell-grant scenarios such as domain or oath spells
   - completed player-facing class/race/background packages beyond the new Life Domain + Human + Acolyte fixture
-  - more `feature-pick` families such as Metamagic, Weapon Mastery, and Eldritch Adept
+  - more `feature-pick` families such as Weapon Mastery and Eldritch Adept
   - more `spell-pick` families beyond Magic Initiate and Ritual Caster, especially broader subclass spell-selection cases
   - explicit duplicate-pick and over-pick validation scenarios beyond the current first-party language oversubscribe fixture
 - use focused fixtures to lock down computed-trait scenarios such as Darkvision and typed movement entries like fly/climb/swim/burrow speeds

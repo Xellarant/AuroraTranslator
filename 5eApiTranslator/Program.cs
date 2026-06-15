@@ -1673,6 +1673,18 @@ namespace AuroraTranslator
                     .ToArray(),
                 ActiveGrantCount: result.ActiveGrants.Count,
                 AvailableSelectCount: result.AvailableSelects.Count,
+                SpellSelectOptionCounts: result.AvailableSelects
+                    .Where(x => string.Equals(x.ChoiceFamily, "spell-pick", StringComparison.OrdinalIgnoreCase))
+                    .Select(x => $"{x.OwnerTypeName}|{x.OwnerName}|{x.SelectName}|options={x.Options.Count}")
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                SpellSelectOptionKeys: result.AvailableSelects
+                    .Where(x => string.Equals(x.ChoiceFamily, "spell-pick", StringComparison.OrdinalIgnoreCase))
+                    .SelectMany(x => x.Options.Select(option =>
+                        $"{x.OwnerTypeName}|{x.OwnerName}|{x.SelectName}|{option.OptionName}|{option.OptionPackageKey ?? string.Empty}|{option.OptionAuroraId ?? string.Empty}"))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
                 PendingChoiceCount: computed.PendingChoices.Count,
                 BlockingPendingChoiceCount: computed.PendingChoices.Count(x => x.IsBlocking),
                 WarningCount: computed.Warnings.Count,
@@ -1809,6 +1821,8 @@ namespace AuroraTranslator
             CompareScalar(expected.ActiveFeatureCount, actual.ActiveFeatureCount, "ActiveFeatureCount", failures);
             CompareScalar(expected.ActiveGrantCount, actual.ActiveGrantCount, "ActiveGrantCount", failures);
             CompareScalar(expected.AvailableSelectCount, actual.AvailableSelectCount, "AvailableSelectCount", failures);
+            CompareOptionalStringList(expected.SpellSelectOptionCounts, actual.SpellSelectOptionCounts, "SpellSelectOptionCounts", failures);
+            CompareOptionalStringList(expected.SpellSelectOptionKeys, actual.SpellSelectOptionKeys, "SpellSelectOptionKeys", failures);
             CompareScalar(expected.PendingChoiceCount, actual.PendingChoiceCount, "PendingChoiceCount", failures);
             CompareScalar(expected.BlockingPendingChoiceCount, actual.BlockingPendingChoiceCount, "BlockingPendingChoiceCount", failures);
             CompareScalar(expected.WarningCount, actual.WarningCount, "WarningCount", failures);
@@ -2304,6 +2318,18 @@ namespace AuroraTranslator
                 failures.Add($"{label} added: {added}");
         }
 
+        private static void CompareOptionalStringList(
+            IReadOnlyList<string> expected,
+            IReadOnlyList<string> actual,
+            string label,
+            List<string> failures)
+        {
+            if (expected == null)
+                return;
+
+            CompareStringList(expected, actual, label, failures);
+        }
+
         private static void CompareAbilityScores(
             IReadOnlyList<CharacterStateAbilityScoreBaseline> expected,
             IReadOnlyList<CharacterStateAbilityScoreBaseline> actual,
@@ -2407,7 +2433,9 @@ namespace AuroraTranslator
             IReadOnlyList<string> EffectRowKeys,
             IReadOnlyList<string> PendingChoiceKeys,
             IReadOnlyList<DiagnosticsRegressionCount> ProvenanceKindCounts,
-            IReadOnlyList<string> AppliedChoiceStates);
+            IReadOnlyList<string> AppliedChoiceStates,
+            IReadOnlyList<string> SpellSelectOptionCounts = null,
+            IReadOnlyList<string> SpellSelectOptionKeys = null);
 
         private sealed record WpfParityRegressionBaseline(
             DateTime CapturedAtUtc,

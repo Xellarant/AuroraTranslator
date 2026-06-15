@@ -1,0 +1,151 @@
+{
+  "CapturedAtUtc": "2026-06-03T19:43:21.0073353Z",
+  "StateLabel": "character-state-sorcerer-metamagic-complete-example.json",
+  "DirectSelectionCount": 11,
+  "DirectSelections": [
+    "Class Feature|Quickened Spell|core-players-handbook-2024|",
+    "Class Feature|Subtle Spell|core-players-handbook-2024|",
+    "Class|Sorcerer|core-players-handbook-2024|2",
+    "Proficiency|Arcana|core-ale-xml|",
+    "Proficiency|Deception|core-ale-xml|",
+    "Spell|Fire Bolt|core-players-handbook-2024|",
+    "Spell|Light|core-players-handbook-2024|",
+    "Spell|Mage Hand|core-players-handbook-2024|",
+    "Spell|Magic Missile|core-players-handbook-2024|",
+    "Spell|Mind Sliver|core-players-handbook-2024|",
+    "Spell|Shield|core-players-handbook-2024|"
+  ],
+  "ActiveFeatureCount": 3,
+  "ActiveFeatures": [
+    "Class|Sorcerer|Level 1: Spellcasting|1",
+    "Class|Sorcerer|Level 2: Font of Magic|2",
+    "Class|Sorcerer|Level 2: Metamagic|2"
+  ],
+  "ActiveGrantCount": 9,
+  "AvailableSelectCount": 5,
+  "PendingChoiceCount": 0,
+  "BlockingPendingChoiceCount": 0,
+  "WarningCount": 0,
+  "WarningKindCounts": [],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 16
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 8
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 12
+    }
+  ],
+  "ProficiencyKeys": [
+    "ID_PROFICIENCY_SAVINGTHROW_CHARISMA",
+    "ID_PROFICIENCY_SAVINGTHROW_CONSTITUTION",
+    "ID_PROFICIENCY_SKILL_ARCANA",
+    "ID_PROFICIENCY_SKILL_DECEPTION",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
+  ],
+  "LanguageKeys": [],
+  "GrantedSpellKeys": [],
+  "SpellcastingProfileKeys": [],
+  "FeatKeys": [],
+  "FeatureKeys": [
+    "ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_FONT_OF_MAGIC",
+    "ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_METAMAGIC",
+    "ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_METAMAGIC_QUICKEND_SPELL",
+    "ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_METAMAGIC_SUBTLE_SPELL",
+    "ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_SPELLCASTING"
+  ],
+  "ChoiceSelectionKeys": [
+    "$(choice||Class Feature||Level 1: Spellcasting||Cantrip (Sorcerer))|ID_WOTC_PHB24_SPELL_FIRE_BOLT",
+    "$(choice||Class Feature||Level 1: Spellcasting||Cantrip (Sorcerer))|ID_WOTC_PHB24_SPELL_LIGHT",
+    "$(choice||Class Feature||Level 1: Spellcasting||Cantrip (Sorcerer))|ID_WOTC_PHB24_SPELL_MAGE_HAND",
+    "$(choice||Class Feature||Level 1: Spellcasting||Cantrip (Sorcerer))|ID_WOTC_PHB24_SPELL_MIND_SLIVER",
+    "$(choice||Class Feature||Level 1: Spellcasting||Spell (Sorcerer))|ID_WOTC_PHB24_SPELL_MAGIC_MISSILE",
+    "$(choice||Class Feature||Level 1: Spellcasting||Spell (Sorcerer))|ID_WOTC_PHB24_SPELL_SHIELD",
+    "$(choice||Class Feature||Level 2: Metamagic||Metamagic (Sorcerer 2))|ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_METAMAGIC_QUICKEND_SPELL",
+    "$(choice||Class Feature||Level 2: Metamagic||Metamagic (Sorcerer 2))|ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_METAMAGIC_SUBTLE_SPELL",
+    "$(choice||Class||Sorcerer||Skill Proficiency (Sorcerer))|ID_PROFICIENCY_SKILL_ARCANA",
+    "$(choice||Class||Sorcerer||Skill Proficiency (Sorcerer))|ID_PROFICIENCY_SKILL_DECEPTION"
+  ],
+  "TraitKeys": [
+    "ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_ARCANE_FOCUS"
+  ],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|16",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|14",
+    "ability-score|int|ability:int|10",
+    "ability-score|str|ability:str|8",
+    "ability-score|wis|ability:wis|12",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_FONT_OF_MAGIC|Level 2: Font of Magic",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_METAMAGIC_QUICKEND_SPELL|Quickened Spell",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_METAMAGIC_SUBTLE_SPELL|Subtle Spell",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_METAMAGIC|Level 2: Metamagic",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_SORCERER_SPELLCASTING|Level 1: Spellcasting",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_ARCANA|Arcana",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_DECEPTION|Deception",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_CHARISMA|Saving Throw Proficiency (Charisma)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_CONSTITUTION|Saving Throw Proficiency (Constitution)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
+    "trait|proficiency-spellfocus-group-arcane-focus|ID_INTERNAL_PROFICIENCY_SPELLFOCUS_GROUP_ARCANE_FOCUS|PROFICIENCY SPELLFOCUS GROUP ARCANE FOCUS"
+  ],
+  "PendingChoiceKeys": [],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "choice-selection|selected-choice",
+      "Count": 10
+    },
+    {
+      "Key": "feature|active-feature",
+      "Count": 3
+    },
+    {
+      "Key": "feature|direct-selection",
+      "Count": 2
+    },
+    {
+      "Key": "proficiency|direct-selection",
+      "Count": 2
+    },
+    {
+      "Key": "proficiency|grant",
+      "Count": 3
+    },
+    {
+      "Key": "trait|semantic-grant",
+      "Count": 1
+    }
+  ],
+  "AppliedChoiceStates": [
+    "0|applied|Class|Sorcerer|Skill Proficiency (Sorcerer)|family=skill-pick|Arcana",
+    "1|applied|Class|Sorcerer|Skill Proficiency (Sorcerer)|family=skill-pick|Deception",
+    "2|applied|Class Feature|Level 1: Spellcasting|Cantrip (Sorcerer)|family=spell-pick|Fire Bolt",
+    "3|applied|Class Feature|Level 1: Spellcasting|Cantrip (Sorcerer)|family=spell-pick|Light",
+    "4|applied|Class Feature|Level 1: Spellcasting|Cantrip (Sorcerer)|family=spell-pick|Mage Hand",
+    "5|applied|Class Feature|Level 1: Spellcasting|Cantrip (Sorcerer)|family=spell-pick|Mind Sliver",
+    "6|applied|Class Feature|Level 1: Spellcasting|Spell (Sorcerer)|family=spell-pick|Magic Missile",
+    "7|applied|Class Feature|Level 1: Spellcasting|Spell (Sorcerer)|family=spell-pick|Shield",
+    "8|applied|Class Feature|Level 2: Metamagic|Metamagic (Sorcerer 2)|family=feature-pick|Quickened Spell",
+    "9|applied|Class Feature|Level 2: Metamagic|Metamagic (Sorcerer 2)|family=feature-pick|Subtle Spell"
+  ]
+}

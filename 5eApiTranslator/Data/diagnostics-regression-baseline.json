@@ -1,7 +1,7 @@
 {
-  "CapturedAtUtc": "2026-04-24T13:01:13.5687828Z",
-  "CorpusLabel": "Wizards first-party core \u002B supplements",
-  "TotalUnresolvedCount": 469,
+  "CapturedAtUtc": "2026-06-03T19:49:24.2490667Z",
+  "CorpusLabel": "Wizards first-party core + supplements",
+  "TotalUnresolvedCount": 478,
   "ActionableUnresolvedCount": 0,
   "DeferredCounts": [
     {
@@ -10,7 +10,7 @@
     },
     {
       "Key": "feature-parent|option-pool|feature-family-option-pool",
-      "Count": 445
+      "Count": 454
     }
   ],
   "UnresolvedKindCounts": [],

@@ -121,6 +121,15 @@ namespace AuroraTranslator
         public HashSet<string> ExcludedSpellNames { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
+    internal sealed record SpellOptionCandidate(
+        int OptionElementId,
+        string OptionAuroraId,
+        string OptionName,
+        string OptionPackageKey,
+        string OptionTypeName,
+        int SpellLevel,
+        int PrecedenceRank);
+
     internal sealed record CharacterSelectOptionResult(
         string OptionKind,
         int? OptionElementId,
@@ -1605,6 +1614,7 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
                     context,
                     ownerName,
                     ownerTypeName,
+                    reader.IsDBNull(4) ? null : reader.GetString(4),
                     selectName);
                 selects.Add(new CharacterSelectResult(
                     selectId,
@@ -1638,6 +1648,7 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
             AuroraExpressionEvaluationContext context,
             string ownerName,
             string ownerTypeName,
+            string ownerPackageKey,
             string selectName,
             bool includeElementOptionFollowUps = true)
         {
@@ -1666,6 +1677,7 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
                     context,
                     ownerName,
                     ownerTypeName,
+                    ownerPackageKey,
                     selectName);
 
             return LoadGenericSelectableOptions(
@@ -1676,6 +1688,7 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
                 context,
                 ownerName,
                 ownerTypeName,
+                ownerPackageKey,
                 selectName,
                 includeElementOptionFollowUps);
         }
@@ -1688,6 +1701,7 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
             AuroraExpressionEvaluationContext context,
             string ownerName,
             string ownerTypeName,
+            string ownerPackageKey,
             string selectName,
             bool includeElementOptionFollowUps)
         {
@@ -1782,6 +1796,7 @@ ORDER BY
                          context,
                          ownerName,
                          ownerTypeName,
+                         ownerPackageKey,
                          selectName,
                          includeElementOptionFollowUps))
             {
@@ -1801,24 +1816,57 @@ ORDER BY
             AuroraExpressionEvaluationContext context,
             string ownerName,
             string ownerTypeName,
+            string ownerPackageKey,
             string selectName,
             bool includeElementOptionFollowUps)
         {
-            List<string> supportIds = ExtractSupportAtoms(supportsText)
+            List<string> supportAtoms = ExtractSupportAtoms(supportsText);
+            List<string> supportIds = supportAtoms
                 .Where(x => x.StartsWith("ID_", StringComparison.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            if (supportIds.Count == 0)
+            List<string> supportTags = supportAtoms
+                .Where(x => !x.StartsWith("ID_", StringComparison.OrdinalIgnoreCase))
+                .Where(x => !int.TryParse(x, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (supportIds.Count == 0 && supportTags.Count == 0)
                 return new List<CharacterSelectOptionResult>();
 
             using var command = connection.CreateCommand();
-            var parameterNames = new List<string>();
+            var idParameterNames = new List<string>();
             for (int index = 0; index < supportIds.Count; index++)
             {
                 string parameterName = $"$support_id_{index}";
-                parameterNames.Add(parameterName);
+                idParameterNames.Add(parameterName);
                 command.Parameters.AddWithValue(parameterName, supportIds[index]);
             }
+
+            var tagParameterNames = new List<string>();
+            for (int index = 0; index < supportTags.Count; index++)
+            {
+                string parameterName = $"$support_tag_{index}";
+                tagParameterNames.Add(parameterName);
+                command.Parameters.AddWithValue(parameterName, supportTags[index]);
+            }
+
+            string idClause = idParameterNames.Count > 0
+                ? $"e.aurora_id IN ({string.Join(", ", idParameterNames)})"
+                : "0 = 1";
+            string tagClause = tagParameterNames.Count > 0
+                ? $@"EXISTS
+(
+    SELECT 1
+    FROM element_supports AS es
+    WHERE es.element_id = e.element_id
+      AND lower(trim(es.support_text)) IN ({string.Join(", ", tagParameterNames.Select(x => $"lower(trim({x}))"))})
+)"
+                : "0 = 1";
+
+            command.Parameters.AddWithValue(
+                "$owner_package_key",
+                string.IsNullOrWhiteSpace(ownerPackageKey) ? DBNull.Value : ownerPackageKey);
 
             command.CommandText = $@"
 SELECT
@@ -1826,13 +1874,27 @@ SELECT
     e.aurora_id,
     e.name,
     et.type_name,
-    rec.package_key
+    rec.package_key,
+    CASE
+        WHEN {idClause} THEN 1
+        ELSE 0
+    END AS is_id_match
 FROM elements AS e
 JOIN element_types AS et
     ON et.element_type_id = e.element_type_id
 JOIN resolved_elements_cache AS rec
     ON rec.winning_element_id = e.element_id
-WHERE e.aurora_id IN ({string.Join(", ", parameterNames)})
+WHERE
+(
+    {idClause}
+    OR {tagClause}
+)
+AND
+(
+    {idClause}
+    OR $owner_package_key IS NULL
+    OR lower(rec.package_key) = lower($owner_package_key)
+)
 ORDER BY e.name ASC;";
 
             var options = new List<CharacterSelectOptionResult>();
@@ -1844,7 +1906,6 @@ ORDER BY e.name ASC;";
                 string optionName = reader.IsDBNull(2) ? null : reader.GetString(2);
                 string optionTypeName = reader.IsDBNull(3) ? null : reader.GetString(3);
                 string optionPackageKey = reader.IsDBNull(4) ? null : reader.GetString(4);
-
                 if (!OptionMatchesSelectType(selectType, optionTypeName))
                     continue;
 
@@ -1896,6 +1957,7 @@ ORDER BY e.name ASC;";
             AuroraExpressionEvaluationContext context,
             string ownerName,
             string ownerTypeName,
+            string ownerPackageKey,
             string selectName)
         {
             (string profileName, string listText) = spellcastingProfileId.HasValue
@@ -1943,6 +2005,7 @@ SELECT
     spell.aurora_id,
     spell.name,
     spell_rec.package_key,
+    spell_rec.precedence_rank,
     spell_type.type_name,
     sp.spell_level,
     sp.school_name,
@@ -1962,6 +2025,7 @@ GROUP BY
     spell.aurora_id,
     spell.name,
     spell_rec.package_key,
+    spell_rec.precedence_rank,
     spell_type.type_name,
     sp.spell_level,
     sp.school_name,
@@ -1970,7 +2034,7 @@ ORDER BY
     sp.spell_level ASC,
     spell.name ASC;";
 
-            var options = new List<CharacterSelectOptionResult>();
+            var candidates = new List<SpellOptionCandidate>();
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -1978,12 +2042,13 @@ ORDER BY
                 string optionAuroraId = reader.IsDBNull(1) ? null : reader.GetString(1);
                 string optionName = reader.GetString(2);
                 string optionPackageKey = reader.IsDBNull(3) ? null : reader.GetString(3);
-                string optionTypeName = reader.IsDBNull(4) ? null : reader.GetString(4);
-                int spellLevel = reader.IsDBNull(5) ? 0 : reader.GetInt32(5);
-                string schoolName = reader.IsDBNull(6) ? null : reader.GetString(6);
-                bool isRitual = !reader.IsDBNull(7) && reader.GetInt32(7) != 0;
+                int precedenceRank = reader.IsDBNull(4) ? 0 : reader.GetInt32(4);
+                string optionTypeName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                int spellLevel = reader.IsDBNull(6) ? 0 : reader.GetInt32(6);
+                string schoolName = reader.IsDBNull(7) ? null : reader.GetString(7);
+                bool isRitual = !reader.IsDBNull(8) && reader.GetInt32(8) != 0;
                 HashSet<string> accessTexts = Regex
-                    .Split(reader.IsDBNull(8) ? string.Empty : reader.GetString(8), @"\s*(?:\||,)\s*")
+                    .Split(reader.IsDBNull(9) ? string.Empty : reader.GetString(9), @"\s*(?:\||,)\s*")
                     .Where(x => !string.IsNullOrWhiteSpace(x))
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -2021,24 +2086,40 @@ ORDER BY
                     }
                 }
 
-                string requirementText = LoadElementRequirementText(connection, optionElementId);
+                candidates.Add(new SpellOptionCandidate(
+                    optionElementId,
+                    optionAuroraId,
+                    optionName,
+                    optionPackageKey,
+                    optionTypeName,
+                    spellLevel,
+                    precedenceRank));
+            }
+
+            if (filter.AllowedAuroraIds.Count == 0)
+                candidates = FilterEquivalentSpellCandidates(connection, candidates, ownerPackageKey);
+
+            var options = new List<CharacterSelectOptionResult>(candidates.Count);
+            foreach (SpellOptionCandidate candidate in candidates)
+            {
+                string requirementText = LoadElementRequirementText(connection, candidate.OptionElementId);
                 bool isAvailable = IsRequirementSatisfied(requirementText, context);
-                bool isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, optionName);
+                bool isAlreadyOwned = IsElementAlreadyOwned(context, candidate.OptionAuroraId, candidate.OptionName);
                 bool isChosenForSelect = IsStoredChoiceValue(
                     context,
                     ownerTypeName,
                     ownerName,
                     selectName,
-                    optionAuroraId,
-                    optionName);
+                    candidate.OptionAuroraId,
+                    candidate.OptionName);
 
                 options.Add(new CharacterSelectOptionResult(
                     "element",
-                    optionElementId,
-                    optionAuroraId,
-                    optionName,
-                    optionTypeName,
-                    optionPackageKey,
+                    candidate.OptionElementId,
+                    candidate.OptionAuroraId,
+                    candidate.OptionName,
+                    candidate.OptionTypeName,
+                    candidate.OptionPackageKey,
                     null,
                     isAvailable,
                     isAlreadyOwned,
@@ -2050,6 +2131,135 @@ ORDER BY
                 .GroupBy(x => x.OptionElementId)
                 .Select(x => x.First())
                 .ToList();
+        }
+
+        private static List<SpellOptionCandidate> FilterEquivalentSpellCandidates(
+            SqliteConnection connection,
+            IEnumerable<SpellOptionCandidate> candidates,
+            string ownerPackageKey)
+        {
+            List<SpellOptionCandidate> candidateList = candidates.ToList();
+            if (candidateList.Count == 0)
+                return OrderSpellCandidates(candidateList);
+
+            var signatureCache = new Dictionary<int, string>();
+            var filtered = new List<SpellOptionCandidate>();
+            foreach (IGrouping<string, SpellOptionCandidate> nameLevelGroup in candidateList.GroupBy(CreateSpellCandidateGroupingKey, StringComparer.OrdinalIgnoreCase))
+            {
+                List<SpellOptionCandidate> representatives = nameLevelGroup
+                    .GroupBy(candidate => GetSpellEquivalenceSignature(connection, candidate.OptionElementId, signatureCache), StringComparer.Ordinal)
+                    .Select(signatureGroup => signatureGroup
+                        .OrderByDescending(candidate => SpellCandidateMatchesOwnerPackage(candidate, ownerPackageKey))
+                        .ThenByDescending(candidate => candidate.PrecedenceRank)
+                        .ThenBy(candidate => candidate.OptionPackageKey, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(candidate => candidate.OptionAuroraId, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(candidate => candidate.OptionElementId)
+                        .First())
+                    .ToList();
+
+                filtered.AddRange(representatives);
+            }
+
+            return OrderSpellCandidates(filtered);
+        }
+
+        private static List<SpellOptionCandidate> OrderSpellCandidates(IEnumerable<SpellOptionCandidate> candidates)
+        {
+            return candidates
+                .OrderBy(candidate => candidate.SpellLevel)
+                .ThenBy(candidate => candidate.OptionName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(candidate => candidate.OptionPackageKey, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static string CreateSpellCandidateGroupingKey(SpellOptionCandidate candidate)
+        {
+            string name = candidate.OptionName?.Trim() ?? string.Empty;
+            return $"{candidate.SpellLevel}|{name}";
+        }
+
+        private static bool SpellCandidateMatchesOwnerPackage(SpellOptionCandidate candidate, string ownerPackageKey)
+        {
+            return !string.IsNullOrWhiteSpace(ownerPackageKey)
+                   && !string.IsNullOrWhiteSpace(candidate.OptionPackageKey)
+                   && string.Equals(candidate.OptionPackageKey, ownerPackageKey, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetSpellEquivalenceSignature(
+            SqliteConnection connection,
+            int elementId,
+            Dictionary<int, string> signatureCache)
+        {
+            if (signatureCache.TryGetValue(elementId, out string existingSignature))
+                return existingSignature;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT
+    printf(
+        '%d|%s|%s|%s|%d|%d|%d|%s|%d|%d|%s|%s|%s|%s|%s|%s',
+        spell_level,
+        COALESCE(school_name, ''),
+        COALESCE(casting_time_text, ''),
+        COALESCE(range_text, ''),
+        has_verbal,
+        has_somatic,
+        has_material,
+        COALESCE(material_text, ''),
+        is_concentration,
+        is_ritual,
+        COALESCE(duration_text, ''),
+        COALESCE(attack_type, ''),
+        COALESCE(damage_type_text, ''),
+        COALESCE(damage_formula_text, ''),
+        COALESCE(dc_ability_name, ''),
+        COALESCE(dc_success_text, '')
+    ) AS spell_signature,
+    COALESCE((
+        SELECT group_concat(text_row, '||')
+        FROM (
+            SELECT printf(
+                '%s|%d|%s|%s|%s|%s|%s|%s',
+                text_kind,
+                ordinal,
+                COALESCE(level, ''),
+                COALESCE(display, ''),
+                COALESCE(alt_text, ''),
+                COALESCE(action_text, ''),
+                COALESCE(usage_text, ''),
+                replace(replace(COALESCE(body, ''), char(13), ' '), char(10), ' ')
+            ) AS text_row
+            FROM element_texts
+            WHERE element_id = $element_id
+            ORDER BY text_kind, ordinal
+        )
+    ), '') AS text_signature
+FROM spells
+WHERE element_id = $element_id;";
+            command.Parameters.AddWithValue("$element_id", elementId);
+
+            using var reader = command.ExecuteReader();
+            if (!reader.Read())
+            {
+                signatureCache[elementId] = string.Empty;
+                return string.Empty;
+            }
+
+            string signature = string.Join(
+                "###",
+                Enumerable.Range(0, reader.FieldCount)
+                    .Select(index => NormalizeSpellSignatureComponent(reader.IsDBNull(index) ? string.Empty : reader.GetString(index))));
+
+            signatureCache[elementId] = signature;
+            return signature;
+        }
+
+        private static string NormalizeSpellSignatureComponent(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            return Regex.Replace(value, @"\s+", " ").Trim();
         }
 
         private static (string ProfileName, string ListText) LoadSpellcastingProfileSelectInfo(
@@ -2653,6 +2863,7 @@ ORDER BY s.ordinal ASC;";
                     context,
                     ownerName,
                     ownerTypeName,
+                    null,
                     selectName,
                     includeElementOptionFollowUps: false);
 
