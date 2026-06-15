@@ -1,0 +1,201 @@
+{
+  "CapturedAtUtc": "2026-06-15T16:25:05.8175353Z",
+  "StateLabel": "character-state-druid-primal-order-direct-example.json",
+  "DirectSelectionCount": 2,
+  "DirectSelections": [
+    "Class Feature|Magician|core-players-handbook-2024|",
+    "Class|Druid|core-players-handbook-2024|1"
+  ],
+  "ActiveFeatureCount": 0,
+  "ActiveFeatures": [],
+  "ActiveGrantCount": 12,
+  "AvailableSelectCount": 4,
+  "PendingChoiceCount": 3,
+  "BlockingPendingChoiceCount": 3,
+  "WarningCount": 3,
+  "WarningKindCounts": [
+    {
+      "Key": "pending-choice|warning",
+      "Count": 3
+    }
+  ],
+  "AbilityScores": [
+    {
+      "AbilityKey": "cha",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "con",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "dex",
+      "FinalValue": 14
+    },
+    {
+      "AbilityKey": "int",
+      "FinalValue": 10
+    },
+    {
+      "AbilityKey": "str",
+      "FinalValue": 8
+    },
+    {
+      "AbilityKey": "wis",
+      "FinalValue": 16
+    }
+  ],
+  "ProficiencyKeys": [
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR",
+    "ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELDS",
+    "ID_PROFICIENCY_SAVINGTHROW_INTELLIGENCE",
+    "ID_PROFICIENCY_SAVINGTHROW_WISDOM",
+    "ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS"
+  ],
+  "LanguageKeys": [
+    "ID_LANGUAGE_DRUIDIC"
+  ],
+  "GrantedSpellKeys": [
+    "ID_WOTC_PHB24_SPELL_SPEAK_WITH_ANIMALS|Druid|prepared=True"
+  ],
+  "SpellcastingProfileKeys": [
+    "spellcasting:druid|granted=1|prepared=1|unprepared=0"
+  ],
+  "FeatKeys": [],
+  "FeatureKeys": [
+    "ID_WOTC_PHB24_CLASS_FEATURE_DRUID_PRIMAL_ORDER_MAGICIAN"
+  ],
+  "ChoiceSelectionKeys": [],
+  "TraitKeys": [
+    "ID_INTERNAL_RITUAL_CASTING"
+  ],
+  "EffectRowKeys": [
+    "ability-score|cha|ability:cha|10",
+    "ability-score|con|ability:con|14",
+    "ability-score|dex|ability:dex|14",
+    "ability-score|int|ability:int|10",
+    "ability-score|str|ability:str|8",
+    "ability-score|wis|ability:wis|16",
+    "feature|class-feature|ID_WOTC_PHB24_CLASS_FEATURE_DRUID_PRIMAL_ORDER_MAGICIAN|Magician",
+    "language|language|ID_LANGUAGE_DRUIDIC|Druidic",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_LIGHT_ARMOR|Armor Proficiency (Light Armor)",
+    "proficiency|armor|ID_PROFICIENCY_ARMOR_PROFICIENCY_SHIELDS|Armor Proficiency (Shields)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_INTELLIGENCE|Saving Throw Proficiency (Intelligence)",
+    "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_WISDOM|Saving Throw Proficiency (Wisdom)",
+    "proficiency|weapon|ID_PROFICIENCY_WEAPON_PROFICIENCY_SIMPLE_WEAPONS|Weapon Proficiency (Simple Weapons)",
+    "spell-grant|prepared-spell|spell:ID_WOTC_PHB24_SPELL_SPEAK_WITH_ANIMALS|Druid|prepared=True|Druid",
+    "trait|ritual-casting|ID_INTERNAL_RITUAL_CASTING|RITUAL CASTING"
+  ],
+  "PendingChoiceKeys": [
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|family=spell-pick|remaining=2|blocking=True",
+    "Class Feature|Magician|Cantrip (Magician)|family=spell-pick|remaining=1|blocking=True",
+    "Class|Druid|Skill Proficiency (Druid)|family=skill-pick|remaining=2|blocking=True"
+  ],
+  "ProvenanceKindCounts": [
+    {
+      "Key": "ability-score|base-state",
+      "Count": 6
+    },
+    {
+      "Key": "feature|direct-selection",
+      "Count": 1
+    },
+    {
+      "Key": "granted-spell|grant",
+      "Count": 1
+    },
+    {
+      "Key": "language|grant",
+      "Count": 1
+    },
+    {
+      "Key": "proficiency|grant",
+      "Count": 5
+    },
+    {
+      "Key": "trait|semantic-grant",
+      "Count": 1
+    }
+  ],
+  "AppliedChoiceStates": [],
+  "SpellSelectOptionCounts": [
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|options=37",
+    "Class Feature|Magician|Cantrip (Magician)|options=37"
+  ],
+  "SpellSelectOptionKeys": [
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Control Flames|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_CONTROLFLAMES",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Control Flames|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_CONTROL_FLAMES",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Create Bonfire|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_CREATEBONFIRE",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Create Bonfire|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_CREATE_BONFIRE",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Druidcraft|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DRUIDCRAFT",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Druidcraft|core-players-handbook|ID_PHB_SPELL_DRUIDCRAFT",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Elementalism|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ELEMENTALISM",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Frostbite|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_FROSTBITE",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Guidance|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_GUIDANCE",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Guidance|core-players-handbook|ID_PHB_SPELL_GUIDANCE",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Gust|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_GUST",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Gust|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_GUST",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Infestation|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_INFESTATION",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Magic Stone|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_MAGICSTONE",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Mending|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_MENDING",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Mending|core-players-handbook|ID_PHB_SPELL_MENDING",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Message|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_MESSAGE",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Mold Earth|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_MOLDEARTH",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Mold Earth|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_MOLD_EARTH",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Poison Spray|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_POISON_SPRAY",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Poison Spray|core-players-handbook|ID_PHB_SPELL_POISON_SPRAY",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Primal Savagery|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_PRIMAL_SAVAGERY",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Produce Flame|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_PRODUCE_FLAME",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Produce Flame|core-players-handbook|ID_PHB_SPELL_PRODUCE_FLAME",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Resistance|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_RESISTANCE",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Resistance|core-players-handbook|ID_PHB_SPELL_RESISTANCE",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Shape Water|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_SHAPEWATER",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Shape Water|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_SHAPE_WATER",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Shillelagh|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_SHILLELAGH",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Shillelagh|core-players-handbook|ID_PHB_SPELL_SHILLELAGH",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Spare the Dying|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_SPARE_THE_DYING",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Starry Wisp|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_STARRY_WISP",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Thorn Whip|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_THORN_WHIP",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Thorn Whip|core-players-handbook|ID_PHB_SPELL_THORN_WHIP",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Thunderclap|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_THUNDERCLAP",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Thunderclap|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_THUNDERCLAP",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Druid 1)|Thunderclap|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_THUNDERCLAP",
+    "Class Feature|Magician|Cantrip (Magician)|Control Flames|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_CONTROLFLAMES",
+    "Class Feature|Magician|Cantrip (Magician)|Control Flames|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_CONTROL_FLAMES",
+    "Class Feature|Magician|Cantrip (Magician)|Create Bonfire|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_CREATEBONFIRE",
+    "Class Feature|Magician|Cantrip (Magician)|Create Bonfire|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_CREATE_BONFIRE",
+    "Class Feature|Magician|Cantrip (Magician)|Druidcraft|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DRUIDCRAFT",
+    "Class Feature|Magician|Cantrip (Magician)|Druidcraft|core-players-handbook|ID_PHB_SPELL_DRUIDCRAFT",
+    "Class Feature|Magician|Cantrip (Magician)|Elementalism|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ELEMENTALISM",
+    "Class Feature|Magician|Cantrip (Magician)|Frostbite|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_FROSTBITE",
+    "Class Feature|Magician|Cantrip (Magician)|Guidance|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_GUIDANCE",
+    "Class Feature|Magician|Cantrip (Magician)|Guidance|core-players-handbook|ID_PHB_SPELL_GUIDANCE",
+    "Class Feature|Magician|Cantrip (Magician)|Gust|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_GUST",
+    "Class Feature|Magician|Cantrip (Magician)|Gust|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_GUST",
+    "Class Feature|Magician|Cantrip (Magician)|Infestation|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_INFESTATION",
+    "Class Feature|Magician|Cantrip (Magician)|Magic Stone|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_MAGICSTONE",
+    "Class Feature|Magician|Cantrip (Magician)|Mending|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_MENDING",
+    "Class Feature|Magician|Cantrip (Magician)|Mending|core-players-handbook|ID_PHB_SPELL_MENDING",
+    "Class Feature|Magician|Cantrip (Magician)|Message|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_MESSAGE",
+    "Class Feature|Magician|Cantrip (Magician)|Mold Earth|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_MOLDEARTH",
+    "Class Feature|Magician|Cantrip (Magician)|Mold Earth|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_MOLD_EARTH",
+    "Class Feature|Magician|Cantrip (Magician)|Poison Spray|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_POISON_SPRAY",
+    "Class Feature|Magician|Cantrip (Magician)|Poison Spray|core-players-handbook|ID_PHB_SPELL_POISON_SPRAY",
+    "Class Feature|Magician|Cantrip (Magician)|Primal Savagery|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_PRIMAL_SAVAGERY",
+    "Class Feature|Magician|Cantrip (Magician)|Produce Flame|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_PRODUCE_FLAME",
+    "Class Feature|Magician|Cantrip (Magician)|Produce Flame|core-players-handbook|ID_PHB_SPELL_PRODUCE_FLAME",
+    "Class Feature|Magician|Cantrip (Magician)|Resistance|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_RESISTANCE",
+    "Class Feature|Magician|Cantrip (Magician)|Resistance|core-players-handbook|ID_PHB_SPELL_RESISTANCE",
+    "Class Feature|Magician|Cantrip (Magician)|Shape Water|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_SHAPEWATER",
+    "Class Feature|Magician|Cantrip (Magician)|Shape Water|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_SHAPE_WATER",
+    "Class Feature|Magician|Cantrip (Magician)|Shillelagh|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_SHILLELAGH",
+    "Class Feature|Magician|Cantrip (Magician)|Shillelagh|core-players-handbook|ID_PHB_SPELL_SHILLELAGH",
+    "Class Feature|Magician|Cantrip (Magician)|Spare the Dying|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_SPARE_THE_DYING",
+    "Class Feature|Magician|Cantrip (Magician)|Starry Wisp|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_STARRY_WISP",
+    "Class Feature|Magician|Cantrip (Magician)|Thorn Whip|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_THORN_WHIP",
+    "Class Feature|Magician|Cantrip (Magician)|Thorn Whip|core-players-handbook|ID_PHB_SPELL_THORN_WHIP",
+    "Class Feature|Magician|Cantrip (Magician)|Thunderclap|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_THUNDERCLAP",
+    "Class Feature|Magician|Cantrip (Magician)|Thunderclap|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_THUNDERCLAP",
+    "Class Feature|Magician|Cantrip (Magician)|Thunderclap|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_THUNDERCLAP"
+  ]
+}

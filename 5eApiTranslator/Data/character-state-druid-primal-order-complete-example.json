@@ -1,0 +1,79 @@
+{
+  "classes": [
+    {
+      "name": "Druid",
+      "packageKey": "core-players-handbook-2024",
+      "level": 1
+    }
+  ],
+  "archetypes": [],
+  "race": null,
+  "subRace": null,
+  "raceVariants": [],
+  "background": null,
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [
+    {
+      "ownerName": "Druid",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Druid)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_NATURE",
+      "optionName": "Nature"
+    },
+    {
+      "ownerName": "Druid",
+      "ownerTypeName": "Class",
+      "selectName": "Skill Proficiency (Druid)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_PERCEPTION",
+      "optionName": "Perception"
+    },
+    {
+      "ownerName": "Level 1: Primal Order",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Sacred Role (Primal Order)",
+      "selectType": "Class Feature",
+      "optionAuroraId": "ID_WOTC_PHB24_CLASS_FEATURE_DRUID_PRIMAL_ORDER_MAGICIAN",
+      "optionName": "Magician"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Druid 1)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_DRUIDCRAFT",
+      "optionName": "Druidcraft"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Druid 1)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_THORN_WHIP",
+      "optionName": "Thorn Whip"
+    },
+    {
+      "ownerName": "Magician",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Cantrip (Magician)",
+      "selectType": "Spell",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_GUIDANCE",
+      "optionName": "Guidance"
+    }
+  ],
+  "tokens": [],
+  "numericValues": {
+    "str": 8,
+    "dex": 14,
+    "con": 14,
+    "int": 10,
+    "wis": 16,
+    "cha": 10
+  },
+  "scalarValues": {},
+  "macroValues": {}
+}
