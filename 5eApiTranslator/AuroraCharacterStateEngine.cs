@@ -1881,10 +1881,29 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
                 return LoadProficiencyOptions(connection, supportsText, context, choiceKey, choiceRowKey, ownerTypeName, ownerName, selectName);
 
             if (string.Equals(selectPolicy, "broad-feat-pool", StringComparison.OrdinalIgnoreCase))
-                return BuildFeatFollowUpOptions(connection, context, supportsText, ownerName, selectName);
+                return BuildFeatFollowUpOptions(
+                    connection,
+                    context,
+                    supportsText,
+                    choiceKey,
+                    choiceRowKey,
+                    ownerName,
+                    ownerTypeName,
+                    selectName,
+                    includeElementOptionFollowUps);
 
             if (string.Equals(selectPolicy, "asi-feature-pool", StringComparison.OrdinalIgnoreCase))
-                return LoadAsiFeatureOptions(connection, selectId, supportsText, context);
+                return LoadAsiFeatureOptions(
+                    connection,
+                    selectId,
+                    supportsText,
+                    context,
+                    choiceKey,
+                    choiceRowKey,
+                    ownerName,
+                    ownerTypeName,
+                    selectName,
+                    includeElementOptionFollowUps);
 
             if (string.Equals(selectPolicy, "broad-spell-pool", StringComparison.OrdinalIgnoreCase))
                 return LoadSpellOptions(
@@ -3229,12 +3248,27 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             SqliteConnection connection,
             int selectId,
             string supportsText,
-            AuroraExpressionEvaluationContext context)
+            AuroraExpressionEvaluationContext context,
+            string choiceKey,
+            string choiceRowKey,
+            string ownerName,
+            string ownerTypeName,
+            string selectName,
+            bool includeElementOptionFollowUps)
         {
             bool featAllowed = context.MatchesToken("ID_INTERNAL_OPTION_ALLOW_FEATS");
             List<CharacterSelectOptionResult> asiFollowUps = BuildAsiFollowUpOptions(context);
             List<CharacterSelectOptionResult> featFollowUps = featAllowed
-                ? BuildFeatFollowUpOptions(connection, context)
+                ? BuildFeatFollowUpOptions(
+                    connection,
+                    context,
+                    null,
+                    choiceKey,
+                    choiceRowKey,
+                    ownerName,
+                    ownerTypeName,
+                    selectName,
+                    includeElementOptionFollowUps)
                 : new List<CharacterSelectOptionResult>();
 
             return new List<CharacterSelectOptionResult>
@@ -3327,8 +3361,12 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             SqliteConnection connection,
             AuroraExpressionEvaluationContext context,
             string supportsText = null,
+            string choiceKey = null,
+            string choiceRowKey = null,
             string ownerName = null,
-            string selectName = null)
+            string ownerTypeName = null,
+            string selectName = null,
+            bool includeElementOptionFollowUps = true)
         {
             HashSet<string> allowedAuroraIds = ExtractAuroraIds(supportsText);
             HashSet<string> requiredSupportTags = ResolveFeatSupportTags(supportsText, ownerName, selectName);
@@ -3381,6 +3419,23 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 string requirementText = LoadElementRequirementText(connection, elementId);
                 bool isAvailable = IsRequirementSatisfied(requirementText, context);
                 bool isAlreadyOwned = IsElementAlreadyOwned(context, auroraId, featName);
+                bool isChosenForSelect = IsStoredChoiceValue(
+                    context,
+                    choiceKey,
+                    choiceRowKey,
+                    ownerTypeName,
+                    ownerName,
+                    selectName,
+                    auroraId,
+                    featName);
+                IReadOnlyList<CharacterSelectOptionResult> followUpOptions = null;
+                string followUpKind = null;
+                if (includeElementOptionFollowUps && isAvailable)
+                {
+                    followUpOptions = LoadDirectSelectPreviewOptions(connection, elementId, context);
+                    if (followUpOptions.Count > 0)
+                        followUpKind = "unlocked-selects";
+                }
 
                 options.Add(new CharacterSelectOptionResult(
                     "element",
@@ -3392,8 +3447,10 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     null,
                     isAvailable,
                     isAlreadyOwned,
-                    false,
-                    requirementText));
+                    isChosenForSelect,
+                    requirementText,
+                    followUpKind,
+                    followUpOptions));
             }
 
             return options

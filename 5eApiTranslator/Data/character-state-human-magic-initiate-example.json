@@ -1,0 +1,68 @@
+{
+  "classes": [],
+  "archetypes": [],
+  "race": {
+    "name": "Human",
+    "packageKey": "core-players-handbook-2024"
+  },
+  "subRace": null,
+  "raceVariants": [],
+  "background": null,
+  "feats": [],
+  "proficiencies": [],
+  "languages": [],
+  "elements": [],
+  "selectedChoices": [
+    {
+      "ownerName": "Human",
+      "ownerTypeName": "Race",
+      "selectName": "Language (Human)",
+      "selectType": "Language",
+      "optionAuroraId": "ID_LANGUAGE_DWARVISH",
+      "optionName": "Dwarvish"
+    },
+    {
+      "ownerName": "Human",
+      "ownerTypeName": "Race",
+      "selectName": "Language (Human)",
+      "selectType": "Language",
+      "optionAuroraId": "ID_LANGUAGE_ELVISH",
+      "optionName": "Elvish"
+    },
+    {
+      "ownerName": "Human",
+      "ownerTypeName": "Race",
+      "selectName": "Size (Human)",
+      "selectType": "Racial Trait",
+      "optionAuroraId": "ID_INTERNAL_RACIAL_TRAIT_MEDIUM",
+      "optionName": "Medium"
+    },
+    {
+      "ownerName": "Skillful",
+      "ownerTypeName": "Racial Trait",
+      "selectName": "Skill Proficiency (Skillful)",
+      "selectType": "Proficiency",
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_ARCANA",
+      "optionName": "Arcana"
+    },
+    {
+      "ownerName": "Versatile",
+      "ownerTypeName": "Racial Trait",
+      "selectName": "Feat (Versatile)",
+      "selectType": "Feat",
+      "optionAuroraId": "ID_WOTC_PHB24_FEAT_MAGIC_INITIATE",
+      "optionName": "Magic Initiate"
+    }
+  ],
+  "tokens": [],
+  "numericValues": {
+    "str": 10,
+    "dex": 10,
+    "con": 14,
+    "int": 10,
+    "wis": 16,
+    "cha": 10
+  },
+  "scalarValues": {},
+  "macroValues": {}
+}
