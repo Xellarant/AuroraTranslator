@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS database_metadata
 (
     singleton_id      INTEGER NOT NULL PRIMARY KEY CHECK (singleton_id = 1),
     schema_version    INTEGER NOT NULL DEFAULT 1,
-    data_version      INTEGER NOT NULL DEFAULT 9,
+    data_version      INTEGER NOT NULL DEFAULT 10,
     importer_version  TEXT    NOT NULL DEFAULT '',
     built_utc         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     source_file_count INTEGER NOT NULL DEFAULT 0,
@@ -343,6 +343,22 @@ CREATE TABLE IF NOT EXISTS spellcasting_profiles
     extend_text TEXT,
     UNIQUE (owner_element_id, owner_kind)
 );
+
+CREATE TABLE IF NOT EXISTS spellcasting_profile_entries
+(
+    spellcasting_profile_entry_id INTEGER PRIMARY KEY,
+    spellcasting_profile_id INTEGER NOT NULL REFERENCES spellcasting_profiles(spellcasting_profile_id) ON DELETE CASCADE,
+    entry_kind TEXT NOT NULL CHECK (entry_kind IN ('list', 'extend')),
+    ordinal INTEGER NOT NULL,
+    entry_text TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_spellcasting_profile_entries_identity
+    ON spellcasting_profile_entries(spellcasting_profile_id, entry_kind, ordinal, entry_text);
+CREATE INDEX IF NOT EXISTS ix_spellcasting_profile_entries_profile
+    ON spellcasting_profile_entries(spellcasting_profile_id, entry_kind, ordinal);
+CREATE INDEX IF NOT EXISTS ix_spellcasting_profile_entries_text
+    ON spellcasting_profile_entries(entry_kind, entry_text);
 
 CREATE TABLE IF NOT EXISTS archetypes
 (
@@ -2337,6 +2353,37 @@ GROUP BY
     owner_source_path,
     owner_type_name,
     trim(spellcasting_name);
+
+DROP VIEW IF EXISTS v_spellcasting_profile_entries;
+CREATE VIEW v_spellcasting_profile_entries AS
+SELECT
+    sp.spellcasting_profile_id,
+    sp.owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_rec.package_key AS owner_package_key,
+    owner_sf.relative_path AS owner_source_path,
+    owner_type.type_name AS owner_type_name,
+    sp.owner_kind,
+    sp.profile_name,
+    sp.ability_name,
+    sp.is_extended,
+    sp.prepare_spells,
+    sp.allow_replace,
+    spe.entry_kind,
+    spe.ordinal AS entry_ordinal,
+    spe.entry_text
+FROM spellcasting_profile_entries AS spe
+JOIN spellcasting_profiles AS sp
+    ON sp.spellcasting_profile_id = spe.spellcasting_profile_id
+JOIN elements AS owner
+    ON owner.element_id = sp.owner_element_id
+JOIN resolved_elements_cache AS owner_rec
+    ON owner_rec.winning_element_id = owner.element_id
+JOIN source_files AS owner_sf
+    ON owner_sf.source_file_id = owner.source_file_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id;
 
 DROP VIEW IF EXISTS v_app_effect_rows;
 CREATE VIEW v_app_effect_rows AS

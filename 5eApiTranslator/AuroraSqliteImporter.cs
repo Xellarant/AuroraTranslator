@@ -11,6 +11,8 @@ namespace AuroraTranslator
 {
     internal static class AuroraSqliteImporter
     {
+        private const int CurrentDataVersion = 10;
+
         private static readonly IReadOnlyDictionary<string, (string TargetName, IReadOnlyList<string> TypeNames)> GrantTargetAliasMap
             = new Dictionary<string, (string TargetName, IReadOnlyList<string> TypeNames)>(StringComparer.OrdinalIgnoreCase)
             {
@@ -217,7 +219,7 @@ INSERT INTO database_metadata
     (singleton_id, schema_version, data_version, importer_version,
      built_utc, source_file_count, element_count, content_root_hash)
 VALUES
-    (1, 1, 9, $importer_version, $built_utc, $source_file_count, $element_count, NULL)
+    (1, 1, $data_version, $importer_version, $built_utc, $source_file_count, $element_count, NULL)
 ON CONFLICT(singleton_id) DO UPDATE SET
     schema_version    = excluded.schema_version,
     data_version      = excluded.data_version,
@@ -225,6 +227,7 @@ ON CONFLICT(singleton_id) DO UPDATE SET
     built_utc         = excluded.built_utc,
     source_file_count = excluded.source_file_count,
     element_count     = excluded.element_count;";
+            cmd.Parameters.AddWithValue("$data_version", CurrentDataVersion);
             cmd.Parameters.AddWithValue("$importer_version", "AuroraTranslator/1.0");
             cmd.Parameters.AddWithValue("$built_utc", DateTime.UtcNow.ToString("o"));
             cmd.Parameters.AddWithValue("$source_file_count", sourceFileCount);
@@ -1181,6 +1184,8 @@ CREATE INDEX IF NOT EXISTS ix_parent_family_aliases_target_name
     ON parent_family_aliases(link_kind, target_name, target_type_name);";
             cacheTables.ExecuteNonQuery();
 
+            EnsureSpellcastingProfileEntriesSchema(connection);
+
             using var selectItemKindIndex = connection.CreateCommand();
             selectItemKindIndex.CommandText = @"
 CREATE INDEX IF NOT EXISTS ix_select_items_kind
@@ -1203,6 +1208,15 @@ WHERE target_element_id IS NULL
 
             BackfillSelectItemOptionKinds(connection);
             SeedParentFamilyAliases(connection);
+
+            bool rebuildSpellcastingProfileEntries =
+                GetStoredDataVersion(connection) < CurrentDataVersion ||
+                SpellcastingProfileEntriesNeedRebuild(connection);
+
+            if (rebuildSpellcastingProfileEntries)
+                RebuildSpellcastingProfileEntries(connection);
+
+            EnsureDatabaseMetadataDataVersion(connection, CurrentDataVersion);
 
             if (refreshViews)
             {
@@ -1348,12 +1362,139 @@ WHERE type = 'view'
             return EnsureColumnExists(connection, tableName, columnName, columnDefinition);
         }
 
+        private static long GetStoredDataVersion(SqliteConnection connection)
+        {
+            if (!TableExists(connection, "database_metadata"))
+                return 0;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT COALESCE(MAX(data_version), 0) FROM database_metadata;";
+            return Convert.ToInt64(command.ExecuteScalar() ?? 0L);
+        }
+
         private static bool TableExists(SqliteConnection connection, string tableName)
         {
             using var check = connection.CreateCommand();
             check.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $table_name;";
             check.Parameters.AddWithValue("$table_name", tableName);
             return (long)(check.ExecuteScalar() ?? 0L) != 0;
+        }
+
+        private static void EnsureDatabaseMetadataDataVersion(SqliteConnection connection, int dataVersion)
+        {
+            if (!TableExists(connection, "database_metadata"))
+                return;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+UPDATE database_metadata
+SET data_version = $data_version
+WHERE singleton_id = 1
+  AND COALESCE(data_version, 0) < $data_version;";
+            command.Parameters.AddWithValue("$data_version", dataVersion);
+            command.ExecuteNonQuery();
+        }
+
+        private static void EnsureSpellcastingProfileEntriesSchema(SqliteConnection connection)
+        {
+            if (!TableExists(connection, "spellcasting_profiles"))
+                return;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+CREATE TABLE IF NOT EXISTS spellcasting_profile_entries
+(
+    spellcasting_profile_entry_id INTEGER PRIMARY KEY,
+    spellcasting_profile_id INTEGER NOT NULL REFERENCES spellcasting_profiles(spellcasting_profile_id) ON DELETE CASCADE,
+    entry_kind TEXT NOT NULL CHECK (entry_kind IN ('list', 'extend')),
+    ordinal INTEGER NOT NULL,
+    entry_text TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_spellcasting_profile_entries_identity
+    ON spellcasting_profile_entries(spellcasting_profile_id, entry_kind, ordinal, entry_text);
+CREATE INDEX IF NOT EXISTS ix_spellcasting_profile_entries_profile
+    ON spellcasting_profile_entries(spellcasting_profile_id, entry_kind, ordinal);
+CREATE INDEX IF NOT EXISTS ix_spellcasting_profile_entries_text
+    ON spellcasting_profile_entries(entry_kind, entry_text);";
+            command.ExecuteNonQuery();
+        }
+
+        private static bool SpellcastingProfileEntriesNeedRebuild(SqliteConnection connection)
+        {
+            if (!TableExists(connection, "spellcasting_profiles") ||
+                !TableExists(connection, "spellcasting_profile_entries"))
+            {
+                return false;
+            }
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT COUNT(*)
+FROM spellcasting_profiles AS sp
+WHERE
+(
+    COALESCE(trim(sp.list_text), '') <> ''
+    AND NOT EXISTS
+    (
+        SELECT 1
+        FROM spellcasting_profile_entries AS spe
+        WHERE spe.spellcasting_profile_id = sp.spellcasting_profile_id
+          AND spe.entry_kind = 'list'
+    )
+)
+OR
+(
+    COALESCE(trim(sp.extend_text), '') <> ''
+    AND NOT EXISTS
+    (
+        SELECT 1
+        FROM spellcasting_profile_entries AS spe
+        WHERE spe.spellcasting_profile_id = sp.spellcasting_profile_id
+          AND spe.entry_kind = 'extend'
+    )
+);";
+            return Convert.ToInt64(command.ExecuteScalar() ?? 0L) > 0;
+        }
+
+        private static void RebuildSpellcastingProfileEntries(SqliteConnection connection)
+        {
+            if (!TableExists(connection, "spellcasting_profiles") ||
+                !TableExists(connection, "spellcasting_profile_entries"))
+            {
+                return;
+            }
+
+            var profiles = new List<(long SpellcastingProfileId, string ListText, string ExtendText)>();
+            using var transaction = connection.BeginTransaction();
+            ExecuteSql(connection, transaction, "DELETE FROM spellcasting_profile_entries;");
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+SELECT
+    spellcasting_profile_id,
+    list_text,
+    extend_text
+FROM spellcasting_profiles;";
+
+            {
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    profiles.Add((
+                        reader.GetInt64(0),
+                        reader.IsDBNull(1) ? null : reader.GetString(1),
+                        reader.IsDBNull(2) ? null : reader.GetString(2)));
+                }
+            }
+
+            foreach (var profile in profiles)
+            {
+                InsertSpellcastingProfileEntries(connection, transaction, profile.SpellcastingProfileId, "list", profile.ListText);
+                InsertSpellcastingProfileEntries(connection, transaction, profile.SpellcastingProfileId, "extend", profile.ExtendText);
+            }
+
+            transaction.Commit();
         }
 
         private static void InvalidateSourceFileHashes(SqliteConnection connection)
@@ -3090,6 +3231,37 @@ GROUP BY
     owner_source_path,
     owner_type_name,
     trim(spellcasting_name);
+
+DROP VIEW IF EXISTS v_spellcasting_profile_entries;
+CREATE VIEW v_spellcasting_profile_entries AS
+SELECT
+    sp.spellcasting_profile_id,
+    sp.owner_element_id,
+    owner.aurora_id AS owner_aurora_id,
+    owner.name AS owner_name,
+    owner_rec.package_key AS owner_package_key,
+    owner_sf.relative_path AS owner_source_path,
+    owner_type.type_name AS owner_type_name,
+    sp.owner_kind,
+    sp.profile_name,
+    sp.ability_name,
+    sp.is_extended,
+    sp.prepare_spells,
+    sp.allow_replace,
+    spe.entry_kind,
+    spe.ordinal AS entry_ordinal,
+    spe.entry_text
+FROM spellcasting_profile_entries AS spe
+JOIN spellcasting_profiles AS sp
+    ON sp.spellcasting_profile_id = spe.spellcasting_profile_id
+JOIN elements AS owner
+    ON owner.element_id = sp.owner_element_id
+JOIN resolved_elements_cache AS owner_rec
+    ON owner_rec.winning_element_id = owner.element_id
+JOIN source_files AS owner_sf
+    ON owner_sf.source_file_id = owner.source_file_id
+JOIN element_types AS owner_type
+    ON owner_type.element_type_id = owner.element_type_id;
 
 DROP VIEW IF EXISTS v_app_effect_rows;
 CREATE VIEW v_app_effect_rows AS
@@ -4911,6 +5083,99 @@ VALUES
                 ("$allow_replace", spellcasting.allowReplace.HasValue ? (spellcasting.allowReplace.Value ? 1 : 0) : DBNull.Value),
                 ("$list_text", (object)spellcasting.list?.raw ?? DBNull.Value),
                 ("$extend_text", (object)spellcasting.extendList?.raw ?? DBNull.Value));
+
+            long spellcastingProfileId = GetLastInsertRowId(connection, transaction);
+            InsertSpellcastingProfileEntries(connection, transaction, spellcastingProfileId, "list", spellcasting.list?.raw);
+            InsertSpellcastingProfileEntries(connection, transaction, spellcastingProfileId, "extend", spellcasting.extendList?.raw);
+        }
+
+        private static void InsertSpellcastingProfileEntries(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            long spellcastingProfileId,
+            string entryKind,
+            string rawText)
+        {
+            IReadOnlyList<string> entries = ParseSpellcastingProfileEntryText(rawText);
+            for (int i = 0; i < entries.Count; i++)
+            {
+                ExecuteInsert(connection, transaction,
+                    @"INSERT INTO spellcasting_profile_entries
+(spellcasting_profile_id, entry_kind, ordinal, entry_text)
+VALUES
+($spellcasting_profile_id, $entry_kind, $ordinal, $entry_text);",
+                    ("$spellcasting_profile_id", spellcastingProfileId),
+                    ("$entry_kind", entryKind),
+                    ("$ordinal", i + 1),
+                    ("$entry_text", entries[i]));
+            }
+        }
+
+        private static IReadOnlyList<string> ParseSpellcastingProfileEntryText(string rawText)
+        {
+            if (string.IsNullOrWhiteSpace(rawText))
+                return Array.Empty<string>();
+
+            return SplitTopLevel(rawText, ',');
+        }
+
+        private static List<string> SplitTopLevel(string input, char separator)
+        {
+            var values = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(input))
+                return values;
+
+            int parenthesesDepth = 0;
+            int bracketsDepth = 0;
+            int bracesDepth = 0;
+            var current = new System.Text.StringBuilder();
+
+            foreach (char ch in input)
+            {
+                switch (ch)
+                {
+                    case '(':
+                        parenthesesDepth++;
+                        break;
+                    case ')':
+                        parenthesesDepth = Math.Max(0, parenthesesDepth - 1);
+                        break;
+                    case '[':
+                        bracketsDepth++;
+                        break;
+                    case ']':
+                        bracketsDepth = Math.Max(0, bracketsDepth - 1);
+                        break;
+                    case '{':
+                        bracesDepth++;
+                        break;
+                    case '}':
+                        bracesDepth = Math.Max(0, bracesDepth - 1);
+                        break;
+                }
+
+                if (ch == separator
+                    && parenthesesDepth == 0
+                    && bracketsDepth == 0
+                    && bracesDepth == 0)
+                {
+                    string candidate = current.ToString().Trim();
+                    if (!string.IsNullOrWhiteSpace(candidate))
+                        values.Add(candidate);
+
+                    current.Clear();
+                    continue;
+                }
+
+                current.Append(ch);
+            }
+
+            string finalCandidate = current.ToString().Trim();
+            if (!string.IsNullOrWhiteSpace(finalCandidate))
+                values.Add(finalCandidate);
+
+            return values;
         }
 
         private static void InsertSetters(SqliteConnection connection, SqliteTransaction transaction, long elementId, string ownerKind, AuroraSetters setters)
