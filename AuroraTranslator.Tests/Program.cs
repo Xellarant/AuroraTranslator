@@ -6,6 +6,7 @@ var tests = new (string Name, Action Body)[]
 {
     ("imports spellcasting profile entries", SpellcastingProfileEntryTests.ImportCreatesNormalizedEntries),
     ("migrates spellcasting profile entries", SpellcastingProfileEntryTests.MigrationRebuildsNormalizedEntries),
+    ("repairs missing spellcasting profile entries", SpellcastingProfileEntryTests.CurrentVersionMaintenanceRebuildsMissingEntries),
     ("previews nested feat choices", NestedFeatPreviewTests.FeatPoolOptionsExposeOneLevelSelectPreviews)
 };
 
@@ -87,6 +88,37 @@ internal static class SpellcastingProfileEntryTests
         TestAssert.Equal(
             6L,
             ExecuteLong(migrated, "SELECT COUNT(*) FROM v_spellcasting_profile_entries WHERE owner_aurora_id = 'ID_TEST_SPELLCASTING_CLASS';"));
+    }
+
+    public static void CurrentVersionMaintenanceRebuildsMissingEntries()
+    {
+        using var workspace = TestWorkspace.Create();
+
+        AuroraSqliteImporter.Import(
+            CreateCatalog(workspace),
+            TestPaths.SchemaPath,
+            workspace.DatabasePath);
+
+        using (var connection = Open(workspace.DatabasePath))
+        {
+            TestAssert.Equal(10L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+            ExecuteNonQuery(connection, "DELETE FROM spellcasting_profile_entries;");
+            TestAssert.Equal(0L, ExecuteLong(connection, "SELECT COUNT(*) FROM spellcasting_profile_entries;"));
+        }
+
+        AuroraSqliteImporter.ListContentPackages(workspace.DatabasePath, TestPaths.SchemaPath);
+
+        using var repaired = Open(workspace.DatabasePath);
+        TestAssert.Equal(10L, ExecuteLong(repaired, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Sequence(
+            new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
+            QueryStrings(repaired, "SELECT entry_text FROM spellcasting_profile_entries WHERE entry_kind = 'list' ORDER BY ordinal;"));
+        TestAssert.Sequence(
+            new[] { "cleric", "druid" },
+            QueryStrings(repaired, "SELECT entry_text FROM spellcasting_profile_entries WHERE entry_kind = 'extend' ORDER BY ordinal;"));
+        TestAssert.Equal(
+            6L,
+            ExecuteLong(repaired, "SELECT COUNT(*) FROM v_spellcasting_profile_entries WHERE owner_aurora_id = 'ID_TEST_SPELLCASTING_CLASS';"));
     }
 
     private static AuroraImportCatalog CreateCatalog(TestWorkspace workspace)
