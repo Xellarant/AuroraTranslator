@@ -145,7 +145,8 @@ namespace AuroraTranslator
         bool IsChosenForSelect,
         string RequirementText,
         string FollowUpKind = null,
-        IReadOnlyList<CharacterSelectOptionResult> FollowUpOptions = null);
+        IReadOnlyList<CharacterSelectOptionResult> FollowUpOptions = null,
+        string UnavailableReason = null);
 
     internal sealed record CharacterSelectResult(
         int SelectId,
@@ -3417,7 +3418,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 }
 
                 string requirementText = LoadElementRequirementText(connection, elementId);
-                bool isAvailable = IsRequirementSatisfied(requirementText, context);
+                bool requirementsSatisfied = IsRequirementSatisfied(requirementText, context);
                 bool isAlreadyOwned = IsElementAlreadyOwned(context, auroraId, featName);
                 bool isChosenForSelect = IsStoredChoiceValue(
                     context,
@@ -3428,6 +3429,12 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     selectName,
                     auroraId,
                     featName);
+                bool isAvailable = isChosenForSelect || (requirementsSatisfied && !isAlreadyOwned);
+                string unavailableReason = isAvailable
+                    ? null
+                    : isAlreadyOwned
+                        ? "Already owned."
+                        : "Requirements not satisfied.";
                 IReadOnlyList<CharacterSelectOptionResult> followUpOptions = null;
                 string followUpKind = null;
                 if (includeElementOptionFollowUps && isAvailable)
@@ -3450,7 +3457,8 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     isChosenForSelect,
                     requirementText,
                     followUpKind,
-                    followUpOptions));
+                    followUpOptions,
+                    unavailableReason));
             }
 
             return options

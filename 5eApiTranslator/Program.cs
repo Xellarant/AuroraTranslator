@@ -1037,6 +1037,7 @@ namespace AuroraTranslator
                 option.IsAlreadyOwned,
                 option.RequirementText,
                 option.FollowUpKind,
+                option.UnavailableReason,
                 followUpOptionCount = option.FollowUpOptions?.Count ?? 0,
                 followUpOptions = option.FollowUpOptions?.Select(BuildCharacterSelectOptionExport).ToList()
                     ?? new List<object>()

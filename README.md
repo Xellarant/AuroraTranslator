@@ -39,6 +39,7 @@ Notable runtime capabilities already in place:
 - over-picked first-party choice states now fail loudly instead of silently passing through, either as explicit over-selection warnings or immediate `select-full` application errors depending on when the extra pick is detected
 - support-driven fixed pools now resolve real element options even when Aurora encoded them only in `supports_text`, which makes nested feat families like PHB 2024 `Magic Initiate` behave like normal builder choices
 - broad feat pools now honor support tags and explicit allowlists, so origin-feat slots and general-feat slots no longer bleed into one another
+- broad feat pools now exclude already-owned feats unless the feat is the saved selection for that same choice row, and JSON option rows expose an `unavailableReason`
 - ritual-only spell picks can now resolve against the global ritual corpus without needing a spell-list owner, which makes PHB 2024 `Ritual Caster` behave like a real builder package
 - nested class-feature spell picks such as Cleric `Thaumaturge` now inherit their parent class spell list instead of surfacing as empty pending rows
 - broad spell pools now collapse only exact-equivalent spell reprints, using the full stored spell/text/rule shape instead of just name matching, so materially different 2014/2024 variants remain separate choices

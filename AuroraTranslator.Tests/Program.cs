@@ -7,7 +7,8 @@ var tests = new (string Name, Action Body)[]
     ("imports spellcasting profile entries", SpellcastingProfileEntryTests.ImportCreatesNormalizedEntries),
     ("migrates spellcasting profile entries", SpellcastingProfileEntryTests.MigrationRebuildsNormalizedEntries),
     ("repairs missing spellcasting profile entries", SpellcastingProfileEntryTests.CurrentVersionMaintenanceRebuildsMissingEntries),
-    ("previews nested feat choices", NestedFeatPreviewTests.FeatPoolOptionsExposeOneLevelSelectPreviews)
+    ("previews nested feat choices", NestedFeatPreviewTests.FeatPoolOptionsExposeOneLevelSelectPreviews),
+    ("filters already-owned feat choices", NestedFeatPreviewTests.FeatPoolsExcludeOwnedFeatsOutsideTheirChosenSlot)
 };
 
 var failures = new List<string>();
@@ -245,6 +246,52 @@ internal static class NestedFeatPreviewTests
                 .Any(nestedOption => nestedOption.FollowUpOptions?.Count > 0))
                 throw new InvalidOperationException("Nested select preview options should not recursively expose deeper follow-up previews.");
         }
+    }
+
+    public static void FeatPoolsExcludeOwnedFeatsOutsideTheirChosenSlot()
+    {
+        using var workspace = TestWorkspace.Create();
+
+        AuroraCharacterStateDocument document = AuroraCharacterStateDocument.Load(
+            TestPaths.DataPath("character-state-early-fighter-example.json"));
+        document.Feats.Add(new AuroraCharacterStateSelection
+        {
+            AuroraId = "ID_WOTC_PHB24_FEAT_ATHLETE",
+            Name = "Athlete",
+            PackageKey = "core-players-handbook-2024"
+        });
+
+        string statePath = Path.Combine(workspace.DirectoryPath, "fighter-with-athlete.json");
+        File.WriteAllText(statePath, System.Text.Json.JsonSerializer.Serialize(document));
+
+        CharacterEvaluationResult ownedResult = AuroraCharacterStateEngine.Evaluate(
+            TestPaths.FirstPartyRegressionDatabasePath,
+            statePath);
+        CharacterSelectResult asiSelect = ownedResult.AvailableSelects.Single(select =>
+            string.Equals(select.ChoiceFamily, "asi-pick", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult featOption = asiSelect.Options.Single(option =>
+            string.Equals(option.OptionAuroraId, "SEMANTIC_FEAT", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult ownedAthlete = featOption.FollowUpOptions?.Single(option =>
+            string.Equals(option.OptionAuroraId, "ID_WOTC_PHB24_FEAT_ATHLETE", StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException("The Fighter ASI feat pool did not contain Athlete.");
+
+        TestAssert.Equal(true, ownedAthlete.IsAlreadyOwned);
+        TestAssert.Equal(false, ownedAthlete.IsAvailable);
+        TestAssert.Equal("Already owned.", ownedAthlete.UnavailableReason);
+
+        CharacterEvaluationResult chosenResult = AuroraCharacterStateEngine.Evaluate(
+            TestPaths.FirstPartyRegressionDatabasePath,
+            TestPaths.DataPath("character-state-human-magic-initiate-example.json"));
+        CharacterSelectResult versatileSelect = chosenResult.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, "Versatile", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.ChoiceFamily, "feat-pick", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult chosenMagicInitiate = versatileSelect.Options.Single(option =>
+            string.Equals(option.OptionAuroraId, "ID_WOTC_PHB24_FEAT_MAGIC_INITIATE", StringComparison.OrdinalIgnoreCase));
+
+        TestAssert.Equal(true, chosenMagicInitiate.IsAlreadyOwned);
+        TestAssert.Equal(true, chosenMagicInitiate.IsChosenForSelect);
+        TestAssert.Equal(true, chosenMagicInitiate.IsAvailable);
+        TestAssert.Equal<string?>(null, chosenMagicInitiate.UnavailableReason);
     }
 }
 
