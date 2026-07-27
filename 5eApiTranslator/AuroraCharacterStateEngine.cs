@@ -728,6 +728,26 @@ ORDER BY rec.package_key ASC, e.name ASC;";
             return option?.IsAlreadyOwned == true || option?.IsChosenForSelect == true;
         }
 
+        private static bool IsOptionAvailableForChoice(
+            bool requirementsSatisfied,
+            bool isAlreadyOwned,
+            bool isChosenForSelect)
+        {
+            return isChosenForSelect || (requirementsSatisfied && !isAlreadyOwned);
+        }
+
+        private static string ResolveOptionUnavailableReason(
+            bool isAvailable,
+            bool isAlreadyOwned)
+        {
+            if (isAvailable)
+                return null;
+
+            return isAlreadyOwned
+                ? "Already owned."
+                : "Requirements not satisfied.";
+        }
+
         private static CharacterSelectResult MatchSelect(
             IReadOnlyList<CharacterSelectResult> availableSelects,
             AuroraCharacterStateChoice choice,
@@ -3223,20 +3243,37 @@ ORDER BY e.name ASC, rec.package_key ASC;";
 
                 string optionAuroraId = reader.GetString(1);
                 string optionName = reader.GetString(2);
+                int optionElementId = reader.GetInt32(0);
+                string requirementText = LoadElementRequirementText(connection, optionElementId);
+                bool requirementsSatisfied = IsRequirementSatisfied(requirementText, context);
                 bool isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, optionName);
+                bool isChosenForSelect = IsStoredChoiceValue(
+                    context,
+                    choiceKey,
+                    choiceRowKey,
+                    ownerTypeName,
+                    ownerName,
+                    selectName,
+                    optionAuroraId,
+                    optionName);
+                bool isAvailable = IsOptionAvailableForChoice(
+                    requirementsSatisfied,
+                    isAlreadyOwned,
+                    isChosenForSelect);
 
                 options.Add(new CharacterSelectOptionResult(
                     "element",
-                    reader.GetInt32(0),
+                    optionElementId,
                     optionAuroraId,
                     optionName,
                     "Language",
                     reader.IsDBNull(3) ? null : reader.GetString(3),
                     null,
-                    true,
+                    isAvailable,
                     isAlreadyOwned,
-                    IsStoredChoiceValue(context, choiceKey, choiceRowKey, ownerTypeName, ownerName, selectName, optionAuroraId, optionName),
-                    LoadElementRequirementText(connection, reader.GetInt32(0))));
+                    isChosenForSelect,
+                    requirementText,
+                    UnavailableReason: ResolveOptionUnavailableReason(isAvailable, isAlreadyOwned)));
             }
 
             return options
@@ -3429,12 +3466,10 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     selectName,
                     auroraId,
                     featName);
-                bool isAvailable = isChosenForSelect || (requirementsSatisfied && !isAlreadyOwned);
-                string unavailableReason = isAvailable
-                    ? null
-                    : isAlreadyOwned
-                        ? "Already owned."
-                        : "Requirements not satisfied.";
+                bool isAvailable = IsOptionAvailableForChoice(
+                    requirementsSatisfied,
+                    isAlreadyOwned,
+                    isChosenForSelect);
                 IReadOnlyList<CharacterSelectOptionResult> followUpOptions = null;
                 string followUpKind = null;
                 if (includeElementOptionFollowUps && isAvailable)
@@ -3458,7 +3493,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                     requirementText,
                     followUpKind,
                     followUpOptions,
-                    unavailableReason));
+                    ResolveOptionUnavailableReason(isAvailable, isAlreadyOwned)));
             }
 
             return options
@@ -3579,19 +3614,36 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 }
 
                 string optionAuroraId = reader.GetString(1);
+                int optionElementId = reader.GetInt32(0);
+                string requirementText = LoadElementRequirementText(connection, optionElementId);
+                bool requirementsSatisfied = IsRequirementSatisfied(requirementText, context);
                 bool isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, proficiencyName);
+                bool isChosenForSelect = IsStoredChoiceValue(
+                    context,
+                    choiceKey,
+                    choiceRowKey,
+                    ownerTypeName,
+                    ownerName,
+                    selectName,
+                    optionAuroraId,
+                    proficiencyName);
+                bool isAvailable = IsOptionAvailableForChoice(
+                    requirementsSatisfied,
+                    isAlreadyOwned,
+                    isChosenForSelect);
                 options.Add(new CharacterSelectOptionResult(
                     "element",
-                    reader.GetInt32(0),
+                    optionElementId,
                     optionAuroraId,
                     proficiencyName,
                     "Proficiency",
                     reader.IsDBNull(3) ? null : reader.GetString(3),
                     null,
-                    true,
+                    isAvailable,
                     isAlreadyOwned,
-                    IsStoredChoiceValue(context, choiceKey, choiceRowKey, ownerTypeName, ownerName, selectName, optionAuroraId, proficiencyName),
-                    LoadElementRequirementText(connection, reader.GetInt32(0))));
+                    isChosenForSelect,
+                    requirementText,
+                    UnavailableReason: ResolveOptionUnavailableReason(isAvailable, isAlreadyOwned)));
             }
 
             return options

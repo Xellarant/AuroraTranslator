@@ -79,6 +79,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Support-driven fixed pools now resolve real element options even when Aurora encoded them only in `supports_text`, which makes nested feat families such as PHB 2024 `Magic Initiate` behave like normal builder choices
 - Broad feat pools now honor support tags and explicit allowlists, so origin-feat slots and general-feat slots do not bleed into one another
 - Broad feat pools now exclude already-owned feats unless they are the saved selection for that same choice row, with an explicit unavailable reason for app consumers
+- Dynamic language and proficiency pools now exclude options owned through other grants or selections while keeping saved same-row choices replayable
 - Ritual-only spell picks can now resolve against the global ritual corpus without a spell-list owner, which makes PHB 2024 `Ritual Caster` behave like a real feat package
 - Nested class-feature spell picks now inherit their parent class spell list when Aurora encoded them without a local profile, which makes early PHB 2024 flows like Cleric `Thaumaturge` complete cleanly
 - Broad spell pools now collapse only exact-equivalent spell reprints, using the stored spell/text/rule shape instead of plain name matching, so distinct 2014/2024 spell variants remain separate

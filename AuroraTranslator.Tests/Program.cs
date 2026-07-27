@@ -8,7 +8,8 @@ var tests = new (string Name, Action Body)[]
     ("migrates spellcasting profile entries", SpellcastingProfileEntryTests.MigrationRebuildsNormalizedEntries),
     ("repairs missing spellcasting profile entries", SpellcastingProfileEntryTests.CurrentVersionMaintenanceRebuildsMissingEntries),
     ("previews nested feat choices", NestedFeatPreviewTests.FeatPoolOptionsExposeOneLevelSelectPreviews),
-    ("filters already-owned feat choices", NestedFeatPreviewTests.FeatPoolsExcludeOwnedFeatsOutsideTheirChosenSlot)
+    ("filters already-owned feat choices", NestedFeatPreviewTests.FeatPoolsExcludeOwnedFeatsOutsideTheirChosenSlot),
+    ("filters already-owned dynamic choices", DynamicChoiceFilteringTests.DynamicPoolsExcludeOwnedOptionsOutsideTheirChosenSlot)
 };
 
 var failures = new List<string>();
@@ -293,6 +294,51 @@ internal static class NestedFeatPreviewTests
         TestAssert.Equal(true, chosenMagicInitiate.IsAvailable);
         TestAssert.Equal<string?>(null, chosenMagicInitiate.UnavailableReason);
     }
+}
+
+internal static class DynamicChoiceFilteringTests
+{
+    public static void DynamicPoolsExcludeOwnedOptionsOutsideTheirChosenSlot()
+    {
+        CharacterEvaluationResult result = AuroraCharacterStateEngine.Evaluate(
+            TestPaths.FirstPartyRegressionDatabasePath,
+            TestPaths.DataPath("character-state-early-fighter-example.json"));
+
+        CharacterSelectResult acolyteLanguageSelect = result.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, "Acolyte", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, "Language (Acolyte)", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult chosenDraconic = FindOption(acolyteLanguageSelect, "ID_LANGUAGE_DRACONIC");
+        TestAssert.Equal(true, chosenDraconic.IsAlreadyOwned);
+        TestAssert.Equal(true, chosenDraconic.IsChosenForSelect);
+        TestAssert.Equal(true, chosenDraconic.IsAvailable);
+
+        CharacterSelectResult humanLanguageSelect = result.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, "Human", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, "Language (Human)", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult crossSlotDraconic = FindOption(humanLanguageSelect, "ID_LANGUAGE_DRACONIC");
+        TestAssert.Equal(true, crossSlotDraconic.IsAlreadyOwned);
+        TestAssert.Equal(false, crossSlotDraconic.IsChosenForSelect);
+        TestAssert.Equal(false, crossSlotDraconic.IsAvailable);
+        TestAssert.Equal("Already owned.", crossSlotDraconic.UnavailableReason);
+
+        CharacterSelectResult fighterSkillSelect = result.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, "Fighter", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, "Skill Proficiency (Fighter)", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult chosenAthletics = FindOption(fighterSkillSelect, "ID_PROFICIENCY_SKILL_ATHLETICS");
+        TestAssert.Equal(true, chosenAthletics.IsAlreadyOwned);
+        TestAssert.Equal(true, chosenAthletics.IsChosenForSelect);
+        TestAssert.Equal(true, chosenAthletics.IsAvailable);
+
+        CharacterSelectOptionResult grantedInsight = FindOption(fighterSkillSelect, "ID_PROFICIENCY_SKILL_INSIGHT");
+        TestAssert.Equal(true, grantedInsight.IsAlreadyOwned);
+        TestAssert.Equal(false, grantedInsight.IsChosenForSelect);
+        TestAssert.Equal(false, grantedInsight.IsAvailable);
+        TestAssert.Equal("Already owned.", grantedInsight.UnavailableReason);
+    }
+
+    private static CharacterSelectOptionResult FindOption(CharacterSelectResult select, string auroraId)
+        => select.Options.Single(option =>
+            string.Equals(option.OptionAuroraId, auroraId, StringComparison.OrdinalIgnoreCase));
 }
 
 internal static class TestAssert
