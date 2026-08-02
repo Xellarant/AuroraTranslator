@@ -9,8 +9,19 @@ var tests = new (string Name, Action Body)[]
     ("repairs missing spellcasting profile entries", SpellcastingProfileEntryTests.CurrentVersionMaintenanceRebuildsMissingEntries),
     ("previews nested feat choices", NestedFeatPreviewTests.FeatPoolOptionsExposeOneLevelSelectPreviews),
     ("filters already-owned feat choices", NestedFeatPreviewTests.FeatPoolsExcludeOwnedFeatsOutsideTheirChosenSlot),
-    ("filters already-owned dynamic choices", DynamicChoiceFilteringTests.DynamicPoolsExcludeOwnedOptionsOutsideTheirChosenSlot)
+    ("filters already-owned dynamic choices", DynamicChoiceFilteringTests.DynamicPoolsExcludeOwnedOptionsOutsideTheirChosenSlot),
+    ("filters requirement-gated dynamic choices", DynamicChoiceFilteringTests.DynamicPoolsMarkUnsatisfiedRequirementsUnavailable),
+    ("filters already-owned fixed choices", FixedChoiceFilteringTests.FixedPoolsExcludeOwnedOptionsOutsideTheirChosenSlot)
 };
+
+if (args.Length > 0)
+{
+    tests = tests
+        .Where(test => test.Name.Contains(args[0], StringComparison.OrdinalIgnoreCase))
+        .ToArray();
+    if (tests.Length == 0)
+        throw new ArgumentException($"No tests matched filter '{args[0]}'.", nameof(args));
+}
 
 var failures = new List<string>();
 foreach (var (name, body) in tests)
@@ -334,6 +345,130 @@ internal static class DynamicChoiceFilteringTests
         TestAssert.Equal(false, grantedInsight.IsChosenForSelect);
         TestAssert.Equal(false, grantedInsight.IsAvailable);
         TestAssert.Equal("Already owned.", grantedInsight.UnavailableReason);
+    }
+
+    public static void DynamicPoolsMarkUnsatisfiedRequirementsUnavailable()
+    {
+        using var workspace = TestWorkspace.Create();
+        File.Copy(TestPaths.FirstPartyRegressionDatabasePath, workspace.DatabasePath);
+
+        const string unsatisfiedRequirement = "ID_INTERNAL_TEST_REQUIREMENT_UNMET";
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = workspace.DatabasePath }.ToString()))
+        {
+            connection.Open();
+            AddRequirement(connection, "ID_LANGUAGE_DWARVISH", unsatisfiedRequirement);
+            AddRequirement(connection, "ID_PROFICIENCY_SKILL_ACROBATICS", unsatisfiedRequirement);
+        }
+
+        CharacterEvaluationResult result = AuroraCharacterStateEngine.Evaluate(
+            workspace.DatabasePath,
+            TestPaths.DataPath("character-state-early-fighter-example.json"));
+
+        CharacterSelectResult humanLanguageSelect = result.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, "Human", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, "Language (Human)", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult blockedDwarvish = FindOption(humanLanguageSelect, "ID_LANGUAGE_DWARVISH");
+        TestAssert.Equal(false, blockedDwarvish.IsAlreadyOwned);
+        TestAssert.Equal(false, blockedDwarvish.IsChosenForSelect);
+        TestAssert.Equal(false, blockedDwarvish.IsAvailable);
+        TestAssert.Equal(unsatisfiedRequirement, blockedDwarvish.RequirementText);
+        TestAssert.Equal("Requirements not satisfied.", blockedDwarvish.UnavailableReason);
+
+        CharacterSelectResult fighterSkillSelect = result.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, "Fighter", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, "Skill Proficiency (Fighter)", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult blockedAcrobatics = FindOption(fighterSkillSelect, "ID_PROFICIENCY_SKILL_ACROBATICS");
+        TestAssert.Equal(false, blockedAcrobatics.IsAlreadyOwned);
+        TestAssert.Equal(false, blockedAcrobatics.IsChosenForSelect);
+        TestAssert.Equal(false, blockedAcrobatics.IsAvailable);
+        TestAssert.Equal(unsatisfiedRequirement, blockedAcrobatics.RequirementText);
+        TestAssert.Equal("Requirements not satisfied.", blockedAcrobatics.UnavailableReason);
+    }
+
+    private static CharacterSelectOptionResult FindOption(CharacterSelectResult select, string auroraId)
+        => select.Options.Single(option =>
+            string.Equals(option.OptionAuroraId, auroraId, StringComparison.OrdinalIgnoreCase));
+
+    private static void AddRequirement(SqliteConnection connection, string auroraId, string requirementText)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
+INSERT INTO element_requirements (element_id, ordinal, requirement_text)
+SELECT
+    e.element_id,
+    COALESCE(
+        (
+            SELECT MAX(er.ordinal)
+            FROM element_requirements AS er
+            WHERE er.element_id = e.element_id
+        ),
+        -1
+    ) + 1,
+    $requirement_text
+FROM elements AS e
+WHERE e.aurora_id = $aurora_id;";
+        command.Parameters.AddWithValue("$aurora_id", auroraId);
+        command.Parameters.AddWithValue("$requirement_text", requirementText);
+
+        int rowsInserted = command.ExecuteNonQuery();
+        if (rowsInserted != 1)
+            throw new InvalidOperationException($"Expected to add one requirement for {auroraId}, inserted {rowsInserted}.");
+    }
+}
+
+internal static class FixedChoiceFilteringTests
+{
+    public static void FixedPoolsExcludeOwnedOptionsOutsideTheirChosenSlot()
+    {
+        CharacterEvaluationResult fighterResult = AuroraCharacterStateEngine.Evaluate(
+            TestPaths.FirstPartyRegressionDatabasePath,
+            TestPaths.DataPath("character-state-early-fighter-example.json"));
+
+        CharacterSelectResult archetypeSelect = fighterResult.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, "Martial Archetype", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, "Martial Archetype", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult ownedChampion = FindOption(archetypeSelect, "ID_WOTC_PHB_ARCHETYPE_CHAMPION");
+        TestAssert.Equal(true, ownedChampion.IsAlreadyOwned);
+        TestAssert.Equal(false, ownedChampion.IsChosenForSelect);
+        TestAssert.Equal(false, ownedChampion.IsAvailable);
+        TestAssert.Equal("Already owned.", ownedChampion.UnavailableReason);
+
+        CharacterSelectResult fightingStyleSelect = fighterResult.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, "Fighting Style", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, "Fighting Style", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult chosenDefense = FindOption(
+            fightingStyleSelect,
+            "ID_WOTC_PHB_CLASS_FEATURE_FIGHTINGSTYLE_DEFENSE");
+        TestAssert.Equal(true, chosenDefense.IsAlreadyOwned);
+        TestAssert.Equal(true, chosenDefense.IsChosenForSelect);
+        TestAssert.Equal(true, chosenDefense.IsAvailable);
+
+        using var workspace = TestWorkspace.Create();
+        AuroraCharacterStateDocument document = AuroraCharacterStateDocument.Load(
+            TestPaths.DataPath("character-state-human-magic-initiate-example.json"));
+        document.Elements.Add(new AuroraCharacterStateSelection
+        {
+            AuroraId = "ID_WOTC_PHB24_FEAT_MAGIC_INITIATE_CLERIC",
+            Name = "Cleric",
+            PackageKey = "core-players-handbook-2024"
+        });
+
+        string statePath = Path.Combine(workspace.DirectoryPath, "human-with-magic-initiate-cleric.json");
+        File.WriteAllText(statePath, System.Text.Json.JsonSerializer.Serialize(document));
+
+        CharacterEvaluationResult supportLinkedResult = AuroraCharacterStateEngine.Evaluate(
+            TestPaths.FirstPartyRegressionDatabasePath,
+            statePath);
+        CharacterSelectResult spellListSelect = supportLinkedResult.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, "Magic Initiate", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, "Spell List (Magic Initiate)", StringComparison.OrdinalIgnoreCase));
+        CharacterSelectOptionResult ownedCleric = FindOption(
+            spellListSelect,
+            "ID_WOTC_PHB24_FEAT_MAGIC_INITIATE_CLERIC");
+        TestAssert.Equal(true, ownedCleric.IsAlreadyOwned);
+        TestAssert.Equal(false, ownedCleric.IsChosenForSelect);
+        TestAssert.Equal(false, ownedCleric.IsAvailable);
+        TestAssert.Equal("Already owned.", ownedCleric.UnavailableReason);
     }
 
     private static CharacterSelectOptionResult FindOption(CharacterSelectResult select, string auroraId)

@@ -2013,7 +2013,7 @@ ORDER BY
                         continue;
 
                     requirementText = LoadElementRequirementText(connection, optionElementId.Value);
-                    isAvailable = IsRequirementSatisfied(requirementText, context);
+                    bool requirementsSatisfied = IsRequirementSatisfied(requirementText, context);
                     isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, optionName);
                     isChosenForSelect = IsStoredChoiceValue(
                         context,
@@ -2024,6 +2024,10 @@ ORDER BY
                         selectName,
                         optionAuroraId,
                         optionName);
+                    isAvailable = IsOptionAvailableForChoice(
+                        requirementsSatisfied,
+                        isAlreadyOwned,
+                        isChosenForSelect);
                 }
                 else
                 {
@@ -2053,7 +2057,8 @@ ORDER BY
                     isChosenForSelect,
                     requirementText,
                     followUpKind,
-                    followUpOptions));
+                    followUpOptions,
+                    ResolveOptionUnavailableReason(isAvailable, isAlreadyOwned)));
             }
 
             foreach (CharacterSelectOptionResult supportLinkedOption in LoadSupportLinkedElementOptions(
@@ -2181,7 +2186,7 @@ ORDER BY e.name ASC;";
                     continue;
 
                 string requirementText = LoadElementRequirementText(connection, optionElementId);
-                bool isAvailable = IsRequirementSatisfied(requirementText, context);
+                bool requirementsSatisfied = IsRequirementSatisfied(requirementText, context);
                 bool isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, optionName);
                 bool isChosenForSelect = IsStoredChoiceValue(
                     context,
@@ -2192,6 +2197,10 @@ ORDER BY e.name ASC;";
                     selectName,
                     optionAuroraId,
                     optionName);
+                bool isAvailable = IsOptionAvailableForChoice(
+                    requirementsSatisfied,
+                    isAlreadyOwned,
+                    isChosenForSelect);
 
                 IReadOnlyList<CharacterSelectOptionResult> followUpOptions = null;
                 string followUpKind = null;
@@ -2215,7 +2224,8 @@ ORDER BY e.name ASC;";
                     isChosenForSelect,
                     requirementText,
                     followUpKind,
-                    followUpOptions));
+                    followUpOptions,
+                    ResolveOptionUnavailableReason(isAvailable, isAlreadyOwned)));
             }
 
             return options;

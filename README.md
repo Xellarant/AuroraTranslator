@@ -41,6 +41,7 @@ Notable runtime capabilities already in place:
 - broad feat pools now honor support tags and explicit allowlists, so origin-feat slots and general-feat slots no longer bleed into one another
 - broad feat pools now exclude already-owned feats unless the feat is the saved selection for that same choice row, and JSON option rows expose an `unavailableReason`
 - dynamic language and proficiency pools apply the same slot-aware filtering, so grants and selections from other sources cannot be picked again while saved choices remain replayable
+- fixed element pools, including support-linked fallback options, now apply the same rule so direct subclasses and nested feature choices are not offered twice
 - ritual-only spell picks can now resolve against the global ritual corpus without needing a spell-list owner, which makes PHB 2024 `Ritual Caster` behave like a real builder package
 - nested class-feature spell picks such as Cleric `Thaumaturge` now inherit their parent class spell list instead of surfacing as empty pending rows
 - broad spell pools now collapse only exact-equivalent spell reprints, using the full stored spell/text/rule shape instead of just name matching, so materially different 2014/2024 variants remain separate choices
