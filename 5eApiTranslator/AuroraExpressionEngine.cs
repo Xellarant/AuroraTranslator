@@ -28,6 +28,8 @@ namespace AuroraTranslator
         public Dictionary<string, decimal> NumericValues { get; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, string> ScalarValues { get; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, HashSet<string>> MacroValues { get; } = new(StringComparer.OrdinalIgnoreCase);
+        internal HashSet<string> RestrictedElementIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+        internal HashSet<string> RestrictedSourceNames { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public static AuroraExpressionEvaluationContext Empty { get; } = new();
 

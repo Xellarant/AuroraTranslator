@@ -12,7 +12,9 @@ var tests = new (string Name, Action Body)[]
     ("filters already-owned dynamic choices", DynamicChoiceFilteringTests.DynamicPoolsExcludeOwnedOptionsOutsideTheirChosenSlot),
     ("filters requirement-gated dynamic choices", DynamicChoiceFilteringTests.DynamicPoolsMarkUnsatisfiedRequirementsUnavailable),
     ("filters already-owned fixed choices", FixedChoiceFilteringTests.FixedPoolsExcludeOwnedOptionsOutsideTheirChosenSlot),
-    ("filters requirement-gated fixed choices", FixedChoiceFilteringTests.FixedPoolsMarkUnsatisfiedRequirementsUnavailable)
+    ("filters requirement-gated fixed choices", FixedChoiceFilteringTests.FixedPoolsMarkUnsatisfiedRequirementsUnavailable),
+    ("filters choice pools by source restrictions", SourceRestrictionFilteringTests.SourceAndElementDenyListsFilterChoicePools),
+    ("keeps fully restricted pools empty", SourceRestrictionFilteringTests.FullyRestrictedPoolsDoNotRestoreStoredChoices)
 };
 
 if (args.Length > 0)
@@ -389,6 +391,138 @@ internal static class DynamicChoiceFilteringTests
     private static CharacterSelectOptionResult FindOption(CharacterSelectResult select, string auroraId)
         => select.Options.Single(option =>
             string.Equals(option.OptionAuroraId, auroraId, StringComparison.OrdinalIgnoreCase));
+}
+
+internal static class SourceRestrictionFilteringTests
+{
+    private const string LegacyAlertId = "ID_PHB_FEAT_ALERT";
+    private const string RevisedAlertId = "ID_WOTC_PHB24_FEAT_ALERT";
+
+    public static void SourceAndElementDenyListsFilterChoicePools()
+    {
+        CharacterEvaluationResult baseline = AuroraCharacterStateEngine.Evaluate(
+            TestPaths.FirstPartyRegressionDatabasePath,
+            TestPaths.DataPath("character-state-early-fighter-example.json"));
+        IReadOnlyList<CharacterSelectOptionResult> baselineFeats = FindFighterFeatOptions(baseline);
+        AssertContains(baselineFeats, LegacyAlertId);
+        AssertContains(baselineFeats, RevisedAlertId);
+
+        using var workspace = TestWorkspace.Create();
+
+        AuroraCharacterStateDocument sourceRestricted = LoadEarlyFighter();
+        sourceRestricted.SourceRestrictions.SourceNames.Add("player’s handbook");
+        CharacterEvaluationResult sourceRestrictedResult = Evaluate(workspace, "source-restricted.json", sourceRestricted);
+        IReadOnlyList<CharacterSelectOptionResult> sourceRestrictedFeats = FindFighterFeatOptions(sourceRestrictedResult);
+        AssertDoesNotContain(sourceRestrictedFeats, LegacyAlertId);
+        AssertContains(sourceRestrictedFeats, RevisedAlertId);
+
+        AuroraCharacterStateDocument sourceIdRestricted = LoadEarlyFighter();
+        sourceIdRestricted.SourceRestrictions.SourceIds.Add("id_wotc_source_players_handbook_2024");
+        CharacterEvaluationResult sourceIdRestrictedResult = Evaluate(workspace, "source-id-restricted.json", sourceIdRestricted);
+        IReadOnlyList<CharacterSelectOptionResult> sourceIdRestrictedFeats = FindFighterFeatOptions(sourceIdRestrictedResult);
+        AssertContains(sourceIdRestrictedFeats, LegacyAlertId);
+        AssertDoesNotContain(sourceIdRestrictedFeats, RevisedAlertId);
+
+        CharacterSelectResult baselineArchetypeSelect = FindSelect(baseline, "Martial Archetype", "Martial Archetype");
+        string blockedArchetypeId = baselineArchetypeSelect.Options
+            .First(option => option.IsAvailable && !option.IsChosenForSelect)
+            .OptionAuroraId!;
+
+        AuroraCharacterStateDocument elementRestricted = LoadEarlyFighter();
+        elementRestricted.SourceRestrictions.ElementIds.AddRange(new[]
+        {
+            LegacyAlertId.ToLowerInvariant(),
+            "id_language_dwarvish",
+            "id_proficiency_skill_acrobatics",
+            blockedArchetypeId.ToLowerInvariant()
+        });
+        CharacterEvaluationResult elementRestrictedResult = Evaluate(workspace, "element-restricted.json", elementRestricted);
+
+        AssertDoesNotContain(FindFighterFeatOptions(elementRestrictedResult), LegacyAlertId);
+        AssertContains(FindFighterFeatOptions(elementRestrictedResult), RevisedAlertId);
+        AssertDoesNotContain(
+            FindSelect(elementRestrictedResult, "Human", "Language (Human)").Options,
+            "ID_LANGUAGE_DWARVISH");
+        AssertDoesNotContain(
+            FindSelect(elementRestrictedResult, "Fighter", "Skill Proficiency (Fighter)").Options,
+            "ID_PROFICIENCY_SKILL_ACROBATICS");
+        AssertDoesNotContain(
+            FindSelect(elementRestrictedResult, "Martial Archetype", "Martial Archetype").Options,
+            blockedArchetypeId);
+
+        AuroraCharacterStateDocument spellRestricted = AuroraCharacterStateDocument.Load(
+            TestPaths.DataPath("character-state-warlock-spellcasting-overpick-example.json"));
+        spellRestricted.SourceRestrictions.SourceNames.Add("Player’s Handbook");
+        CharacterEvaluationResult spellRestrictedResult = Evaluate(workspace, "spell-source-restricted.json", spellRestricted);
+        List<CharacterSelectResult> spellSelects = spellRestrictedResult.AvailableSelects
+            .Where(select => string.Equals(select.SelectType, "Spell", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        TestAssert.Equal(true, spellSelects.Count > 0);
+        AssertDoesNotContain(
+            spellSelects.SelectMany(select => select.Options),
+            "ID_PHB_SPELL_ARMOR_OF_AGATHYS");
+    }
+
+    public static void FullyRestrictedPoolsDoNotRestoreStoredChoices()
+    {
+        CharacterEvaluationResult baseline = AuroraCharacterStateEngine.Evaluate(
+            TestPaths.FirstPartyRegressionDatabasePath,
+            TestPaths.DataPath("character-state-human-magic-initiate-example.json"));
+        CharacterSelectResult baselineFeatSelect = FindSelect(baseline, "Versatile", "Feat (Versatile)");
+        TestAssert.Equal(true, baselineFeatSelect.Options.Count > 0);
+
+        AuroraCharacterStateDocument document = AuroraCharacterStateDocument.Load(
+            TestPaths.DataPath("character-state-human-magic-initiate-example.json"));
+        document.SourceRestrictions.ElementIds.AddRange(
+            baselineFeatSelect.Options
+                .Select(option => option.OptionAuroraId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))!);
+
+        using var workspace = TestWorkspace.Create();
+        CharacterEvaluationResult restricted = Evaluate(workspace, "fully-restricted.json", document);
+        CharacterSelectResult restrictedFeatSelect = FindSelect(restricted, "Versatile", "Feat (Versatile)");
+        TestAssert.Equal(0, restrictedFeatSelect.Options.Count);
+
+        AppliedCharacterChoiceResult storedChoice = restricted.AppliedChoices.Single(choice =>
+            string.Equals(choice.OwnerName, "Versatile", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(choice.SelectName, "Feat (Versatile)", StringComparison.OrdinalIgnoreCase));
+        TestAssert.Equal("option-not-found", storedChoice.Status);
+    }
+
+    private static AuroraCharacterStateDocument LoadEarlyFighter()
+        => AuroraCharacterStateDocument.Load(TestPaths.DataPath("character-state-early-fighter-example.json"));
+
+    private static CharacterEvaluationResult Evaluate(
+        TestWorkspace workspace,
+        string fileName,
+        AuroraCharacterStateDocument document)
+    {
+        string statePath = Path.Combine(workspace.DirectoryPath, fileName);
+        File.WriteAllText(statePath, System.Text.Json.JsonSerializer.Serialize(document));
+        return AuroraCharacterStateEngine.Evaluate(TestPaths.FirstPartyRegressionDatabasePath, statePath);
+    }
+
+    private static IReadOnlyList<CharacterSelectOptionResult> FindFighterFeatOptions(CharacterEvaluationResult result)
+    {
+        CharacterSelectResult asiSelect = result.AvailableSelects.Single(select =>
+            string.Equals(select.ChoiceFamily, "asi-pick", StringComparison.OrdinalIgnoreCase));
+        return asiSelect.Options.Single(option =>
+                string.Equals(option.OptionAuroraId, "SEMANTIC_FEAT", StringComparison.OrdinalIgnoreCase))
+            .FollowUpOptions ?? Array.Empty<CharacterSelectOptionResult>();
+    }
+
+    private static CharacterSelectResult FindSelect(CharacterEvaluationResult result, string ownerName, string selectName)
+        => result.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, ownerName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, selectName, StringComparison.OrdinalIgnoreCase));
+
+    private static void AssertContains(IEnumerable<CharacterSelectOptionResult> options, string auroraId)
+        => TestAssert.Equal(true, options.Any(option =>
+            string.Equals(option.OptionAuroraId, auroraId, StringComparison.OrdinalIgnoreCase)));
+
+    private static void AssertDoesNotContain(IEnumerable<CharacterSelectOptionResult> options, string auroraId)
+        => TestAssert.Equal(false, options.Any(option =>
+            string.Equals(option.OptionAuroraId, auroraId, StringComparison.OrdinalIgnoreCase)));
 }
 
 internal static class FixedChoiceFilteringTests

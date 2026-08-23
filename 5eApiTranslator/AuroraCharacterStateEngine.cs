@@ -22,6 +22,7 @@ namespace AuroraTranslator
         public List<AuroraCharacterStateSelection> Languages { get; set; } = new();
         public List<AuroraCharacterStateSelection> Elements { get; set; } = new();
         public List<AuroraCharacterStateChoice> SelectedChoices { get; set; } = new();
+        public AuroraCharacterStateSourceRestrictions SourceRestrictions { get; set; } = new();
         public List<string> Tokens { get; set; } = new();
         public Dictionary<string, decimal> NumericValues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, string> ScalarValues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -40,6 +41,13 @@ namespace AuroraTranslator
                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                    ?? new AuroraCharacterStateDocument();
         }
+    }
+
+    internal sealed class AuroraCharacterStateSourceRestrictions
+    {
+        public List<string> ElementIds { get; set; } = new();
+        public List<string> SourceNames { get; set; } = new();
+        public List<string> SourceIds { get; set; } = new();
     }
 
     internal sealed class AuroraCharacterStateSelection
@@ -128,6 +136,7 @@ namespace AuroraTranslator
         string OptionAuroraId,
         string OptionName,
         string OptionPackageKey,
+        string OptionSourceName,
         string OptionTypeName,
         int SpellLevel,
         int PrecedenceRank);
@@ -483,6 +492,12 @@ namespace AuroraTranslator
                     .Select(CloneChoice)
                     .ToList()
                     ?? new List<AuroraCharacterStateChoice>(),
+                SourceRestrictions = new AuroraCharacterStateSourceRestrictions
+                {
+                    ElementIds = source.SourceRestrictions?.ElementIds?.ToList() ?? new List<string>(),
+                    SourceNames = source.SourceRestrictions?.SourceNames?.ToList() ?? new List<string>(),
+                    SourceIds = source.SourceRestrictions?.SourceIds?.ToList() ?? new List<string>()
+                },
                 Tokens = source.Tokens?.ToList() ?? new List<string>(),
                 NumericValues = source.NumericValues?.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase)
                     ?? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase),
@@ -734,6 +749,15 @@ ORDER BY rec.package_key ASC, e.name ASC;";
             bool isChosenForSelect)
         {
             return isChosenForSelect || (requirementsSatisfied && !isAlreadyOwned);
+        }
+
+        private static bool IsElementAllowedBySourceRestrictions(
+            AuroraExpressionEvaluationContext context,
+            string auroraId,
+            string sourceName)
+        {
+            return !context.RestrictedElementIds.Contains(auroraId ?? string.Empty)
+                   && !context.RestrictedSourceNames.Contains(sourceName ?? string.Empty);
         }
 
         private static string ResolveOptionUnavailableReason(
@@ -1343,6 +1367,8 @@ WHERE element_id = $element_id;";
         {
             var context = new AuroraExpressionEvaluationContext();
 
+            AddSourceRestrictionsToContext(document.SourceRestrictions, context, connection);
+
             foreach (string token in document.Tokens ?? Enumerable.Empty<string>())
                 context.AddToken(token);
 
@@ -1382,6 +1408,55 @@ WHERE element_id = $element_id;";
                 AddElementTokensToContext(context, connection, feature.ElementId, feature.AuroraId, feature.Name);
 
             return context;
+        }
+
+        private static void AddSourceRestrictionsToContext(
+            AuroraCharacterStateSourceRestrictions restrictions,
+            AuroraExpressionEvaluationContext context,
+            SqliteConnection connection)
+        {
+            if (restrictions == null)
+                return;
+
+            foreach (string elementId in restrictions.ElementIds ?? Enumerable.Empty<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(elementId))
+                    context.RestrictedElementIds.Add(elementId.Trim());
+            }
+
+            foreach (string sourceName in restrictions.SourceNames ?? Enumerable.Empty<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(sourceName))
+                    context.RestrictedSourceNames.Add(sourceName.Trim());
+            }
+
+            foreach (string sourceId in restrictions.SourceIds ?? Enumerable.Empty<string>())
+            {
+                string sourceName = ResolveSourceName(connection, sourceId);
+                if (!string.IsNullOrWhiteSpace(sourceName))
+                    context.RestrictedSourceNames.Add(sourceName);
+            }
+        }
+
+        private static string ResolveSourceName(SqliteConnection connection, string sourceAuroraId)
+        {
+            if (string.IsNullOrWhiteSpace(sourceAuroraId))
+                return null;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+SELECT source.name
+FROM elements AS source
+JOIN element_types AS source_type
+    ON source_type.element_type_id = source.element_type_id
+JOIN resolved_elements_cache AS source_rec
+    ON source_rec.winning_element_id = source.element_id
+WHERE lower(source_type.type_name) = 'source'
+  AND lower(source.aurora_id) = lower($source_aurora_id)
+LIMIT 1;";
+            command.Parameters.AddWithValue("$source_aurora_id", sourceAuroraId.Trim());
+            object result = command.ExecuteScalar();
+            return result == null || result == DBNull.Value ? null : Convert.ToString(result)?.Trim();
         }
 
         private static int CalculateProficiencyBonus(int totalLevel)
@@ -1973,21 +2048,26 @@ ORDER BY owner.name ASC, s.ordinal ASC;";
             using var command = connection.CreateCommand();
             command.CommandText = @"
 SELECT
-    option_kind,
-    option_element_id,
-    option_aurora_id,
-    option_name,
-    option_type_name,
-    option_package_key,
-    option_text
-FROM v_selectable_options
-WHERE select_id = $select_id
+    selectable.option_kind,
+    selectable.option_element_id,
+    selectable.option_aurora_id,
+    selectable.option_name,
+    selectable.option_type_name,
+    selectable.option_package_key,
+    selectable.option_text,
+    option_source.name AS option_source_name
+FROM v_selectable_options AS selectable
+LEFT JOIN elements AS option_element
+    ON option_element.element_id = selectable.option_element_id
+LEFT JOIN source_books AS option_source
+    ON option_source.source_book_id = option_element.source_book_id
+WHERE selectable.select_id = $select_id
 ORDER BY
-    CASE option_kind
+    CASE selectable.option_kind
         WHEN 'element' THEN 0
         ELSE 1
     END,
-    COALESCE(option_name, option_text, '') ASC;";
+    COALESCE(selectable.option_name, selectable.option_text, '') ASC;";
             command.Parameters.AddWithValue("$select_id", selectId);
 
             var options = new List<CharacterSelectOptionResult>();
@@ -2001,6 +2081,7 @@ ORDER BY
                 string optionTypeName = reader.IsDBNull(4) ? null : reader.GetString(4);
                 string optionPackageKey = reader.IsDBNull(5) ? null : reader.GetString(5);
                 string optionText = reader.IsDBNull(6) ? null : reader.GetString(6);
+                string optionSourceName = reader.IsDBNull(7) ? null : reader.GetString(7);
 
                 string requirementText = null;
                 bool isAvailable = true;
@@ -2010,6 +2091,8 @@ ORDER BY
                 if (optionElementId.HasValue)
                 {
                     if (!OptionMatchesSelectType(selectType, optionTypeName))
+                        continue;
+                    if (!IsElementAllowedBySourceRestrictions(context, optionAuroraId, optionSourceName))
                         continue;
 
                     requirementText = LoadElementRequirementText(connection, optionElementId.Value);
@@ -2151,6 +2234,7 @@ SELECT
     e.name,
     et.type_name,
     rec.package_key,
+    option_source.name AS option_source_name,
     CASE
         WHEN {idClause} THEN 1
         ELSE 0
@@ -2160,6 +2244,8 @@ JOIN element_types AS et
     ON et.element_type_id = e.element_type_id
 JOIN resolved_elements_cache AS rec
     ON rec.winning_element_id = e.element_id
+LEFT JOIN source_books AS option_source
+    ON option_source.source_book_id = e.source_book_id
 WHERE
 (
     {idClause}
@@ -2183,6 +2269,9 @@ ORDER BY e.name ASC;";
                 string optionTypeName = reader.IsDBNull(3) ? null : reader.GetString(3);
                 string optionPackageKey = reader.IsDBNull(4) ? null : reader.GetString(4);
                 if (!OptionMatchesSelectType(selectType, optionTypeName))
+                    continue;
+                string optionSourceName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                if (!IsElementAllowedBySourceRestrictions(context, optionAuroraId, optionSourceName))
                     continue;
 
                 string requirementText = LoadElementRequirementText(connection, optionElementId);
@@ -2295,7 +2384,8 @@ SELECT
     sp.spell_level,
     sp.school_name,
     sp.is_ritual,
-    GROUP_CONCAT(DISTINCT sa.access_text) AS access_summary
+    GROUP_CONCAT(DISTINCT sa.access_text) AS access_summary,
+    spell_source.name AS spell_source_name
 FROM spells AS sp
 JOIN elements AS spell
     ON spell.element_id = sp.element_id
@@ -2305,6 +2395,8 @@ JOIN element_types AS spell_type
     ON spell_type.element_type_id = spell.element_type_id
 LEFT JOIN spell_access AS sa
     ON sa.spell_element_id = spell.element_id
+LEFT JOIN source_books AS spell_source
+    ON spell_source.source_book_id = spell.source_book_id
 GROUP BY
     spell.element_id,
     spell.aurora_id,
@@ -2314,7 +2406,8 @@ GROUP BY
     spell_type.type_name,
     sp.spell_level,
     sp.school_name,
-    sp.is_ritual
+    sp.is_ritual,
+    spell_source.name
 ORDER BY
     sp.spell_level ASC,
     spell.name ASC;";
@@ -2336,7 +2429,10 @@ ORDER BY
                     .Split(reader.IsDBNull(9) ? string.Empty : reader.GetString(9), @"\s*(?:\||,)\s*")
                     .Where(x => !string.IsNullOrWhiteSpace(x))
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                string optionSourceName = reader.IsDBNull(10) ? null : reader.GetString(10);
 
+                if (!IsElementAllowedBySourceRestrictions(context, optionAuroraId, optionSourceName))
+                    continue;
                 if (filter.AllowedAuroraIds.Count > 0 && !filter.AllowedAuroraIds.Contains(optionAuroraId))
                     continue;
                 if (filter.ExcludedAuroraIds.Contains(optionAuroraId))
@@ -2376,6 +2472,7 @@ ORDER BY
                     optionAuroraId,
                     optionName,
                     optionPackageKey,
+                    optionSourceName,
                     optionTypeName,
                     spellLevel,
                     precedenceRank));
@@ -3224,12 +3321,15 @@ SELECT
     rec.package_key,
     l.is_standard,
     l.is_exotic,
-    l.is_secret
+    l.is_secret,
+    language_source.name AS language_source_name
 FROM languages AS l
 JOIN elements AS e
     ON e.element_id = l.element_id
 JOIN resolved_elements_cache AS rec
     ON rec.winning_element_id = e.element_id
+LEFT JOIN source_books AS language_source
+    ON language_source.source_book_id = e.source_book_id
 ORDER BY e.name ASC, rec.package_key ASC;";
 
             var options = new List<CharacterSelectOptionResult>();
@@ -3254,6 +3354,9 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 string optionAuroraId = reader.GetString(1);
                 string optionName = reader.GetString(2);
                 int optionElementId = reader.GetInt32(0);
+                string optionSourceName = reader.IsDBNull(7) ? null : reader.GetString(7);
+                if (!IsElementAllowedBySourceRestrictions(context, optionAuroraId, optionSourceName))
+                    continue;
                 string requirementText = LoadElementRequirementText(connection, optionElementId);
                 bool requirementsSatisfied = IsRequirementSatisfied(requirementText, context);
                 bool isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, optionName);
@@ -3426,7 +3529,8 @@ SELECT
     e.aurora_id,
     e.name,
     rec.package_key,
-    GROUP_CONCAT(DISTINCT es.support_text) AS support_blob
+    GROUP_CONCAT(DISTINCT es.support_text) AS support_blob,
+    feat_source.name AS feat_source_name
 FROM elements AS e
 JOIN element_types AS et
     ON et.element_type_id = e.element_type_id
@@ -3434,12 +3538,15 @@ JOIN resolved_elements_cache AS rec
     ON rec.winning_element_id = e.element_id
 LEFT JOIN element_supports AS es
     ON es.element_id = e.element_id
+LEFT JOIN source_books AS feat_source
+    ON feat_source.source_book_id = e.source_book_id
 WHERE et.type_name = 'Feat'
 GROUP BY
     e.element_id,
     e.aurora_id,
     e.name,
-    rec.package_key
+    rec.package_key,
+    feat_source.name
 ORDER BY e.name ASC, rec.package_key ASC;";
 
             var options = new List<CharacterSelectOptionResult>();
@@ -3451,7 +3558,10 @@ ORDER BY e.name ASC, rec.package_key ASC;";
                 string featName = reader.GetString(2);
                 string packageKey = reader.IsDBNull(3) ? null : reader.GetString(3);
                 string supportBlob = reader.IsDBNull(4) ? string.Empty : reader.GetString(4);
+                string sourceName = reader.IsDBNull(5) ? null : reader.GetString(5);
 
+                if (!IsElementAllowedBySourceRestrictions(context, auroraId, sourceName))
+                    continue;
                 if (allowedAuroraIds.Count > 0 && !allowedAuroraIds.Contains(auroraId))
                     continue;
 
@@ -3586,7 +3696,8 @@ SELECT
     rec.package_key,
     p.proficiency_group,
     p.proficiency_subgroup,
-    GROUP_CONCAT(es.support_text, '|') AS support_blob
+    GROUP_CONCAT(es.support_text, '|') AS support_blob,
+    proficiency_source.name AS proficiency_source_name
 FROM proficiencies AS p
 JOIN elements AS e
     ON e.element_id = p.element_id
@@ -3594,13 +3705,16 @@ JOIN resolved_elements_cache AS rec
     ON rec.winning_element_id = e.element_id
 LEFT JOIN element_supports AS es
     ON es.element_id = e.element_id
+LEFT JOIN source_books AS proficiency_source
+    ON proficiency_source.source_book_id = e.source_book_id
 GROUP BY
     e.element_id,
     e.aurora_id,
     e.name,
     rec.package_key,
     p.proficiency_group,
-    p.proficiency_subgroup
+    p.proficiency_subgroup,
+    proficiency_source.name
 ORDER BY e.name ASC, rec.package_key ASC;";
 
             var options = new List<CharacterSelectOptionResult>();
@@ -3625,6 +3739,9 @@ ORDER BY e.name ASC, rec.package_key ASC;";
 
                 string optionAuroraId = reader.GetString(1);
                 int optionElementId = reader.GetInt32(0);
+                string optionSourceName = reader.IsDBNull(7) ? null : reader.GetString(7);
+                if (!IsElementAllowedBySourceRestrictions(context, optionAuroraId, optionSourceName))
+                    continue;
                 string requirementText = LoadElementRequirementText(connection, optionElementId);
                 bool requirementsSatisfied = IsRequirementSatisfied(requirementText, context);
                 bool isAlreadyOwned = IsElementAlreadyOwned(context, optionAuroraId, proficiencyName);
@@ -6153,6 +6270,9 @@ WHERE sr.element_id = $element_id;";
 
             foreach (KeyValuePair<string, HashSet<string>> pair in source.MacroValues)
                 clone.AddMacroValues(pair.Key, pair.Value);
+
+            clone.RestrictedElementIds.UnionWith(source.RestrictedElementIds);
+            clone.RestrictedSourceNames.UnionWith(source.RestrictedSourceNames);
 
             return clone;
         }
