@@ -11,7 +11,8 @@ var tests = new (string Name, Action Body)[]
     ("filters already-owned feat choices", NestedFeatPreviewTests.FeatPoolsExcludeOwnedFeatsOutsideTheirChosenSlot),
     ("filters already-owned dynamic choices", DynamicChoiceFilteringTests.DynamicPoolsExcludeOwnedOptionsOutsideTheirChosenSlot),
     ("filters requirement-gated dynamic choices", DynamicChoiceFilteringTests.DynamicPoolsMarkUnsatisfiedRequirementsUnavailable),
-    ("filters already-owned fixed choices", FixedChoiceFilteringTests.FixedPoolsExcludeOwnedOptionsOutsideTheirChosenSlot)
+    ("filters already-owned fixed choices", FixedChoiceFilteringTests.FixedPoolsExcludeOwnedOptionsOutsideTheirChosenSlot),
+    ("filters requirement-gated fixed choices", FixedChoiceFilteringTests.FixedPoolsMarkUnsatisfiedRequirementsUnavailable)
 };
 
 if (args.Length > 0)
@@ -356,8 +357,8 @@ internal static class DynamicChoiceFilteringTests
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = workspace.DatabasePath }.ToString()))
         {
             connection.Open();
-            AddRequirement(connection, "ID_LANGUAGE_DWARVISH", unsatisfiedRequirement);
-            AddRequirement(connection, "ID_PROFICIENCY_SKILL_ACROBATICS", unsatisfiedRequirement);
+            TestDatabase.AddRequirement(connection, "ID_LANGUAGE_DWARVISH", unsatisfiedRequirement);
+            TestDatabase.AddRequirement(connection, "ID_PROFICIENCY_SKILL_ACROBATICS", unsatisfiedRequirement);
         }
 
         CharacterEvaluationResult result = AuroraCharacterStateEngine.Evaluate(
@@ -388,32 +389,6 @@ internal static class DynamicChoiceFilteringTests
     private static CharacterSelectOptionResult FindOption(CharacterSelectResult select, string auroraId)
         => select.Options.Single(option =>
             string.Equals(option.OptionAuroraId, auroraId, StringComparison.OrdinalIgnoreCase));
-
-    private static void AddRequirement(SqliteConnection connection, string auroraId, string requirementText)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = @"
-INSERT INTO element_requirements (element_id, ordinal, requirement_text)
-SELECT
-    e.element_id,
-    COALESCE(
-        (
-            SELECT MAX(er.ordinal)
-            FROM element_requirements AS er
-            WHERE er.element_id = e.element_id
-        ),
-        -1
-    ) + 1,
-    $requirement_text
-FROM elements AS e
-WHERE e.aurora_id = $aurora_id;";
-        command.Parameters.AddWithValue("$aurora_id", auroraId);
-        command.Parameters.AddWithValue("$requirement_text", requirementText);
-
-        int rowsInserted = command.ExecuteNonQuery();
-        if (rowsInserted != 1)
-            throw new InvalidOperationException($"Expected to add one requirement for {auroraId}, inserted {rowsInserted}.");
-    }
 }
 
 internal static class FixedChoiceFilteringTests
@@ -471,9 +446,73 @@ internal static class FixedChoiceFilteringTests
         TestAssert.Equal("Already owned.", ownedCleric.UnavailableReason);
     }
 
+    public static void FixedPoolsMarkUnsatisfiedRequirementsUnavailable()
+    {
+        using var workspace = TestWorkspace.Create();
+        File.Copy(TestPaths.FirstPartyRegressionDatabasePath, workspace.DatabasePath);
+
+        const string unsatisfiedRequirement = "ID_INTERNAL_TEST_REQUIREMENT_UNMET";
+
+        CharacterEvaluationResult fighterBaseline = AuroraCharacterStateEngine.Evaluate(
+            workspace.DatabasePath,
+            TestPaths.DataPath("character-state-early-fighter-example.json"));
+        CharacterSelectOptionResult targetArchetype = FindFirstUnchosenAvailableOption(
+            FindSelect(fighterBaseline, "Martial Archetype", "Martial Archetype"));
+
+        CharacterEvaluationResult magicInitiateBaseline = AuroraCharacterStateEngine.Evaluate(
+            workspace.DatabasePath,
+            TestPaths.DataPath("character-state-human-magic-initiate-example.json"));
+        CharacterSelectOptionResult targetSpellList = FindFirstUnchosenAvailableOption(
+            FindSelect(magicInitiateBaseline, "Magic Initiate", "Spell List (Magic Initiate)"));
+
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = workspace.DatabasePath }.ToString()))
+        {
+            connection.Open();
+            TestDatabase.AddRequirement(connection, targetArchetype.OptionAuroraId!, unsatisfiedRequirement);
+            TestDatabase.AddRequirement(connection, targetSpellList.OptionAuroraId!, unsatisfiedRequirement);
+        }
+
+        CharacterEvaluationResult blockedFighterResult = AuroraCharacterStateEngine.Evaluate(
+            workspace.DatabasePath,
+            TestPaths.DataPath("character-state-early-fighter-example.json"));
+        CharacterSelectOptionResult blockedArchetype = FindOption(
+            FindSelect(blockedFighterResult, "Martial Archetype", "Martial Archetype"),
+            targetArchetype.OptionAuroraId!);
+        AssertRequirementBlocked(blockedArchetype, unsatisfiedRequirement);
+
+        CharacterEvaluationResult blockedMagicInitiateResult = AuroraCharacterStateEngine.Evaluate(
+            workspace.DatabasePath,
+            TestPaths.DataPath("character-state-human-magic-initiate-example.json"));
+        CharacterSelectOptionResult blockedSpellList = FindOption(
+            FindSelect(blockedMagicInitiateResult, "Magic Initiate", "Spell List (Magic Initiate)"),
+            targetSpellList.OptionAuroraId!);
+        AssertRequirementBlocked(blockedSpellList, unsatisfiedRequirement);
+    }
+
+    private static CharacterSelectResult FindSelect(CharacterEvaluationResult result, string ownerName, string selectName)
+        => result.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, ownerName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, selectName, StringComparison.OrdinalIgnoreCase));
+
     private static CharacterSelectOptionResult FindOption(CharacterSelectResult select, string auroraId)
         => select.Options.Single(option =>
             string.Equals(option.OptionAuroraId, auroraId, StringComparison.OrdinalIgnoreCase));
+
+    private static CharacterSelectOptionResult FindFirstUnchosenAvailableOption(CharacterSelectResult select)
+        => select.Options.First(option =>
+            !string.IsNullOrWhiteSpace(option.OptionAuroraId)
+            && option.IsAvailable
+            && !option.IsAlreadyOwned
+            && !option.IsChosenForSelect);
+
+    private static void AssertRequirementBlocked(CharacterSelectOptionResult option, string requirementText)
+    {
+        TestAssert.Equal(false, option.IsAlreadyOwned);
+        TestAssert.Equal(false, option.IsChosenForSelect);
+        TestAssert.Equal(false, option.IsAvailable);
+        TestAssert.Equal(requirementText, option.RequirementText);
+        TestAssert.Equal("Requirements not satisfied.", option.UnavailableReason);
+    }
 }
 
 internal static class TestAssert
@@ -488,6 +527,35 @@ internal static class TestAssert
     {
         if (!expected.SequenceEqual(actual, StringComparer.Ordinal))
             throw new InvalidOperationException($"Expected [{string.Join(", ", expected)}], got [{string.Join(", ", actual)}].");
+    }
+}
+
+internal static class TestDatabase
+{
+    public static void AddRequirement(SqliteConnection connection, string auroraId, string requirementText)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
+INSERT INTO element_requirements (element_id, ordinal, requirement_text)
+SELECT
+    e.element_id,
+    COALESCE(
+        (
+            SELECT MAX(er.ordinal)
+            FROM element_requirements AS er
+            WHERE er.element_id = e.element_id
+        ),
+        -1
+    ) + 1,
+    $requirement_text
+FROM elements AS e
+WHERE e.aurora_id = $aurora_id;";
+        command.Parameters.AddWithValue("$aurora_id", auroraId);
+        command.Parameters.AddWithValue("$requirement_text", requirementText);
+
+        int rowsInserted = command.ExecuteNonQuery();
+        if (rowsInserted != 1)
+            throw new InvalidOperationException($"Expected to add one requirement for {auroraId}, inserted {rowsInserted}.");
     }
 }
 
