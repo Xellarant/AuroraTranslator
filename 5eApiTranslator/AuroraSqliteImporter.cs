@@ -9,9 +9,9 @@ using System.Text.Json;
 
 namespace AuroraTranslator
 {
-    internal static class AuroraSqliteImporter
+    internal static partial class AuroraSqliteImporter
     {
-        private const int CurrentDataVersion = 10;
+        internal const int CurrentDataVersion = 11;
 
         private static readonly IReadOnlyDictionary<string, (string TargetName, IReadOnlyList<string> TypeNames)> GrantTargetAliasMap
             = new Dictionary<string, (string TargetName, IReadOnlyList<string> TypeNames)>(StringComparer.OrdinalIgnoreCase)
@@ -200,8 +200,7 @@ namespace AuroraTranslator
                 Console.WriteLine("SRD creatures: no changes.");
         }
 
-        // schema_version and data_version must match AuroraDatabaseVersions in the
-        // Aurora-Lights repo (Aurora.Importer/AuroraDatabaseMetadata.cs).
+        // Consumers should check this versioned contract before using a new snapshot.
         private static void WriteImportMetadata(SqliteConnection connection, int sourceFileCount)
         {
             long elementCount;
@@ -1185,6 +1184,7 @@ CREATE INDEX IF NOT EXISTS ix_parent_family_aliases_target_name
             cacheTables.ExecuteNonQuery();
 
             EnsureSpellcastingProfileEntriesSchema(connection);
+            EnsureSpellcastingFidelityColumns(connection);
 
             using var selectItemKindIndex = connection.CreateCommand();
             selectItemKindIndex.CommandText = @"
@@ -1209,12 +1209,11 @@ WHERE target_element_id IS NULL
             BackfillSelectItemOptionKinds(connection);
             SeedParentFamilyAliases(connection);
 
-            bool rebuildSpellcastingProfileEntries =
-                GetStoredDataVersion(connection) < CurrentDataVersion ||
-                SpellcastingProfileEntriesNeedRebuild(connection);
-
-            if (rebuildSpellcastingProfileEntries)
-                RebuildSpellcastingProfileEntries(connection);
+            RepairSpellcastingEntries(connection);
+            ExecuteSql(connection, null, @"UPDATE source_files SET file_hash = NULL
+WHERE source_file_id IN
+    (SELECT e.source_file_id FROM elements e JOIN spellcasting_profiles sp
+     ON sp.owner_element_id = e.element_id WHERE sp.raw_xml IS NULL);");
 
             EnsureDatabaseMetadataDataVersion(connection, CurrentDataVersion);
 
@@ -1222,11 +1221,13 @@ WHERE target_element_id IS NULL
             {
                 RefreshResolutionViews(connection);
                 RefreshAppContractViews(connection);
+                ExecuteSql(connection, null, SpellcastingViewsSql);
             }
         }
 
         private static bool ApplySchemaBootstrapMigrations(SqliteConnection connection)
         {
+            EnsureSpellcastingFidelityColumns(connection);
             EnsureElementTextsSchemaUpToDate(connection);
             EnsureColumnExistsIfTableExists(connection, "source_files", "file_hash", "TEXT");
             EnsureColumnExistsIfTableExists(connection, "source_files", "content_package_id", "INTEGER REFERENCES content_packages(content_package_id)");
@@ -1419,83 +1420,6 @@ CREATE INDEX IF NOT EXISTS ix_spellcasting_profile_entries_text
             command.ExecuteNonQuery();
         }
 
-        private static bool SpellcastingProfileEntriesNeedRebuild(SqliteConnection connection)
-        {
-            if (!TableExists(connection, "spellcasting_profiles") ||
-                !TableExists(connection, "spellcasting_profile_entries"))
-            {
-                return false;
-            }
-
-            using var command = connection.CreateCommand();
-            command.CommandText = @"
-SELECT COUNT(*)
-FROM spellcasting_profiles AS sp
-WHERE
-(
-    COALESCE(trim(sp.list_text), '') <> ''
-    AND NOT EXISTS
-    (
-        SELECT 1
-        FROM spellcasting_profile_entries AS spe
-        WHERE spe.spellcasting_profile_id = sp.spellcasting_profile_id
-          AND spe.entry_kind = 'list'
-    )
-)
-OR
-(
-    COALESCE(trim(sp.extend_text), '') <> ''
-    AND NOT EXISTS
-    (
-        SELECT 1
-        FROM spellcasting_profile_entries AS spe
-        WHERE spe.spellcasting_profile_id = sp.spellcasting_profile_id
-          AND spe.entry_kind = 'extend'
-    )
-);";
-            return Convert.ToInt64(command.ExecuteScalar() ?? 0L) > 0;
-        }
-
-        private static void RebuildSpellcastingProfileEntries(SqliteConnection connection)
-        {
-            if (!TableExists(connection, "spellcasting_profiles") ||
-                !TableExists(connection, "spellcasting_profile_entries"))
-            {
-                return;
-            }
-
-            var profiles = new List<(long SpellcastingProfileId, string ListText, string ExtendText)>();
-            using var transaction = connection.BeginTransaction();
-            ExecuteSql(connection, transaction, "DELETE FROM spellcasting_profile_entries;");
-
-            using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = @"
-SELECT
-    spellcasting_profile_id,
-    list_text,
-    extend_text
-FROM spellcasting_profiles;";
-
-            {
-                using var reader = command.ExecuteReader();
-                while (reader.Read())
-                {
-                    profiles.Add((
-                        reader.GetInt64(0),
-                        reader.IsDBNull(1) ? null : reader.GetString(1),
-                        reader.IsDBNull(2) ? null : reader.GetString(2)));
-                }
-            }
-
-            foreach (var profile in profiles)
-            {
-                InsertSpellcastingProfileEntries(connection, transaction, profile.SpellcastingProfileId, "list", profile.ListText);
-                InsertSpellcastingProfileEntries(connection, transaction, profile.SpellcastingProfileId, "extend", profile.ExtendText);
-            }
-
-            transaction.Commit();
-        }
 
         private static void InvalidateSourceFileHashes(SqliteConnection connection)
         {
@@ -3232,36 +3156,6 @@ GROUP BY
     owner_type_name,
     trim(spellcasting_name);
 
-DROP VIEW IF EXISTS v_spellcasting_profile_entries;
-CREATE VIEW v_spellcasting_profile_entries AS
-SELECT
-    sp.spellcasting_profile_id,
-    sp.owner_element_id,
-    owner.aurora_id AS owner_aurora_id,
-    owner.name AS owner_name,
-    owner_rec.package_key AS owner_package_key,
-    owner_sf.relative_path AS owner_source_path,
-    owner_type.type_name AS owner_type_name,
-    sp.owner_kind,
-    sp.profile_name,
-    sp.ability_name,
-    sp.is_extended,
-    sp.prepare_spells,
-    sp.allow_replace,
-    spe.entry_kind,
-    spe.ordinal AS entry_ordinal,
-    spe.entry_text
-FROM spellcasting_profile_entries AS spe
-JOIN spellcasting_profiles AS sp
-    ON sp.spellcasting_profile_id = spe.spellcasting_profile_id
-JOIN elements AS owner
-    ON owner.element_id = sp.owner_element_id
-JOIN resolved_elements_cache AS owner_rec
-    ON owner_rec.winning_element_id = owner.element_id
-JOIN source_files AS owner_sf
-    ON owner_sf.source_file_id = owner.source_file_id
-JOIN element_types AS owner_type
-    ON owner_type.element_type_id = owner.element_type_id;
 
 DROP VIEW IF EXISTS v_app_effect_rows;
 CREATE VIEW v_app_effect_rows AS
@@ -3879,7 +3773,7 @@ SET race_element_id =
        OR subraces.parent_support_text LIKE '% ' || parent.name
 )
 WHERE element_id IN (SELECT element_id FROM temp.affected_owner_elements)
-  AND parent_element_id IS NULL
+  AND race_element_id IS NULL
   AND parent_support_text IS NOT NULL;");
 
             ExecuteSql(connection, transaction, @"
@@ -5071,45 +4965,25 @@ VALUES
         {
             ExecuteInsert(connection, transaction,
                 @"INSERT INTO spellcasting_profiles
-(owner_element_id, owner_kind, profile_name, ability_name, is_extended, prepare_spells, allow_replace, list_text, extend_text)
+(owner_element_id, owner_kind, profile_name, ability_name, is_extended, prepare_spells, allow_replace, list_text, extend_text, assign_to_all, raw_xml)
 VALUES
-($owner_element_id, $owner_kind, $profile_name, $ability_name, $is_extended, $prepare_spells, $allow_replace, $list_text, $extend_text);",
+($owner_element_id, $owner_kind, $profile_name, $ability_name, $is_extended, $prepare_spells, $allow_replace, $list_text, $extend_text, $assign_to_all, $raw_xml);",
                 ("$owner_element_id", elementId),
                 ("$owner_kind", GetSpellcastingOwnerKind(elementType)),
-                ("$profile_name", spellcasting.name ?? "Spellcasting"),
+                ("$profile_name", spellcasting.name ?? "N/A"),
                 ("$ability_name", (object)spellcasting.ability ?? DBNull.Value),
                 ("$is_extended", spellcasting.extend ? 1 : 0),
                 ("$prepare_spells", spellcasting.prepare.HasValue ? (spellcasting.prepare.Value ? 1 : 0) : DBNull.Value),
                 ("$allow_replace", spellcasting.allowReplace.HasValue ? (spellcasting.allowReplace.Value ? 1 : 0) : DBNull.Value),
                 ("$list_text", (object)spellcasting.list?.raw ?? DBNull.Value),
-                ("$extend_text", (object)spellcasting.extendList?.raw ?? DBNull.Value));
+                ("$extend_text", (object)spellcasting.extendList?.raw ?? DBNull.Value),
+                ("$assign_to_all", (object)spellcasting.all ?? DBNull.Value),
+                ("$raw_xml", (object)spellcasting.rawXml ?? DBNull.Value));
 
             long spellcastingProfileId = GetLastInsertRowId(connection, transaction);
-            InsertSpellcastingProfileEntries(connection, transaction, spellcastingProfileId, "list", spellcasting.list?.raw);
-            InsertSpellcastingProfileEntries(connection, transaction, spellcastingProfileId, "extend", spellcasting.extendList?.raw);
+            InsertFaithfulSpellcastingEntries(connection, transaction, spellcastingProfileId, spellcasting);
         }
 
-        private static void InsertSpellcastingProfileEntries(
-            SqliteConnection connection,
-            SqliteTransaction transaction,
-            long spellcastingProfileId,
-            string entryKind,
-            string rawText)
-        {
-            IReadOnlyList<string> entries = ParseSpellcastingProfileEntryText(rawText);
-            for (int i = 0; i < entries.Count; i++)
-            {
-                ExecuteInsert(connection, transaction,
-                    @"INSERT INTO spellcasting_profile_entries
-(spellcasting_profile_id, entry_kind, ordinal, entry_text)
-VALUES
-($spellcasting_profile_id, $entry_kind, $ordinal, $entry_text);",
-                    ("$spellcasting_profile_id", spellcastingProfileId),
-                    ("$entry_kind", entryKind),
-                    ("$ordinal", i + 1),
-                    ("$entry_text", entries[i]));
-            }
-        }
 
         private static IReadOnlyList<string> ParseSpellcastingProfileEntryText(string rawText)
         {

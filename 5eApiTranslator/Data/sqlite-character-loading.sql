@@ -18,13 +18,12 @@ BEGIN TRANSACTION;
 -- without replacing the core element/rule shape defined here.
 
 -- Compatibility metadata consumed by Aurora.App's DbElementLoader.
--- schema_version and data_version MUST stay in sync with AuroraDatabaseVersions
--- in the Aurora-Lights repo (Aurora.Importer/AuroraDatabaseMetadata.cs).
+-- Consumers must support the declared version before adopting a new snapshot.
 CREATE TABLE IF NOT EXISTS database_metadata
 (
     singleton_id      INTEGER NOT NULL PRIMARY KEY CHECK (singleton_id = 1),
     schema_version    INTEGER NOT NULL DEFAULT 1,
-    data_version      INTEGER NOT NULL DEFAULT 10,
+    data_version      INTEGER NOT NULL DEFAULT 11,
     importer_version  TEXT    NOT NULL DEFAULT '',
     built_utc         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     source_file_count INTEGER NOT NULL DEFAULT 0,
@@ -341,6 +340,8 @@ CREATE TABLE IF NOT EXISTS spellcasting_profiles
     allow_replace INTEGER CHECK (allow_replace IN (0, 1)),
     list_text TEXT,
     extend_text TEXT,
+    assign_to_all INTEGER CHECK (assign_to_all IN (0, 1)),
+    raw_xml TEXT,
     UNIQUE (owner_element_id, owner_kind)
 );
 
@@ -350,7 +351,9 @@ CREATE TABLE IF NOT EXISTS spellcasting_profile_entries
     spellcasting_profile_id INTEGER NOT NULL REFERENCES spellcasting_profiles(spellcasting_profile_id) ON DELETE CASCADE,
     entry_kind TEXT NOT NULL CHECK (entry_kind IN ('list', 'extend')),
     ordinal INTEGER NOT NULL,
-    entry_text TEXT NOT NULL
+    entry_text TEXT NOT NULL,
+    is_known INTEGER CHECK (is_known IN (0, 1)),
+    raw_xml TEXT
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_spellcasting_profile_entries_identity
@@ -2354,36 +2357,109 @@ GROUP BY
     owner_type_name,
     trim(spellcasting_name);
 
+
+DROP VIEW IF EXISTS v_spellcasting_definitions;
+CREATE VIEW v_spellcasting_definitions AS
+SELECT sp.*, e.aurora_id AS owner_aurora_id, e.name AS owner_name,
+       et.type_name AS owner_type_name, rec.package_key AS owner_package_key,
+       sf.relative_path AS owner_source_path,
+       CASE WHEN sp.raw_xml IS NULL THEN 1 ELSE 0 END AS requires_xml_reimport,
+       CASE WHEN sp.raw_xml IS NULL THEN NULL WHEN sp.is_extended = 0 THEN
+           COALESCE((SELECT spe.is_known FROM spellcasting_profile_entries spe
+            WHERE spe.spellcasting_profile_id = sp.spellcasting_profile_id AND spe.entry_kind = 'list'
+            ORDER BY spe.ordinal DESC LIMIT 1), 0)
+       ELSE 0 END AS prepare_from_spell_list
+FROM spellcasting_profiles sp
+JOIN elements e ON e.element_id = sp.owner_element_id
+JOIN resolved_elements_cache rec ON rec.winning_element_id = e.element_id
+JOIN source_files sf ON sf.source_file_id = e.source_file_id
+JOIN element_types et ON et.element_type_id = e.element_type_id;
+
 DROP VIEW IF EXISTS v_spellcasting_profile_entries;
 CREATE VIEW v_spellcasting_profile_entries AS
-SELECT
-    sp.spellcasting_profile_id,
-    sp.owner_element_id,
-    owner.aurora_id AS owner_aurora_id,
-    owner.name AS owner_name,
-    owner_rec.package_key AS owner_package_key,
-    owner_sf.relative_path AS owner_source_path,
-    owner_type.type_name AS owner_type_name,
-    sp.owner_kind,
-    sp.profile_name,
-    sp.ability_name,
-    sp.is_extended,
-    sp.prepare_spells,
-    sp.allow_replace,
-    spe.entry_kind,
-    spe.ordinal AS entry_ordinal,
-    spe.entry_text
-FROM spellcasting_profile_entries AS spe
-JOIN spellcasting_profiles AS sp
-    ON sp.spellcasting_profile_id = spe.spellcasting_profile_id
-JOIN elements AS owner
-    ON owner.element_id = sp.owner_element_id
-JOIN resolved_elements_cache AS owner_rec
-    ON owner_rec.winning_element_id = owner.element_id
-JOIN source_files AS owner_sf
-    ON owner_sf.source_file_id = owner.source_file_id
-JOIN element_types AS owner_type
-    ON owner_type.element_type_id = owner.element_type_id;
+SELECT sp.spellcasting_profile_id, sp.owner_element_id, sp.owner_aurora_id, sp.owner_name,
+       sp.owner_package_key, sp.owner_source_path, sp.owner_type_name, sp.owner_kind,
+       sp.profile_name, sp.ability_name, sp.is_extended, sp.prepare_spells, sp.allow_replace,
+       spe.entry_kind, spe.ordinal AS entry_ordinal, spe.entry_text,
+       spe.spellcasting_profile_entry_id, spe.is_known, spe.raw_xml AS entry_raw_xml,
+       sp.assign_to_all, sp.requires_xml_reimport
+FROM spellcasting_profile_entries spe
+JOIN v_spellcasting_definitions sp ON sp.spellcasting_profile_id = spe.spellcasting_profile_id;
+
+-- These are potential recipients. The consumer must establish that both owners are active.
+DROP VIEW IF EXISTS v_spellcasting_extension_targets;
+CREATE VIEW v_spellcasting_extension_targets AS
+SELECT ext.spellcasting_profile_id AS extension_profile_id,
+       ext.owner_element_id AS extension_owner_element_id,
+       ext.owner_aurora_id AS extension_owner_aurora_id,
+       ext.owner_package_key AS extension_owner_package_key,
+       ext.owner_source_path AS extension_owner_source_path,
+       ext.profile_name AS target_profile_name, ext.assign_to_all,
+       base.spellcasting_profile_id AS recipient_profile_id,
+       base.owner_element_id AS recipient_owner_element_id,
+       base.owner_aurora_id AS recipient_owner_aurora_id,
+       base.owner_package_key AS recipient_owner_package_key,
+       base.owner_source_path AS recipient_owner_source_path,
+       CASE WHEN ext.requires_xml_reimport = 1 THEN 'requires-xml-reimport'
+            WHEN base.spellcasting_profile_id IS NULL THEN 'unresolved'
+            WHEN ext.assign_to_all = 1 THEN 'all-profiles'
+            ELSE 'profile-name' END AS binding_kind,
+       1 AS requires_character_context
+FROM v_spellcasting_definitions ext
+LEFT JOIN v_spellcasting_definitions base
+  ON base.is_extended = 0 AND ext.requires_xml_reimport = 0 AND base.requires_xml_reimport = 0
+ AND (ext.assign_to_all = 1 OR ext.profile_name = base.profile_name COLLATE NOCASE)
+WHERE ext.is_extended = 1;
+
+DROP VIEW IF EXISTS v_spellcasting_list_contributions;
+CREATE VIEW v_spellcasting_list_contributions AS
+SELECT sp.spellcasting_profile_id AS recipient_profile_id,
+       sp.owner_element_id AS recipient_owner_element_id,
+       sp.owner_aurora_id AS recipient_owner_aurora_id,
+       spe.spellcasting_profile_entry_id, sp.spellcasting_profile_id AS contribution_profile_id,
+       sp.owner_element_id AS contribution_owner_element_id,
+       sp.owner_aurora_id AS contribution_owner_aurora_id,
+       sp.owner_package_key AS contribution_package_key, sp.owner_source_path AS contribution_source_path,
+       spe.entry_kind, spe.ordinal AS entry_ordinal, spe.entry_text, spe.is_known,
+       'local' AS binding_kind, 1 AS requires_character_context
+FROM v_spellcasting_definitions sp
+JOIN spellcasting_profile_entries spe ON spe.spellcasting_profile_id = sp.spellcasting_profile_id
+WHERE sp.is_extended = 0 AND sp.requires_xml_reimport = 0
+  AND (spe.entry_kind = 'extend' OR spe.ordinal =
+      (SELECT MAX(initial.ordinal) FROM spellcasting_profile_entries initial
+       WHERE initial.spellcasting_profile_id = sp.spellcasting_profile_id AND initial.entry_kind = 'list'))
+UNION ALL
+SELECT target.recipient_profile_id, target.recipient_owner_element_id, target.recipient_owner_aurora_id,
+       spe.spellcasting_profile_entry_id, target.extension_profile_id,
+       target.extension_owner_element_id, target.extension_owner_aurora_id,
+       target.extension_owner_package_key, target.extension_owner_source_path,
+       spe.entry_kind, spe.ordinal, spe.entry_text, spe.is_known, target.binding_kind, 1
+FROM v_spellcasting_extension_targets target
+JOIN spellcasting_profile_entries spe ON spe.spellcasting_profile_id = target.extension_profile_id
+WHERE target.recipient_profile_id IS NOT NULL AND spe.entry_kind = 'extend';
+
+-- WPF treats an extension beginning with ID_ as explicit IDs; other text remains an expression.
+DROP VIEW IF EXISTS v_spellcasting_entry_spell_references;
+CREATE VIEW v_spellcasting_entry_spell_references AS
+WITH RECURSIVE ids(entry_id, ordinal, reference_text, remainder) AS
+(
+    SELECT spellcasting_profile_entry_id, 0, '', trim(entry_text) || ','
+    FROM v_spellcasting_profile_entries
+    WHERE entry_kind = 'extend' AND substr(trim(entry_text), 1, 3) = 'ID_'
+    UNION ALL
+    SELECT entry_id, ordinal + 1, trim(substr(remainder, 1, instr(remainder, ',') - 1)),
+           substr(remainder, instr(remainder, ',') + 1)
+    FROM ids WHERE remainder <> ''
+)
+SELECT ids.entry_id AS spellcasting_profile_entry_id, ids.ordinal AS reference_ordinal,
+       ids.reference_text AS spell_aurora_id, spell.element_id AS spell_element_id,
+       e.name AS spell_name, rec.package_key AS spell_package_key,
+       CASE WHEN spell.element_id IS NULL THEN 'unresolved' ELSE 'resolved' END AS resolution_status
+FROM ids
+LEFT JOIN resolved_elements_cache rec ON rec.aurora_id = ids.reference_text
+LEFT JOIN spells spell ON spell.element_id = rec.winning_element_id
+LEFT JOIN elements e ON e.element_id = spell.element_id
+WHERE ids.ordinal > 0 AND ids.reference_text <> '';
 
 DROP VIEW IF EXISTS v_app_effect_rows;
 CREATE VIEW v_app_effect_rows AS

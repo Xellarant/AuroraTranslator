@@ -1,0 +1,38 @@
+<elements>
+  <info><name>Spellcasting fidelity fixture</name></info>
+  <element id="ID_TEST_WARLOCK_2014" name="Warlock" type="Class" source="Fixture 2014">
+    <spellcasting name="Warlock" ability="Charisma" allowReplace="true"><list>Warlock</list></spellcasting>
+  </element>
+  <element id="ID_TEST_WARLOCK_2024" name="Warlock" type="Class" source="Fixture 2024">
+    <spellcasting name="Warlock" ability="Charisma"><list>Warlock</list></spellcasting>
+  </element>
+  <element id="ID_TEST_CLERIC" name="Cleric" type="Class" source="Fixture">
+    <spellcasting name="Cleric" ability="Wisdom" prepare="true"><list known="true">Cleric</list></spellcasting>
+  </element>
+  <element id="ID_TEST_WIZARD" name="Wizard" type="Class" source="Fixture">
+    <spellcasting name="Wizard" ability="Intelligence" prepare="true"><list known="true">Superseded List</list><list>Wizard,Evocation</list></spellcasting>
+    <spellcasting name="Ignored Second Block"><list>Preserved as raw content</list></spellcasting>
+  </element>
+  <element id="ID_TEST_HEXBLADE" name="Hexblade" type="Archetype Feature" source="Fixture">
+    <spellcasting name="Warlock" extend="true">
+      <extend>ID_TEST_SHIELD_2014</extend>
+      <extend>ID_TEST_SHIELD_2024, ID_TEST_MISSING_SPELL</extend>
+      <extend known="true">Wizard,Evocation</extend>
+      <extend>$(spellcasting:list)</extend>
+    </spellcasting>
+  </element>
+  <element id="ID_TEST_STUDENT" name="Student Spells" type="Background Feature" source="Fixture">
+    <spellcasting all="true" extend="true"><extend>ID_TEST_SHIELD_2014</extend></spellcasting>
+  </element>
+  <element id="ID_TEST_ORPHAN" name="Unmatched Extension" type="Feat" source="Fixture">
+    <spellcasting name="Unavailable Caster" extend="true"><extend>ID_TEST_SHIELD_2024</extend></spellcasting>
+  </element>
+  <element id="ID_TEST_SHIELD_2014" name="Shield" type="Spell" source="fixture 2014">
+    <supports>Wizard, Sorcerer</supports><setters><set name="level">1</set></setters>
+    <description><p>Fixture wording for the older spell.</p></description>
+  </element>
+  <element id="ID_TEST_SHIELD_2024" name="Shield" type="Spell" source="Fixture 2024">
+    <supports>Wizard, Sorcerer</supports><setters><set name="level">1</set></setters>
+    <description><p>Distinct fixture wording for the newer spell.</p></description>
+  </element>
+</elements>

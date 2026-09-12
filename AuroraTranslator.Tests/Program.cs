@@ -14,7 +14,13 @@ var tests = new (string Name, Action Body)[]
     ("filters already-owned fixed choices", FixedChoiceFilteringTests.FixedPoolsExcludeOwnedOptionsOutsideTheirChosenSlot),
     ("filters requirement-gated fixed choices", FixedChoiceFilteringTests.FixedPoolsMarkUnsatisfiedRequirementsUnavailable),
     ("filters choice pools by source restrictions", SourceRestrictionFilteringTests.SourceAndElementDenyListsFilterChoicePools),
-    ("keeps fully restricted pools empty", SourceRestrictionFilteringTests.FullyRestrictedPoolsDoNotRestoreStoredChoices)
+    ("keeps fully restricted pools empty", SourceRestrictionFilteringTests.FullyRestrictedPoolsDoNotRestoreStoredChoices),
+    ("filters already-owned spell choices", SpellChoiceFilteringTests.SpellPoolsExcludeOwnedSpellsOutsideTheirChosenSlot),
+    ("keeps repeatable spell choices available", SpellChoiceFilteringTests.RepeatableSpellsRemainAvailable),
+    ("preserves spellcasting XML and ownership", SpellcastingFidelityTests.XmlOwnershipAndContributions),
+    ("detects and repairs partial spellcasting damage", SpellcastingFidelityTests.PartialDamageAndSourceMismatch),
+    ("reimports legacy spellcasting without guessing flags", SpellcastingFidelityTests.LegacyRefreshMatchesFreshImport),
+    ("refreshes spellcasting ownership after package changes", SpellcastingFidelityTests.PackageResolution)
 };
 
 if (args.Length > 0)
@@ -65,7 +71,7 @@ internal static class SpellcastingProfileEntryTests
 
         using var connection = Open(workspace.DatabasePath);
 
-        TestAssert.Equal(10L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Equal(11L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
         TestAssert.Sequence(
             new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
             QueryStrings(connection, "SELECT entry_text FROM spellcasting_profile_entries WHERE entry_kind = 'list' ORDER BY ordinal;"));
@@ -96,7 +102,7 @@ internal static class SpellcastingProfileEntryTests
         AuroraSqliteImporter.ListContentPackages(workspace.DatabasePath, TestPaths.SchemaPath);
 
         using var migrated = Open(workspace.DatabasePath);
-        TestAssert.Equal(10L, ExecuteLong(migrated, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Equal(11L, ExecuteLong(migrated, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
         TestAssert.Equal(1L, ExecuteLong(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'spellcasting_profile_entries';"));
         TestAssert.Sequence(
             new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
@@ -117,7 +123,7 @@ internal static class SpellcastingProfileEntryTests
 
         using (var connection = Open(workspace.DatabasePath))
         {
-            TestAssert.Equal(10L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+            TestAssert.Equal(11L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
             ExecuteNonQuery(connection, "DELETE FROM spellcasting_profile_entries;");
             TestAssert.Equal(0L, ExecuteLong(connection, "SELECT COUNT(*) FROM spellcasting_profile_entries;"));
         }
@@ -125,7 +131,7 @@ internal static class SpellcastingProfileEntryTests
         AuroraSqliteImporter.ListContentPackages(workspace.DatabasePath, TestPaths.SchemaPath);
 
         using var repaired = Open(workspace.DatabasePath);
-        TestAssert.Equal(10L, ExecuteLong(repaired, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Equal(11L, ExecuteLong(repaired, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
         TestAssert.Sequence(
             new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
             QueryStrings(repaired, "SELECT entry_text FROM spellcasting_profile_entries WHERE entry_kind = 'list' ORDER BY ordinal;"));
@@ -525,6 +531,112 @@ internal static class SourceRestrictionFilteringTests
             string.Equals(option.OptionAuroraId, auroraId, StringComparison.OrdinalIgnoreCase)));
 }
 
+internal static class SpellChoiceFilteringTests
+{
+    public static void SpellPoolsExcludeOwnedSpellsOutsideTheirChosenSlot()
+    {
+        CharacterEvaluationResult result = AuroraCharacterStateEngine.Evaluate(
+            TestPaths.FirstPartyRegressionDatabasePath,
+            TestPaths.DataPath("character-state-ritual-caster-direct-example.json"));
+
+        CharacterSelectResult firstSpellSelect = FindSelect(result, "1st Ritual Spell (Ritual Caster)");
+        CharacterSelectResult secondSpellSelect = FindSelect(result, "2nd Ritual Spell (Ritual Caster)");
+
+        CharacterSelectOptionResult detectMagicInChosenSlot = FindOption(
+            firstSpellSelect,
+            "ID_WOTC_PHB24_SPELL_DETECT_MAGIC");
+        TestAssert.Equal(true, detectMagicInChosenSlot.IsAlreadyOwned);
+        TestAssert.Equal(true, detectMagicInChosenSlot.IsChosenForSelect);
+        TestAssert.Equal(true, detectMagicInChosenSlot.IsAvailable);
+        TestAssert.Equal<string?>(null, detectMagicInChosenSlot.UnavailableReason);
+
+        CharacterSelectOptionResult detectMagicInOtherSlot = FindOption(
+            secondSpellSelect,
+            "ID_WOTC_PHB24_SPELL_DETECT_MAGIC");
+        TestAssert.Equal(true, detectMagicInOtherSlot.IsAlreadyOwned);
+        TestAssert.Equal(false, detectMagicInOtherSlot.IsChosenForSelect);
+        TestAssert.Equal(false, detectMagicInOtherSlot.IsAvailable);
+        TestAssert.Equal("Already owned.", detectMagicInOtherSlot.UnavailableReason);
+
+        CharacterSelectOptionResult findFamiliarInChosenSlot = FindOption(
+            secondSpellSelect,
+            "ID_WOTC_PHB24_SPELL_FIND_FAMILIAR");
+        TestAssert.Equal(true, findFamiliarInChosenSlot.IsAlreadyOwned);
+        TestAssert.Equal(true, findFamiliarInChosenSlot.IsChosenForSelect);
+        TestAssert.Equal(true, findFamiliarInChosenSlot.IsAvailable);
+
+        CharacterSelectOptionResult findFamiliarInOtherSlot = FindOption(
+            firstSpellSelect,
+            "ID_WOTC_PHB24_SPELL_FIND_FAMILIAR");
+        TestAssert.Equal(true, findFamiliarInOtherSlot.IsAlreadyOwned);
+        TestAssert.Equal(false, findFamiliarInOtherSlot.IsChosenForSelect);
+        TestAssert.Equal(false, findFamiliarInOtherSlot.IsAvailable);
+    }
+
+    public static void RepeatableSpellsRemainAvailable()
+    {
+        CharacterEvaluationResult baseline = AuroraCharacterStateEngine.Evaluate(
+            TestPaths.FirstPartyRegressionDatabasePath,
+            TestPaths.DataPath("character-state-ritual-caster-direct-example.json"));
+        CharacterSelectOptionResult repeatableCandidate = FindSelect(baseline, "1st Ritual Spell (Ritual Caster)")
+            .Options
+            .First(option =>
+                option.IsAvailable
+                && !option.IsAlreadyOwned
+                && !option.IsChosenForSelect
+                && !string.IsNullOrWhiteSpace(option.OptionAuroraId));
+
+        using var workspace = TestWorkspace.Create();
+        AuroraCharacterStateDocument document = AuroraCharacterStateDocument.Load(
+            TestPaths.DataPath("character-state-ritual-caster-direct-example.json"));
+        document.Elements.Add(new AuroraCharacterStateSelection
+        {
+            AuroraId = repeatableCandidate.OptionAuroraId,
+            Name = repeatableCandidate.OptionName,
+            PackageKey = repeatableCandidate.OptionPackageKey
+        });
+
+        string statePath = Path.Combine(workspace.DirectoryPath, "repeatable-spell.json");
+        File.WriteAllText(statePath, System.Text.Json.JsonSerializer.Serialize(document));
+
+        CharacterEvaluationResult nonRepeatableResult = AuroraCharacterStateEngine.Evaluate(
+            TestPaths.FirstPartyRegressionDatabasePath,
+            statePath);
+        CharacterSelectOptionResult nonRepeatableOption = FindOption(
+            FindSelect(nonRepeatableResult, "1st Ritual Spell (Ritual Caster)"),
+            repeatableCandidate.OptionAuroraId!);
+        TestAssert.Equal(true, nonRepeatableOption.IsAlreadyOwned);
+        TestAssert.Equal(false, nonRepeatableOption.IsChosenForSelect);
+        TestAssert.Equal(false, nonRepeatableOption.IsAvailable);
+
+        File.Copy(TestPaths.FirstPartyRegressionDatabasePath, workspace.DatabasePath);
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = workspace.DatabasePath }.ToString()))
+        {
+            connection.Open();
+            TestDatabase.AddBooleanSetter(connection, repeatableCandidate.OptionAuroraId!, "allow duplicate", true);
+        }
+
+        CharacterEvaluationResult repeatableResult = AuroraCharacterStateEngine.Evaluate(workspace.DatabasePath, statePath);
+        CharacterSelectOptionResult repeatableOption = FindOption(
+            FindSelect(repeatableResult, "1st Ritual Spell (Ritual Caster)"),
+            repeatableCandidate.OptionAuroraId!);
+
+        TestAssert.Equal(false, repeatableOption.IsAlreadyOwned);
+        TestAssert.Equal(false, repeatableOption.IsChosenForSelect);
+        TestAssert.Equal(true, repeatableOption.IsAvailable);
+        TestAssert.Equal<string?>(null, repeatableOption.UnavailableReason);
+    }
+
+    private static CharacterSelectResult FindSelect(CharacterEvaluationResult result, string selectName)
+        => result.AvailableSelects.Single(select =>
+            string.Equals(select.OwnerName, "Ritual Caster", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(select.SelectName, selectName, StringComparison.OrdinalIgnoreCase));
+
+    private static CharacterSelectOptionResult FindOption(CharacterSelectResult select, string auroraId)
+        => select.Options.Single(option =>
+            string.Equals(option.OptionAuroraId, auroraId, StringComparison.OrdinalIgnoreCase));
+}
+
 internal static class FixedChoiceFilteringTests
 {
     public static void FixedPoolsExcludeOwnedOptionsOutsideTheirChosenSlot()
@@ -666,6 +778,32 @@ internal static class TestAssert
 
 internal static class TestDatabase
 {
+    public static void AddBooleanSetter(SqliteConnection connection, string auroraId, string setterName, bool value)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
+INSERT OR IGNORE INTO setter_scopes (owner_kind, owner_element_id, scope_key)
+SELECT 'element', e.element_id, 'test-element-setters'
+FROM elements AS e
+WHERE e.aurora_id = $aurora_id;
+
+INSERT INTO setter_entries (setter_scope_id, ordinal, setter_name, setter_value)
+SELECT ss.setter_scope_id, 0, $setter_name, $setter_value
+FROM setter_scopes AS ss
+JOIN elements AS e
+    ON e.element_id = ss.owner_element_id
+WHERE ss.owner_kind = 'element'
+  AND ss.scope_key = 'test-element-setters'
+  AND e.aurora_id = $aurora_id;";
+        command.Parameters.AddWithValue("$aurora_id", auroraId);
+        command.Parameters.AddWithValue("$setter_name", setterName);
+        command.Parameters.AddWithValue("$setter_value", value ? "true" : "false");
+
+        int rowsChanged = command.ExecuteNonQuery();
+        if (rowsChanged < 2)
+            throw new InvalidOperationException($"Expected to add a setter scope and entry for {auroraId}, changed {rowsChanged} row(s).");
+    }
+
     public static void AddRequirement(SqliteConnection connection, string auroraId, string requirementText)
     {
         using var command = connection.CreateCommand();
@@ -725,7 +863,8 @@ internal sealed class TestWorkspace : IDisposable
 internal static class TestPaths
 {
     public static string SchemaPath { get; } = FindSchemaPath();
-    public static string FirstPartyRegressionDatabasePath => DataPath("aurora-first-party-regression.sqlite");
+    public static string FirstPartyRegressionDatabasePath => Environment.GetEnvironmentVariable("AURORA_TEST_DATABASE")
+        ?? DataPath("aurora-first-party-regression.sqlite");
 
     public static string DataPath(string fileName)
     {

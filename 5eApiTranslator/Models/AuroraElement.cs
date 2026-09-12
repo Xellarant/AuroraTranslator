@@ -98,6 +98,18 @@ namespace AuroraTranslator.Models
         public AuroraTextCollection extendList { get; set; } // other lists we're potentially including
         public bool? prepare { get; set; }
         public bool? allowReplace { get; set; }
+        public bool? all { get; set; }
+        public string rawXml { get; set; }
+        public List<SpellcastingEntry> entries { get; set; }
+    }
+
+    public class SpellcastingEntry
+    {
+        public string kind { get; set; }
+        public int ordinal { get; set; }
+        public string text { get; set; }
+        public bool? known { get; set; }
+        public string rawXml { get; set; }
     }
 
     public class Compendium

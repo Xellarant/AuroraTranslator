@@ -40,7 +40,7 @@ This roadmap reflects the project state as of the current `master` branch after:
   - spellcasting profile surfaces
   - spell-access rows
   - companion distributions
-  - a curated set of known-good archetype/profile/companion/spell samples
+- a curated set of known-good archetype/profile/companion/spell samples
 
 ### Builder-facing data layer
 
@@ -81,6 +81,7 @@ This roadmap reflects the project state as of the current `master` branch after:
 - Broad feat pools now exclude already-owned feats unless they are the saved selection for that same choice row, with an explicit unavailable reason for app consumers
 - Dynamic language and proficiency pools now exclude options owned through other grants or selections while keeping saved same-row choices replayable
 - Fixed element pools and support-linked fallback options now use that slot-aware filtering as well, covering direct subclass and nested feature ownership
+- Spell pools now follow Aurora Lights ownership semantics: non-repeatable spells owned in another slot are unavailable, the saved same-slot spell remains replayable, and `allow duplicate` spell elements remain selectable
 - Element-backed choice pools now honor Aurora Lights-compatible restricted element IDs and source names before ownership, nested preview, fallback, or spell-equivalence handling; raw Aurora source IDs can be normalized through imported source elements
 - Ritual-only spell picks can now resolve against the global ritual corpus without a spell-list owner, which makes PHB 2024 `Ritual Caster` behave like a real feat package
 - Nested class-feature spell picks now inherit their parent class spell list when Aurora encoded them without a local profile, which makes early PHB 2024 flows like Cleric `Thaumaturge` complete cleanly
@@ -112,21 +113,36 @@ This roadmap reflects the project state as of the current `master` branch after:
   - `v_spellcasting_profiles`
   - `v_app_effect_rows`
 
-## Current Milestone
+## Current Goal
 
-The project is now in the transition from "translator and diagnostic backbone" to "real builder backend."
+Build a faithful, searchable SQLite model that serves as a quick and convenient secondary source of Aurora content. XML remains authoritative and SQLite can be rebuilt from it. Consumers choose where database queries are useful and can consult the original XML whenever needed.
 
-That means current work should prioritize:
+Completion should be judged by:
 
-- turning builder-relevant semantics into explicit runtime choices
-- keeping those semantics testable and inspectable
-- avoiding regressions in import fidelity while expanding runtime behavior
+- preservation of source content, relationships, rules, and meaningful edition differences
+- convenient queries with clear conditions and source provenance
+- repeatable evidence that database projections faithfully represent the XML
+- documented limitations and reliable refresh/migration behavior
 
-## Next Recommended Milestones
+The character-state evaluator is supporting tooling for inspection, regression checks, and optional consumer conveniences. A complete or authoritative builder backend is outside the core goal. XML is the source of truth; Aurora Lights WPF is the reference for interpreting existing XML behavior.
+
+## Core Completion Milestones
+
+- Version 11 adds source hashes, ordered spellcasting entries, extension recipient candidates, and explicit spell-reference resolution to the fidelity baseline. Read-only integrity checks cover SQLite structure, foreign keys, metadata, and spellcasting projections; source comparison verifies imported file hashes and spellcasting XML.
+- Spellcasting definitions, all list/extension children, `known`/`all` flags, source owners, and potential recipients are queryable. Focused fixtures cover named/all-profile extensions, source fidelity, legacy reimport, partial repair, and package switching. Complex support expressions and character activation remain consumer concerns.
+- Audit replacement/suppression, append/overlay, optional feature, and parent/variant relationships for both preservation and queryability.
+- Document which projections are static candidates, which retain conditions for consumers to evaluate, and which constructs require consulting preserved or original XML.
+- Verify that fresh imports, incremental refreshes, and migrations produce equivalent query results for representative content changes.
+
+The September 2026 data baseline and spellcasting review are recorded in [the baseline review](docs/data-integrity-baseline-review.md). Data checks and the focused harness pass; the broader optional evaluator sweep still has 15 legacy fixture mismatches requiring scenario review.
+
+## Supporting Work
+
+The backlog below retains useful query and evaluator refinements. Its numbering does not set implementation priority. Select work according to the core milestones and demonstrated consumer needs; evaluator completeness is not a release requirement for the SQLite model.
 
 ### 1. Expand second-stage choice resolution
 
-High priority:
+Additional evaluator coverage:
 
 - continue tightening feat follow-up filtering for mutual-exclusion rules that are not represented by explicit Aurora source restrictions
 - add more semantic choice families where raw support links are too broad
@@ -146,7 +162,7 @@ Likely target families:
 - widen support for dynamic Aurora macros/tokens in runtime evaluation
 - add richer owner-context-aware filtering for selects
 - decide where hard validation belongs for caps, exclusivity, and replacement rules
-- continue tightening computed-character aggregation so the app can rely on it as a runtime summary
+- continue tightening computed-character aggregation where consumers choose to use it as a derived summary
 
 ### 3. Add regression coverage for runtime evaluation
 
@@ -174,8 +190,8 @@ Likely target families:
 ### 4. Continue builder-facing query refinement
 
 - add more views tailored to real character-building screens
-- identify places where the builder should query SQLite directly versus evaluating in code
-- ensure app-facing choice/projection views preserve the mutual-exclusion rule between 2014 racial ability score increases and 2024 background ability score increases; a character should resolve only one origin ASI source
+- document how consumers can query SQLite for candidates and evaluate retained conditions in their own code
+- preserve the source rules and conditions needed for consumers to resolve only one origin ASI source when combining 2014 racial and 2024 background ability score increases
 - tighten distinction between:
   - canonical content storage
   - runtime query projections
@@ -183,7 +199,7 @@ Likely target families:
 
 ### 5. Deepen app-facing effect projections
 
-- align the evaluator output with Aurora App correctness goals
+- align projections with source XML and Aurora Lights WPF interpretation
 - continue flattening nested runtime summaries into stable app contracts
 - widen DB-side candidate views like `v_effect_templates` and `v_spellcasting_profiles` where static content can be projected safely
 - expose enough metadata and provenance that the app can explain:
@@ -205,7 +221,7 @@ Likely target families:
 
 ### 6. Eventually add profile-aware precedence
 
-Current precedence is global/package-based. A later phase should support multiple active content profiles such as:
+Current precedence is global/package-based. Multiple active content profiles are a deferred extension if consumers need content sets such as:
 
 - core only
 - first-party only
@@ -230,8 +246,8 @@ That likely means:
 When choosing what to do next, prefer work that improves at least one of these without destabilizing the others:
 
 - import fidelity
-- runtime correctness
+- rule and relationship preservation
 - diagnosability
-- builder usefulness
+- query usefulness
 
-The project is in a good place now to favor builder usefulness, as long as the regression and diagnostics workflows continue to stay healthy.
+Favor faithful, convenient access to the XML content. Keep source provenance and conditional semantics visible, and use evaluator work where it helps verify or consume that model.

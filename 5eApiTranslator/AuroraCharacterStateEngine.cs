@@ -137,6 +137,7 @@ namespace AuroraTranslator
         string OptionName,
         string OptionPackageKey,
         string OptionSourceName,
+        bool AllowsDuplicate,
         string OptionTypeName,
         int SpellLevel,
         int PrecedenceRank);
@@ -2385,7 +2386,21 @@ SELECT
     sp.school_name,
     sp.is_ritual,
     GROUP_CONCAT(DISTINCT sa.access_text) AS access_summary,
-    spell_source.name AS spell_source_name
+    spell_source.name AS spell_source_name,
+    CASE
+        WHEN EXISTS
+        (
+            SELECT 1
+            FROM setter_scopes AS duplicate_scope
+            JOIN setter_entries AS duplicate_setter
+                ON duplicate_setter.setter_scope_id = duplicate_scope.setter_scope_id
+            WHERE duplicate_scope.owner_kind = 'element'
+              AND duplicate_scope.owner_element_id = spell.element_id
+              AND lower(trim(duplicate_setter.setter_name)) = 'allow duplicate'
+              AND lower(trim(duplicate_setter.setter_value)) = 'true'
+        ) THEN 1
+        ELSE 0
+    END AS allows_duplicate
 FROM spells AS sp
 JOIN elements AS spell
     ON spell.element_id = sp.element_id
@@ -2430,6 +2445,7 @@ ORDER BY
                     .Where(x => !string.IsNullOrWhiteSpace(x))
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
                 string optionSourceName = reader.IsDBNull(10) ? null : reader.GetString(10);
+                bool allowsDuplicate = !reader.IsDBNull(11) && reader.GetInt32(11) != 0;
 
                 if (!IsElementAllowedBySourceRestrictions(context, optionAuroraId, optionSourceName))
                     continue;
@@ -2473,6 +2489,7 @@ ORDER BY
                     optionName,
                     optionPackageKey,
                     optionSourceName,
+                    allowsDuplicate,
                     optionTypeName,
                     spellLevel,
                     precedenceRank));
@@ -2485,8 +2502,9 @@ ORDER BY
             foreach (SpellOptionCandidate candidate in candidates)
             {
                 string requirementText = LoadElementRequirementText(connection, candidate.OptionElementId);
-                bool isAvailable = IsRequirementSatisfied(requirementText, context);
-                bool isAlreadyOwned = IsElementAlreadyOwned(context, candidate.OptionAuroraId, candidate.OptionName);
+                bool requirementsSatisfied = IsRequirementSatisfied(requirementText, context);
+                bool isAlreadyOwned = !candidate.AllowsDuplicate
+                                      && IsElementAlreadyOwned(context, candidate.OptionAuroraId, candidate.OptionName);
                 bool isChosenForSelect = IsStoredChoiceValue(
                     context,
                     choiceKey,
@@ -2496,6 +2514,10 @@ ORDER BY
                     selectName,
                     candidate.OptionAuroraId,
                     candidate.OptionName);
+                bool isAvailable = IsOptionAvailableForChoice(
+                    requirementsSatisfied,
+                    isAlreadyOwned,
+                    isChosenForSelect);
 
                 options.Add(new CharacterSelectOptionResult(
                     "element",
@@ -2508,7 +2530,8 @@ ORDER BY
                     isAvailable,
                     isAlreadyOwned,
                     isChosenForSelect,
-                    requirementText));
+                    requirementText,
+                    UnavailableReason: ResolveOptionUnavailableReason(isAvailable, isAlreadyOwned)));
             }
 
             return options

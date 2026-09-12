@@ -1,24 +1,24 @@
 {
-  "CapturedAtUtc": "2026-06-03T19:49:24.2490667Z",
+  "CapturedAtUtc": "2026-09-12T20:02:46.8313033Z",
   "CorpusLabel": "Wizards first-party core + supplements",
-  "TotalUnresolvedCount": 478,
+  "TotalUnresolvedCount": 490,
   "ActionableUnresolvedCount": 0,
   "DeferredCounts": [
     {
       "Key": "feature-parent|option-pool|background-feature-option-pool",
-      "Count": 24
+      "Count": 23
     },
     {
       "Key": "feature-parent|option-pool|feature-family-option-pool",
-      "Count": 454
+      "Count": 467
     }
   ],
   "UnresolvedKindCounts": [],
-  "TotalSourceIntegrityCount": 9,
+  "TotalSourceIntegrityCount": 10,
   "SourceIntegrityKindCounts": [
     {
       "Key": "duplicate-element-id-in-file",
-      "Count": 1
+      "Count": 2
     },
     {
       "Key": "grant-target-id-in-name-attribute",

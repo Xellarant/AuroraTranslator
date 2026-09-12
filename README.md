@@ -1,12 +1,13 @@
 # AuroraTranslator
 
-AuroraTranslator is a .NET 10 console application for translating Aurora Builder XML content into a normalized SQLite runtime model.
+AuroraTranslator is a .NET 10 console application for translating Aurora Builder XML content into a faithful, searchable SQLite model.
 
-The project is aimed at a hybrid migration path:
+The project's authority and scope are:
 
-- Aurora XML remains the authoring and distribution format.
-- SQLite becomes the queryable runtime/cache layer.
-- The long-term goal is to let a character builder run primarily from SQLite without breaking the existing XML ecosystem.
+- Aurora XML remains the authoritative source, authoring format, and distribution format.
+- SQLite is a rebuildable secondary source for quick, convenient searches and relationship queries.
+- Consumers can use SQLite wherever it helps, with source provenance and access to the original XML when needed.
+- Completion is measured by data fidelity, queryability, and traceability. The character-state evaluator is supporting tooling; becoming an authoritative builder backend is outside the core goal.
 
 ## Current Status
 
@@ -19,6 +20,8 @@ The project is well past proof-of-concept. It currently provides:
 - source-integrity diagnostics and unresolved-link diagnostics
 - a first-party regression baseline workflow for `core` + `supplements`
 - a first WPF-authoritative parity baseline workflow for core DB loader surfaces
+- XML-backed spellcasting definitions, extension ownership candidates, and explicit spell-reference diagnostics
+- read-only SQLite integrity checks and optional comparison against the source XML
 - builder-facing catalog views
 - a first-pass character-state evaluator
 
@@ -111,6 +114,7 @@ dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- summarize-sour
 ### Regression baseline workflow
 
 ```powershell
+dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- check-data-integrity [sqlitePath] [optionalAuroraRoot]
 dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- capture-diagnostics-baseline [sqlitePath] [baselinePath]
 dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- check-diagnostics-regression [sqlitePath] [baselinePath]
 dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- capture-first-party-diagnostics-baseline [auroraRoot] [sqlitePath] [baselinePath]
@@ -122,6 +126,8 @@ dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- check-wpf-pari
 ```
 
 The committed baseline is meant to represent Wizards first-party `core` + `supplements`, not an arbitrary custom content directory.
+Data version 11 preserves complete spellcasting list/extension children, `known` and `all` flags, and raw spellcasting XML. Older snapshots need an XML refresh to recover previously omitted information. See [the spellcasting contract](docs/sqlite-spellcasting-contract.md) for query examples, ownership boundaries, migration behavior, and baseline scope.
+The WPF baseline now includes source file hashes, ordered spellcasting entries, potential extension recipients, and explicit spell-reference resolution. Baseline capture rejects internally inconsistent snapshots; first-party capture also compares spellcasting against the source XML.
 The WPF parity baseline is meant to protect the specific normalized DB surfaces the authoritative Aurora Lights XML/WPF runtime relies on today: element/type counts, package ownership, multiclass rows, spellcasting profiles, spell-access rows, companion distributions, and a small curated set of known-good archetype/profile/companion/spell samples.
 The committed character-state baselines are meant to represent fixed first-party fixtures such as [character-state-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-example.json), [character-state-early-fighter-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-early-fighter-example.json), [character-state-early-fighter-complete-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-early-fighter-complete-example.json), [character-state-early-fighter-overpick-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-early-fighter-overpick-example.json), the completed player-facing [character-state-fighter-weapon-mastery-complete-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-fighter-weapon-mastery-complete-example.json), the direct-state [character-state-fighter-weapon-mastery-direct-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-fighter-weapon-mastery-direct-example.json), [character-state-monk-complete-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-monk-complete-example.json), [character-state-rogue-classic-expertise-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-rogue-classic-expertise-example.json), [character-state-rogue-classic-expertise-complete-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-rogue-classic-expertise-complete-example.json), [character-state-rogue-classic-expertise-direct-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-rogue-classic-expertise-direct-example.json), [character-state-warlock-invocations-complete-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-warlock-invocations-complete-example.json), [character-state-warlock-invocations-overpick-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-warlock-invocations-overpick-example.json), [character-state-warlock-spellcasting-overpick-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-warlock-spellcasting-overpick-example.json), [character-state-sorcerer-metamagic-complete-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-sorcerer-metamagic-complete-example.json), [character-state-sorcerer-metamagic-overpick-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-sorcerer-metamagic-overpick-example.json), [character-state-high-elf-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-high-elf-example.json), [character-state-high-elf-complete-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-high-elf-complete-example.json), [character-state-wizard-abjuration-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-wizard-abjuration-example.json), [character-state-ritual-caster-direct-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-ritual-caster-direct-example.json), [character-state-elf-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-elf-example.json), the granted-spell [character-state-life-domain-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-life-domain-example.json), the completed player-facing [character-state-life-domain-complete-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-life-domain-complete-example.json), the direct-state [character-state-druid-primal-order-direct-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-druid-primal-order-direct-example.json), the completed player-facing [character-state-druid-primal-order-complete-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-druid-primal-order-complete-example.json), the Magic Initiate [character-state-acolyte-magic-initiate-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-acolyte-magic-initiate-example.json), the oversubscribe-warning [character-state-life-domain-oversubscribe-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-life-domain-oversubscribe-example.json), the PHB 2024 replacement-style [character-state-monk-focus-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-monk-focus-example.json), and the movement-focused [character-state-aarakocra-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-aarakocra-example.json), [character-state-tabaxi-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-tabaxi-example.json), [character-state-triton-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-triton-example.json), and [character-state-badger-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-badger-example.json) evaluated against the first-party regression DB.
 
@@ -188,7 +194,7 @@ The current character-state evaluator is intentionally builder-oriented rather t
   - derived traits/proficiencies/languages/features
   - pending choices and warnings
 
-This is the beginning of a builder backend, not the finished app runtime. More choice families still need second-stage resolution over time.
+The evaluator provides optional conveniences and regression evidence for the imported model. Further choice resolution work should support demonstrated data or consumer needs; complete character-engine behavior is not a prerequisite for a useful SQLite secondary source.
 
 ## Data Philosophy
 
@@ -205,14 +211,17 @@ Because of that, AuroraTranslator preserves:
 
 The project does not assume that every important Aurora construct can be flattened into a single simple table.
 
+When a SQLite projection disagrees with its source XML, the XML takes precedence. Derived relationships and summaries should retain enough provenance to inspect the source and diagnose conversion gaps. Aurora Lights WPF remains the reference for interpreting existing XML behavior.
+
 ## What Is Still In Progress
 
-The importer/runtime foundation is strong, but several areas are still evolving:
+Core work still includes:
 
-- richer second-stage select resolution beyond ASI/feat
-- stricter builder-state filtering for already-owned or mutually-exclusive choices
-- broader character-state semantics for dynamic pools
-- more builder-facing query surfaces
-- eventual profile-aware package precedence
+- broader XML-to-SQLite fidelity and WPF parity coverage
+- queryable spellcasting extensions and less common content relationships
+- clear contracts for static candidates, conditional rules, and raw-XML fallbacks
+- reliable snapshot refreshes, migrations, and source provenance
+
+Further character-state evaluation and profile-aware package precedence remain supporting extensions, prioritized when a concrete consumer need justifies them.
 
 For the detailed implementation direction, see [ROADMAP.md](/C:/Users/Ralla/source/repos/5eApiTranslator/ROADMAP.md).

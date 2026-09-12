@@ -76,6 +76,15 @@ namespace AuroraTranslator
 
         private static async Task RunAsync(string[] args)
         {
+            if (args.Length > 0 && args[0].Equals("check-data-integrity", StringComparison.OrdinalIgnoreCase))
+            {
+                var failures = AuroraDataIntegrity.Check(args.Length > 1 ? args[1] : defaultFirstPartyBaselineSqlitePath,
+                    args.Length > 2 ? args[2] : null);
+                Console.WriteLine(failures.Count == 0 ? "Data integrity: PASS" : "Data integrity: FAIL");
+                foreach (string failure in failures) Console.WriteLine("  - " + failure);
+                if (failures.Count > 0) Environment.ExitCode = 1;
+                return;
+            }
             if (args.Length > 0
                 && string.Equals(args[0], "sqlite-import", StringComparison.OrdinalIgnoreCase))
             {
@@ -1589,6 +1598,9 @@ namespace AuroraTranslator
                 ImportAuroraToSqlite(stagingRoot, sqlitePath);
                 AuroraSqliteImporter.RefreshPackageResolution(sqlitePath, sqliteSchemaPath);
 
+                var sourceFailures = AuroraDataIntegrity.Check(sqlitePath, stagingRoot);
+                if (sourceFailures.Count > 0)
+                    throw new InvalidDataException("Source fidelity check failed: " + string.Join("; ", sourceFailures));
                 WpfParityRegressionBaseline baseline = BuildWpfParityRegressionBaseline(
                     sqlitePath,
                     "WPF-authoritative first-party core + supplements");
@@ -1762,6 +1774,9 @@ namespace AuroraTranslator
 
         private static WpfParityRegressionBaseline BuildWpfParityRegressionBaseline(string sqlitePath, string corpusLabel)
         {
+            var integrityFailures = AuroraDataIntegrity.Check(sqlitePath);
+            if (integrityFailures.Count > 0)
+                throw new InvalidDataException("Cannot verify/capture parity for an inconsistent snapshot: " + string.Join("; ", integrityFailures));
             using var connection = OpenSqliteConnection(sqlitePath);
 
             var metadata = ReadDatabaseMetadata(connection);
@@ -1827,7 +1842,18 @@ namespace AuroraTranslator
                 CuratedMulticlassRows: BuildCuratedMulticlassRows(connection),
                 CuratedSpellcastingProfiles: BuildCuratedSpellcastingProfiles(connection),
                 CuratedCompanionRows: BuildCuratedCompanionRows(connection),
-                CuratedSpellAccessRows: BuildCuratedSpellAccessRows(connection));
+                CuratedSpellAccessRows: BuildCuratedSpellAccessRows(connection),
+                SpellcastingEntryKeys: QueryStringList(connection, @"SELECT owner_source_path || '|' || owner_aurora_id || '|' ||
+                    entry_kind || '|' || entry_ordinal || '|' || entry_text || '|known=' || COALESCE(is_known, 'unknown')
+                    FROM v_spellcasting_profile_entries;"),
+                SpellcastingOwnershipKeys: QueryStringList(connection, @"SELECT extension_owner_source_path || '|' || extension_owner_aurora_id || '|' ||
+                    COALESCE(recipient_owner_source_path, '') || '|' || COALESCE(recipient_owner_aurora_id, '') || '|' || binding_kind
+                    FROM v_spellcasting_extension_targets;"),
+                SourceFileKeys: QueryStringList(connection, "SELECT relative_path || '|' || COALESCE(file_hash, '') FROM source_files;"),
+                SpellcastingReferenceKeys: QueryStringList(connection, @"SELECT entry.owner_source_path || '|' || entry.owner_aurora_id || '|' ||
+                    entry.entry_ordinal || '|' || reference.spell_aurora_id || '|' || reference.resolution_status
+                    FROM v_spellcasting_entry_spell_references reference JOIN v_spellcasting_profile_entries entry
+                    USING (spellcasting_profile_entry_id);"));
         }
 
         private static List<string> CompareCharacterStateRegressionBaseline(
@@ -1911,6 +1937,16 @@ namespace AuroraTranslator
             CompareStringList(expected.CuratedSpellcastingProfiles, actual.CuratedSpellcastingProfiles, "CuratedSpellcastingProfiles", failures);
             CompareStringList(expected.CuratedCompanionRows, actual.CuratedCompanionRows, "CuratedCompanionRows", failures);
             CompareStringList(expected.CuratedSpellAccessRows, actual.CuratedSpellAccessRows, "CuratedSpellAccessRows", failures);
+            if (expected.SpellcastingEntryKeys == null || expected.SpellcastingOwnershipKeys == null
+                || expected.SourceFileKeys == null || expected.SpellcastingReferenceKeys == null)
+                failures.Add("Baseline predates spellcasting fidelity coverage; review and recapture it.");
+            else
+            {
+                CompareStringList(expected.SpellcastingEntryKeys, actual.SpellcastingEntryKeys, "SpellcastingEntryKeys", failures);
+                CompareStringList(expected.SpellcastingOwnershipKeys, actual.SpellcastingOwnershipKeys, "SpellcastingOwnershipKeys", failures);
+                CompareStringList(expected.SourceFileKeys, actual.SourceFileKeys, "SourceFileKeys", failures);
+                CompareStringList(expected.SpellcastingReferenceKeys, actual.SpellcastingReferenceKeys, "SpellcastingReferenceKeys", failures);
+            }
 
             return failures;
         }
@@ -2498,7 +2534,11 @@ namespace AuroraTranslator
             IReadOnlyList<string> CuratedMulticlassRows,
             IReadOnlyList<string> CuratedSpellcastingProfiles,
             IReadOnlyList<string> CuratedCompanionRows,
-            IReadOnlyList<string> CuratedSpellAccessRows);
+            IReadOnlyList<string> CuratedSpellAccessRows,
+            IReadOnlyList<string> SpellcastingEntryKeys = null,
+            IReadOnlyList<string> SpellcastingOwnershipKeys = null,
+            IReadOnlyList<string> SourceFileKeys = null,
+            IReadOnlyList<string> SpellcastingReferenceKeys = null);
 
         private sealed record DiagnosticsRegressionBaseline(
             DateTime CapturedAtUtc,
@@ -2527,7 +2567,7 @@ namespace AuroraTranslator
             return $"{node.Kind} ({node.Children.Count} child node(s))";
         }
 
-        private static AuroraImportCatalog BuildAuroraImportCatalog(string auroraPath)
+        internal static AuroraImportCatalog BuildAuroraImportCatalog(string auroraPath)
         {
             string[] files = Directory
                 .GetFiles(auroraPath, "*.xml", SearchOption.AllDirectories)
@@ -2818,26 +2858,14 @@ namespace AuroraTranslator
 
                 if (childName == "spellcasting")
                 {
-                    // used if this element is a spellcasting class or archetype.
-
-                    auroraElement.spellcasting = new();
-                    auroraElement.spellcasting.name = childElement.Attribute("name")?.Value;
-                    auroraElement.spellcasting.ability = childElement.Attribute("ability")?.Value;
-                    auroraElement.spellcasting.prepare = ParseNullableBoolean(childElement.Attribute("prepare")?.Value);
-                    auroraElement.spellcasting.allowReplace = ParseNullableBoolean(childElement.Attribute("allowReplace")?.Value);
-                    
-                    if (childElement.Element("list") != null)
+                    if (auroraElement.spellcasting == null)
+                        auroraElement.spellcasting = AuroraSpellcastingXml.Parse(childElement);
+                    else
                     {
-                        auroraElement.spellcasting.list = ParseAuroraTextCollection(childElement.Element("list")?.Value);
+                        // WPF uses the first block; retain additional blocks for source fidelity.
+                        auroraElement.additionalBlocks ??= new();
+                        auroraElement.additionalBlocks.Add(ParseAuroraBlockEntry(childElement));
                     }
-                    
-                    auroraElement.spellcasting.extend = ParseNullableBoolean(childElement.Attribute("extend")?.Value) ?? false;
-
-                    if (childElement.Element("extend") != null)
-                    {
-                        auroraElement.spellcasting.extendList = ParseAuroraTextCollection(childElement.Element("extend")?.Value);
-                    }
-
                     handled = true;
                 }
 
