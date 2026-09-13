@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<elements>
+<info>
+		<name>Guns</name>
+		<update version="0.0.1">
+			<file name="guns.xml" url="https://raw.githubusercontent.com/community-elements/elements-reddit/master/reddit/reddit-unearthed-arcana/arcane-artillery/guns.xml" />
+		</update>
+	</info>
+<element name="Musketball" type="Item" source="Arcane Artillery" id="ID_RDDT_AA_MUSKETBALL">
+		<description>
+			<p>Musketballs are used in primitive firearms without the scatter property.</p>
+		</description>
+		<setters>
+			<set name="category">Ammunition</set>
+			<set name="cost" currency="sp">1</set>
+			<set name="weight" lb="0.05">1/20 lb.</set>
+			<set name="type">Ammunition</set>
+			<set name="stackable">true</set>
+		</setters>
+	</element>
+</elements>

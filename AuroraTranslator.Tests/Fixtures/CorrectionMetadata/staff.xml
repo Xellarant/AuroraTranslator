@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<elements>
+<info>
+		<name>Staffs</name>
+		<description>Magical Staffs from the Dungeon Master’s Guide (2024)</description>
+		<update version="0.0.2">
+			<file name="items-staffs.xml" url="https://raw.githubusercontent.com/AuroraLegacy/elements/master/core/dungeon-masters-guide-2024/items/items-staffs.xml" />
+		</update>
+	</info>
+<element name="Staff of Flowers" type="Magic Item" source="Dungeon Master’s Guide (2024)" id="ID_WOTC_DMG24_MAGIC_ITEM_STAFF_OF_FLOWERS">		
+		<description>
+			<p>This wooden staff has 10 charges. While holding it, you can take a Magic action to expend 1 charge from the staff and cause a flower to sprout from a patch of earth or soil within 5 feet of yourself, or from the staff itself. Unless you choose a specific kind of flower, the staff creates a mild-scented daisy. The flower is harmless and nonmagical, and it grows or withers as a normal flower would.</p>
+			<p class="indent"><b><i>Regaining Charges.</i></b> The staff regains 1d6 + 4 expended charges daily at dawn. If you expend the last charge, roll 1d20. On a 1, the staff turns into flower petals and is lost forever.</p>
+		</description>
+		<setters>
+			<set name="keywords">charges, recharge, dawn, magic action, action</set>
+			<set name="category">Magic Weapons</set>
+			<set name="type" addition="Staff">Weapon</set>
+			<set name="weapon">Quarterstaff</set>
+			<set name="rarity">Common</set>
+			<set name="cost" currency="gp">100</set>
+			<set name="weight" lb="4">4 lb.</set>
+			<set name="charges">10</set>
+		</setters>
+	</element>
+</elements>

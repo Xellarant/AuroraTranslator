@@ -1,0 +1,26 @@
+[
+  {
+    "fixture": "devout.xml",
+    "source": "reddit/reddit-unearthed-arcana/blazing-dawn-players-companion/fighter-devout.xml",
+    "sha256": "4cb61f8e8fcc163955377725508a53f85fd223ae697cc830b4a19e1c2a9f9753",
+    "elements": 3
+  },
+  {
+    "fixture": "tatsumi.xml",
+    "source": "ryokos-guide-to-the-yokai-realms/race-tatsumi.xml",
+    "sha256": "dc7b25354e88ba9d56dc5086fd2280c0a5e3ae5fb7762e1d3faedcd33b607605",
+    "elements": 3
+  },
+  {
+    "fixture": "musketball.xml",
+    "source": "reddit/reddit-unearthed-arcana/arcane-artillery/guns.xml",
+    "sha256": "00ac3f401235adef117e7538c3012e31b03fdb0af60a23a84081250992375307",
+    "elements": 1
+  },
+  {
+    "fixture": "staff.xml",
+    "source": "core/dungeon-masters-guide-2024/items-staffs.xml",
+    "sha256": "77f1d4290e7730b59f346a0af69e98565db25e08787637894618e0ab849d5a56",
+    "elements": 1
+  }
+]

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<elements>
+<info>
+        <name>Tatsumi</name>
+        <update version = "0.1.0">
+            <file name = "race-tatsumi.xml" url = "https://raw.githubusercontent.com/StrangeMeta/homebrew/main/ryokos-guide-to-the-yokai-realms/Races/race-tatsumi.xml"/>
+        </update>
+    </info>
+<element name = "Ryujin" type = "Race Variant" source = "Ryoko's Guide to the Yokai Realms" id = "ID_RGTTYR_RACE_VARIANT_TATSUMI_RYUJIN">
+        <supports>Tatsumi</supports>
+        <description>
+            <p>Ryujin are closely related to nishikin, having transformed from the aquatic fish-folk into a new, draconic form. Although such a metamorphosis is seen as transcendent and incredible by many outside races, ryujin are not revered or elevated above their nishikin family in their own society; in instances where they live together, they live harmoniously.</p>
+            <p class = "indent"><strong>Body Altered, Mind Transformed. </strong>The life of a ryujin is often shaped by a search for new meanings, perspectives, and opportunity. For many, this means a path of joyful travel and exploration, but for others, it may mean the start of a family, or adopting a position of counsel among their nishikin kinsfolk. Ryujin are widely noted as being significantly more relaxed than their nishikin counterparts, willing to pause and watch the world go by, unburdened by the nishikin’ ceaseless pursuit of growth and change.</p>
+            
+            <h4>RYUJIN TRAITS</h4>
+            <p>As a ryujin, you have the following traits:</p>
+            <p>
+                <span class = "feature">Cloudstep. </span>As a bonus action, you can conjure a small cloud under your feet. You gain a fly speed equal to your walking speed for the next 10 minutes. Once you use this trait, you can’t do so again until you finish a long rest.<br/>
+                <span class = "feature">Heartening Breath. </span>You can use your action to exhale a warming, spiralling burst of magical energy in a 30-foot cone. You and a number of creatures of your choice in that area up to your proficiency bonus can add 1d4 to attack rolls and to ability checks and saving throws that use the ability associated with your primary colouration for 1 minute, or until you lose concentration (as if concentrating on a spell). You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.<br/>
+                <span class = "feature">Innate Magic. </span>You learn one cantrip of your choice from the spell list of the class associated with your primary colouration. Your spellcasting ability for this cantrip is the ability associated with your primary colouration.<br/>
+                <span class = "feature">Sunblessed. </span>While in sunlight, a warm, bubbling vitality thrums through you, giving you advantage on saving throws you make to avoid or end the frightened, paralysed, or stunned condition on yourself, or against being put to sleep.<br/>
+            </p>
+        </description>
+        <sheet display = "true"/>
+        <rules>
+            <grant type = "Racial Trait" id = "ID_RGTTYR_RACIAL_TRAIT_TATSUMI_RYUJIN_CLOUDSTEP"/>
+            <grant type = "Racial Trait" id = "ID_RGTTYR_RACIAL_TRAIT_TATSUMI_RYUJIN_HEARTENING_BREATH"/>
+            <grant type = "Racial Trait" id = "ID_RGTTYR_RACIAL_TRAIT_TATSUMI_RYUJIN_INNATE_MAGIC"/>
+            <grant type = "Racial Trait" id = "ID_RGTTYR_RACIAL_TRAIT_TATSUMI_RYUJIN_SUNBLESSED"/>
+        </rules>
+    </element>
+<element name = "Cloudstep" type = "Racial Trait" source = "Ryoko's Guide to the Yokai Realms" id = "ID_RGTTYR_RACIAL_TRAIT_TATSUMI_RYUJIN_CLOUDSTEP">
+        <description>
+            <p>As a bonus action, you can conjure a small cloud under your feet. You gain a fly speed equal to your walking speed for the next 10 minutes, but moving through the air in this way counts as difficult terrain. Once you use this trait, you can’t do so again until you finish a long rest.</p>
+        </description>
+        <sheet usage = "1/Long Rest">
+            <description>As a bonus action, you can conjure a small cloud under your feet. You gain a fly speed equal to your walking speed for the next 10 minutes, but moving through the air in this way counts as difficult terrain. Once you use this trait, you can’t do so again until you finish a long rest.</description>
+        </sheet>
+    </element>
+<element name = "Heartening Breath" type = "Racial Trait" source = "Ryoko's Guide to the Yokai Realms" id = "ID_RGTTYR_RACIAL_TRAIT_TATSUMI_RYUJIN_HEARTENING_BREATH">
+        <description>
+            <p>You can use your action to exhale a warming, spiralling burst of magical energy in a 30-foot cone. You and a number of creatures of your choice in that area up to your proficiency bonus can add 1d4 to attack rolls and to ability checks and saving throws that use their {{tatsumi-colour:ability}} for 1 minute, or until you lose concentration (as if concentrating on a spell). You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.</p>
+        </description>
+        <sheet usage = "{{proficiency}}/Long Rest">
+            <description>You can use your action to exhale a warming, spiralling burst of magical energy in a 30-foot cone. You and a number of creatures of your choice in that area up to your proficiency bonus can add 1d4 to attack rolls and to ability checks and saving throws that use their {{tatsumi-colour:ability}} for 1 minute, or until you lose concentration (as if concentrating on a spell).</description>
+        </sheet>
+    </element>
+</elements>

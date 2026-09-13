@@ -13,6 +13,16 @@ namespace AuroraTranslator
     {
         internal const int CurrentDataVersion = 11;
 
+        // The standalone preparation workflow enters here. Legacy catalog callers
+        // remain separate until the canonical identity migration replaces them.
+        internal static void ImportFinalized(AuroraImportCatalog catalog, string schemaPath, string sqlitePath, string srdJsonPath = null)
+        {
+            var ids = catalog.Elements.Select(e => e.id).Concat(catalog.Spells.Select(s => s.aurora_id)).ToList();
+            if (ids.Any(string.IsNullOrWhiteSpace) || ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
+                throw new InvalidDataException("The SQLite writer requires finalized content with one declaration per nonempty Aurora ID. Run content preparation and resolve conflicts first.");
+            Import(catalog, schemaPath, sqlitePath, srdJsonPath, preservePackageSettings: true);
+        }
+
         private static readonly IReadOnlyDictionary<string, (string TargetName, IReadOnlyList<string> TypeNames)> GrantTargetAliasMap
             = new Dictionary<string, (string TargetName, IReadOnlyList<string> TypeNames)>(StringComparer.OrdinalIgnoreCase)
             {
@@ -49,7 +59,8 @@ namespace AuroraTranslator
             AuroraImportCatalog catalog,
             string schemaPath,
             string sqlitePath,
-            string srdJsonPath = null)
+            string srdJsonPath = null,
+            bool preservePackageSettings = false)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(sqlitePath) ?? AppContext.BaseDirectory);
 
@@ -88,7 +99,7 @@ namespace AuroraTranslator
             {
                 seenPaths.Add(file.RelativePath);
                 string hash = ComputeFileHash(file.FullPath);
-                long contentPackageId = EnsureContentPackage(connection, transaction, file);
+                long contentPackageId = EnsureContentPackage(connection, transaction, file, preservePackageSettings);
 
                 if (existingFiles.TryGetValue(file.RelativePath, out var existing))
                 {
@@ -332,6 +343,8 @@ ORDER BY
                 throw new ArgumentException("At least one package setting must be supplied.");
 
             using var connection = OpenSqliteConnection(sqlitePath);
+            if (isEnabled.HasValue)
+                Content.PreparedContentWriter.ValidatePackageAvailabilityUpdate(connection);
             EnsurePackageAdministrationSchema(connection);
             using var transaction = connection.BeginTransaction();
             UpdateContentPackageSettingsCore(connection, transaction, packageKey, precedenceRank, isEnabled, useScopedRefresh: true);
@@ -4340,7 +4353,8 @@ WHERE si.select_id IN (SELECT select_id FROM temp.affected_selects)
         private static long EnsureContentPackage(
             SqliteConnection connection,
             SqliteTransaction transaction,
-            AuroraFileInfo file)
+            AuroraFileInfo file,
+            bool preservePackageSettings)
         {
             ContentPackageDescriptor package = DeriveContentPackage(file);
 
@@ -4361,7 +4375,7 @@ VALUES
 SET
     package_name = $package_name,
     package_kind = $package_kind,
-    precedence_rank = $precedence_rank,
+    precedence_rank = CASE WHEN $preserve_settings = 1 THEN precedence_rank ELSE $precedence_rank END,
     package_description = COALESCE(package_description, $package_description),
     source_url = COALESCE(source_url, $source_url)
 WHERE package_key = $package_key;",
@@ -4369,6 +4383,7 @@ WHERE package_key = $package_key;",
                 ("$package_name", package.PackageName),
                 ("$package_kind", package.PackageKind),
                 ("$precedence_rank", package.PrecedenceRank),
+                ("$preserve_settings", preservePackageSettings ? 1 : 0),
                 ("$package_description", (object)package.PackageDescription ?? DBNull.Value),
                 ("$source_url", (object)package.SourceUrl ?? DBNull.Value));
 
@@ -5565,6 +5580,9 @@ VALUES
                 ? string.Empty
                 : rawText.Trim().ToLowerInvariant();
         }
+
+        internal static string GetContentPackageKey(string relativePath)
+            => DeriveContentPackage(new AuroraFileInfo { RelativePath = relativePath }).PackageKey;
 
         private static ContentPackageDescriptor DeriveContentPackage(AuroraFileInfo file)
         {

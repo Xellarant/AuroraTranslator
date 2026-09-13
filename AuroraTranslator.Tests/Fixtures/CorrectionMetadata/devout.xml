@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<elements>
+<info>
+        <name>Devout Martial Archetype</name>
+        <update version="0.0.1">
+            <file name="fighter-devout.xml" url="https://raw.githubusercontent.com/community-elements/elements-reddit/master/reddit/reddit-unearthed-arcana/blazing-dawn-players-companion/fighter-devout.xml" />
+        </update>
+    </info>
+<element name="Zealot’s Devotion" type="Archetype Feature" source="Blazing Dawn Player’s Companion" id="ID_JONOMAN3000_BDPC_ARCHETYPE_FEATURE_DEVOUT_ZEALOTS_DEVOTION">
+            <description>
+                <p>Also at 3rd level, you can devote yourself to a cause. As a bonus action, you can devote yourself towards either defender of kin or slayer of foes. Both choices use your zealotry die, a d6, as part of their effects, and your choice lasts until you choose a different one or are incapacitated:</p>
+                <p class="indent"><em><strong>Defender of Kin.</strong></em> You devote yourself towards defending your allies. While this feature lasts, you can use your bonus action to rally a creature other than you that is within 5 feet of you. You roll your zealotry die, and the targeted creature gains temporary hit points equal to the number rolled. These temporary hit points last until the start of your next turn.</p>
+                <p class="indent"><em><strong>Slayer of Foes.</strong></em> You devote yourself towards slaying your enemies. If you hit a creature with an attack while this feature lasts, you can use your bonus action to empower that attack. You roll your zealotry die, and add it to the attack’s damage roll.</p>
+            </description>
+            <sheet action="Bonus Action">
+                <description>You can devote yourself towards either defender of kin or slayer of foes. Both choices use your zealotry die, a d{{zealots-devotion:die}}, as part of their effects, and your choice lasts until you choose a different one or are incapacitated:</description>
+            </sheet>
+            <rules>
+                <stat name="zealots-devotion:die" value="6" bonus="base" level="3" />
+                <grant type="Archetype Feature" id="ID_JONOMAN3000_ARCHETYPE_FEATURE_DEVOUT_ZEALOTS_DEVOTION_DEFENDER_OF_KIN" level="3" />
+                <grant type="Archetype Feature" id="ID_JONOMAN3000_ARCHETYPE_FEATURE_DEVOUT_ZEALOTS_DEVOTION_SLAYER_OF_FOES" level="3" />
+            </rules>
+        </element>
+<element name="Defender of Kin" type="Archetype Feature" source="Blazing Dawn Player’s Companion" id="ID_JONOMAN3000_ARCHETYPE_FEATURE_DEVOUT_ZEALOTS_DEVOTION_DEFENDER_OF_KIN">
+                <description>
+                    <p>You devote yourself towards defending your allies. While this feature lasts, you can use your bonus action to rally a creature other than you that is within 5 feet of you. You roll your zealotry die, and the targeted creature gains temporary hit points equal to the number rolled. These temporary hit points last until the start of your next turn.</p>
+                </description>
+                <sheet usage="Zealot’s Devotion" action="Bonus Action">
+                    <description>You can rally a creature other than you that is within 5 feet of you. You roll your zealotry die, and the targeted creature gains temporary hit points equal to the number rolled. These temporary hit points last until the start of your next turn.</description>
+                </sheet>
+            </element>
+<element name="Slayer of Foes" type="Archetype Feature" source="Blazing Dawn Player’s Companion" id="ID_JONOMAN3000_ARCHETYPE_FEATURE_DEVOUT_ZEALOTS_DEVOTION_SLAYER_OF_FOES">
+                <description>
+                    <p>You devote yourself towards slaying your enemies. If you hit a creature with an attack while this feature lasts, you can use your bonus action to empower that attack. You roll your zealotry die, and add it to the attack’s damage roll.</p>
+                </description>
+                <sheet usage="Zealot’s Devotion" action="Bonus Action">
+                    <description>If you hit a creature with an attack while this feature lasts, you can empower that attack. You roll your zealotry die, and add it to the attack’s damage roll.</description>
+                </sheet>
+            </element>
+</elements>

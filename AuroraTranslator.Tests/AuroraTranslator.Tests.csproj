@@ -11,4 +11,7 @@
     <ProjectReference Include="..\5eApiTranslator\AuroraTranslator.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Fixtures\CorrectionMetadata\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

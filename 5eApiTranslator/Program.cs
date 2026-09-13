@@ -584,11 +584,15 @@ namespace AuroraTranslator
                 throw new FileNotFoundException("The SQLite schema file was not found.", sqliteSchemaPath);
             }
 
-            AuroraImportCatalog catalog = BuildAuroraImportCatalog(auroraPath);
-            string srdPath = File.Exists(defaultSrdMonstersPath) ? defaultSrdMonstersPath : null;
-            AuroraSqliteImporter.Import(catalog, sqliteSchemaPath, sqlitePath, srdPath);
-
-            Console.WriteLine($"Imported {catalog.Elements.Count} Aurora elements and {catalog.Spells.Count} Aurora spells into {sqlitePath}.");
+            Content.LocalCorrectionSync.ImportAsync(new[] { auroraPath }, sqlitePath,
+                (roots, candidate, cancellation) =>
+                {
+                    var catalog = BuildAuroraImportCatalog(roots[0]);
+                    string srdPath = File.Exists(defaultSrdMonstersPath) ? defaultSrdMonstersPath : null;
+                    AuroraSqliteImporter.ImportFinalized(catalog, sqliteSchemaPath, candidate, srdPath);
+                    return Task.FromResult(new Content.CorrectionImportResult(true));
+                }).GetAwaiter().GetResult();
+            Console.WriteLine($"Imported prepared Aurora content into {sqlitePath}.");
         }
 
         private static void EvaluateExpression(string expressionText, string contextJsonPath)

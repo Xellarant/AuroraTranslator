@@ -4,6 +4,17 @@ using Microsoft.Data.Sqlite;
 
 var tests = new (string Name, Action Body)[]
 {
+    ("correction fixtures preserve Staff and repaired grants", ContentPreparationTests.Fixtures),
+    ("correction protection follows companions and mirrors intent", ContentPreparationTests.Lifecycle),
+    ("correction accepts explicitly and retires only redundant files", ContentPreparationTests.Retirement),
+    ("correction conflicts preserve working database", ContentPreparationTests.Conflicts),
+    ("correction candidate failure and input race preserve database", ContentPreparationTests.Failures),
+    ("correction identical suppliers survive removal", ContentPreparationTests.Suppliers),
+    ("correction contract rejects malformed and partial groups", ContentPreparationTests.Contract),
+    ("correction writer rejects unresolved catalogs", ContentPreparationTests.WriterGuard),
+    ("correction import preserves disabled package settings", ContentPreparationTests.PackageSettings),
+    ("correction enabled identical suppliers stay available", ContentPreparationTests.EnabledSupplier),
+    ("correction CLI imports protected content standalone", ContentPreparationTests.Cli),
     ("loads patched native SQLite", SqliteRuntimeTests.LoadsPatchedRuntime),
     ("preserves direct Primal Order picks", ImplicitFeaturePickTests.DirectPrimalOrderDoesNotAddCompetingRole),
     ("preserves explicit and unselected Primal Order", ImplicitFeaturePickTests.ExplicitAndUnselectedPrimalOrder),
