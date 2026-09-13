@@ -80,6 +80,7 @@
       "ownerTypeName": "Class Feature",
       "selectName": "Spellcasting (Warlock)",
       "selectType": "Spell",
+      "choiceRowKey": "id_wotc_phb_class_feature_warlock_spellcasting_warlock_pact_magic|class feature|core-players-handbook|core\\players-handbook\\class-warlock.xml|spellcasting (warlock)|spell-pick|spell|1|2|0|broad-spell-pool|$(spellcasting:list),$(spellcasting:slots)|",
       "optionAuroraId": "ID_PHB_SPELL_ARMOR_OF_AGATHYS",
       "optionName": "Armor of Agathys"
     },
@@ -88,8 +89,18 @@
       "ownerTypeName": "Class Feature",
       "selectName": "Spellcasting (Warlock)",
       "selectType": "Spell",
+      "choiceRowKey": "id_wotc_phb_class_feature_warlock_spellcasting_warlock_pact_magic|class feature|core-players-handbook|core\\players-handbook\\class-warlock.xml|spellcasting (warlock)|spell-pick|spell|1|2|0|broad-spell-pool|$(spellcasting:list),$(spellcasting:slots)|",
       "optionAuroraId": "ID_PHB_SPELL_HEX",
       "optionName": "Hex"
+    },
+    {
+      "ownerName": "Pact Magic",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Spellcasting (Warlock)",
+      "selectType": "Spell",
+      "choiceRowKey": "id_wotc_phb_class_feature_warlock_spellcasting_warlock_pact_magic|class feature|core-players-handbook|core\\players-handbook\\class-warlock.xml|spellcasting (warlock)|spell-pick|spell|2|1|0|broad-spell-pool|$(spellcasting:list),$(spellcasting:slots)|",
+      "optionAuroraId": "ID_PHB_SPELL_CHARM_PERSON",
+      "optionName": "Charm Person"
     }
   ],
   "tokens": [],

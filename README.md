@@ -113,6 +113,15 @@ dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- summarize-sour
 
 ### Regression baseline workflow
 
+The focused console harness can target a specific refreshed first-party snapshot:
+
+```powershell
+$env:AURORA_TEST_DATABASE = (Resolve-Path .\artifacts\spellcasting-audit\first-party.sqlite).Path
+dotnet run --project .\AuroraTranslator.Tests\AuroraTranslator.Tests.csproj
+```
+
+The September 2026 fixtures require the current corpus, including the MM 2025 Badger. An older local `aurora-first-party-regression.sqlite` is not interchangeable with that snapshot. Regenerate the audit database with `capture-first-party-wpf-parity-baseline`, supplying the current XML root, the audit database path, and a baseline output under `artifacts` (not the committed baseline). See [the baseline review](docs/data-integrity-baseline-review.md) for the source changes and evaluator-fixture corrections. Do not recapture character baselines merely to clear unexplained failures.
+
 ```powershell
 dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- check-data-integrity [sqlitePath] [optionalAuroraRoot]
 dotnet run --project .\5eApiTranslator\AuroraTranslator.csproj -- capture-diagnostics-baseline [sqlitePath] [baselinePath]

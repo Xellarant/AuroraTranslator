@@ -1,5 +1,5 @@
 {
-  "CapturedAtUtc": "2026-06-15T16:09:58.6206503Z",
+  "CapturedAtUtc": "2026-09-13T00:22:28.999304Z",
   "StateLabel": "character-state-wizard-abjuration-example.json",
   "DirectSelectionCount": 2,
   "DirectSelections": [
@@ -130,7 +130,7 @@
   "AppliedChoiceStates": [],
   "SpellSelectOptionCounts": [
     "Archetype Feature|Level 3: Abjuration Savant|Abjuration Spell (Abjuration Savant)|options=13",
-    "Class Feature|Level 1: Spellcasting|Cantrip (Wizard)|options=61",
+    "Class Feature|Level 1: Spellcasting|Cantrip (Wizard)|options=60",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|options=180",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|options=180",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|options=180"
@@ -205,7 +205,6 @@
     "Class Feature|Level 1: Spellcasting|Cantrip (Wizard)|Sword Burst|supplements-tashas-cauldron-of-everything|ID_WOTC_TCOE_SPELL_SWORD_BURST",
     "Class Feature|Level 1: Spellcasting|Cantrip (Wizard)|Thunderclap|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_THUNDERCLAP",
     "Class Feature|Level 1: Spellcasting|Cantrip (Wizard)|Thunderclap|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_THUNDERCLAP",
-    "Class Feature|Level 1: Spellcasting|Cantrip (Wizard)|Thunderclap|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_THUNDERCLAP",
     "Class Feature|Level 1: Spellcasting|Cantrip (Wizard)|Toll the Dead|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_TOLL_THE_DEAD",
     "Class Feature|Level 1: Spellcasting|Cantrip (Wizard)|Toll the Dead|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_TOLL_THE_DEAD",
     "Class Feature|Level 1: Spellcasting|Cantrip (Wizard)|True Strike|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_TRUE_STRIKE",
@@ -229,7 +228,6 @@
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Burning Hands|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_BURNING_HANDS",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Burning Hands|core-players-handbook|ID_PHB_SPELL_BURNING_HANDS",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Catapult|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_CATAPULT",
-    "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Catapult|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_CATAPULT",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Cause Fear|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_CAUSE_FEAR",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Charm Person|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_CHARM_PERSON",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Charm Person|core-players-handbook|ID_PHB_SPELL_CHARM_PERSON",
@@ -259,6 +257,7 @@
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Dragon\u0027s Breath|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DRAGONS_BREATH",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Dragon\u2019s Breath|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_DRAGONS_BREATH",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Dust Devil|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_DUSTDEVIL",
+    "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Dust Devil|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_DUST_DEVIL",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Earth Tremor|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_EARTHTREMOR",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Earth Tremor|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_EARTH_TREMOR",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Earthbind|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_EARTHBIND",
@@ -293,7 +292,6 @@
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Hold Person|core-players-handbook|ID_PHB_SPELL_HOLD_PERSON",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Ice Knife|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ICE_KNIFE",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Ice Knife|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_ICEKNIFE",
-    "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Ice Knife|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_ICE_KNIFE",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Identify|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_IDENTIFY",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Identify|core-players-handbook|ID_PHB_SPELL_IDENTIFY",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Illusory Script|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ILLUSORY_SCRIPT",
@@ -382,6 +380,7 @@
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Unseen Servant|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_UNSEEN_SERVANT",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Unseen Servant|core-players-handbook|ID_PHB_SPELL_UNSEEN_SERVANT",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Vortex Warp|supplements-strixhaven-a-curriculum-of-chaos|ID_WOTC_SCOC_SPELL_VORTEX_WARP",
+    "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Warding Wind|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_WARDINGWIND",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Warding Wind|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_WARDING_WIND",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Warp Sense|supplements-sigil-and-the-outlands|ID_WOTC_SATO_SPELL_WARP_SENSE",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Web|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_WEB",
@@ -390,5 +389,6 @@
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Witch Bolt|core-players-handbook|ID_PHB_SPELL_WITCH_BOLT",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Wither and Bloom|supplements-strixhaven-a-curriculum-of-chaos|ID_WOTC_SCOC_SPELL_WITHER_AND_BLOOM",
     "Class Feature|Level 1: Spellcasting|Spellbook (Wizard)|Wristpocket|supplements-explorers-guide-to-wildemount|ID_WOTC_EGTW_SPELL_WRISTPOCKET"
-  ]
+  ],
+  "FeatPickPreviewKeys": []
 }

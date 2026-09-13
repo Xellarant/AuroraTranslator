@@ -1,8 +1,9 @@
 {
   "elements": [
     {
+      "auroraId": "ID_WOTC_MM25_COMPANION_BADGER",
       "name": "Badger",
-      "packageKey": "core-players-handbook-2024"
+      "packageKey": "core-monster-manual-2025"
     }
   ],
   "selectedChoices": [],

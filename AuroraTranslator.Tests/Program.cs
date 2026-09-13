@@ -4,6 +4,14 @@ using Microsoft.Data.Sqlite;
 
 var tests = new (string Name, Action Body)[]
 {
+    ("loads patched native SQLite", SqliteRuntimeTests.LoadsPatchedRuntime),
+    ("preserves direct Primal Order picks", ImplicitFeaturePickTests.DirectPrimalOrderDoesNotAddCompetingRole),
+    ("preserves explicit and unselected Primal Order", ImplicitFeaturePickTests.ExplicitAndUnselectedPrimalOrder),
+    ("preserves deterministic feature defaults", ImplicitFeaturePickTests.DeterministicDefaultsRemainActive),
+    ("preserves implicit choice provenance", ImplicitFeaturePickTests.DefaultsRetainChoiceProvenance),
+    ("validates reviewed ownership fixtures", EvaluatorFixtureTests.OwnershipFixtures),
+    ("validates reviewed spell choice identities", EvaluatorFixtureTests.SpellChoiceIdentities),
+    ("validates reviewed companion movement", EvaluatorFixtureTests.CompanionMovement),
     ("imports spellcasting profile entries", SpellcastingProfileEntryTests.ImportCreatesNormalizedEntries),
     ("migrates spellcasting profile entries", SpellcastingProfileEntryTests.MigrationRebuildsNormalizedEntries),
     ("repairs missing spellcasting profile entries", SpellcastingProfileEntryTests.CurrentVersionMaintenanceRebuildsMissingEntries),
@@ -56,6 +64,22 @@ if (failures.Count > 0)
         Console.Error.WriteLine($"- {failure}");
 
     Environment.Exit(1);
+}
+
+internal static class SqliteRuntimeTests
+{
+    public static void LoadsPatchedRuntime()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT sqlite_version();";
+        string version = (string)command.ExecuteScalar()!;
+        Console.WriteLine($"Native SQLite: {version}");
+        // CVE-2025-6965 is fixed in SQLite 3.50.2, independently of NuGet package versions.
+        if (Version.Parse(version) < new Version(3, 50, 2))
+            throw new InvalidOperationException($"SQLite {version} predates the CVE-2025-6965 fix.");
+    }
 }
 
 internal static class SpellcastingProfileEntryTests

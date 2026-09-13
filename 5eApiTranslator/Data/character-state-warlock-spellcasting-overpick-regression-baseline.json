@@ -1,7 +1,7 @@
 {
-  "CapturedAtUtc": "2026-06-15T16:10:00.2135549Z",
+  "CapturedAtUtc": "2026-09-13T00:22:28.284261Z",
   "StateLabel": "character-state-warlock-spellcasting-overpick-example.json",
-  "DirectSelectionCount": 11,
+  "DirectSelectionCount": 12,
   "DirectSelections": [
     "Archetype|The Fiend|core-players-handbook|",
     "Class Feature|Armor of Shadows|core-players-handbook|",
@@ -12,6 +12,7 @@
     "Race|Elf|core-players-handbook|",
     "Spell|Armor of Agathys|core-players-handbook|",
     "Spell|Eldritch Blast|core-players-handbook|",
+    "Spell|Hellish Rebuke|core-players-handbook|",
     "Spell|Hex|core-players-handbook|",
     "Spell|Mage Hand|core-players-handbook|"
   ],
@@ -27,15 +28,11 @@
   "AvailableSelectCount": 7,
   "PendingChoiceCount": 1,
   "BlockingPendingChoiceCount": 1,
-  "WarningCount": 4,
+  "WarningCount": 3,
   "WarningKindCounts": [
     {
       "Key": "choice-application|error",
       "Count": 2
-    },
-    {
-      "Key": "over-selected-choice|error",
-      "Count": 1
     },
     {
       "Key": "pending-choice|warning",
@@ -102,6 +99,7 @@
     "$(choice||Class Feature||Pact Magic||Cantrip (Warlock))|ID_PHB_SPELL_ELDRITCH_BLAST",
     "$(choice||Class Feature||Pact Magic||Cantrip (Warlock))|ID_PHB_SPELL_MAGE_HAND",
     "$(choice||Class Feature||Pact Magic||Spellcasting (Warlock))|ID_PHB_SPELL_ARMOR_OF_AGATHYS",
+    "$(choice||Class Feature||Pact Magic||Spellcasting (Warlock))|ID_PHB_SPELL_HELLISH_REBUKE",
     "$(choice||Class Feature||Pact Magic||Spellcasting (Warlock))|ID_PHB_SPELL_HEX",
     "$(choice||Class||Warlock||Skill Proficiency (Warlock))|ID_PROFICIENCY_SKILL_ARCANA",
     "$(choice||Class||Warlock||Skill Proficiency (Warlock))|ID_PROFICIENCY_SKILL_DECEPTION"
@@ -149,7 +147,7 @@
     },
     {
       "Key": "choice-selection|selected-choice",
-      "Count": 9
+      "Count": 10
     },
     {
       "Key": "feature|active-feature",
@@ -191,6 +189,7 @@
   "AppliedChoiceStates": [
     "0|applied|Class|Warlock|Skill Proficiency (Warlock)|family=skill-pick|Arcana",
     "10|select-full|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Charm Person",
+    "11|applied|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Hellish Rebuke",
     "1|applied|Class|Warlock|Skill Proficiency (Warlock)|family=skill-pick|Deception",
     "2|applied|Class Feature|Otherworldly Patron|Otherworldly Patron|family=generic-element-pick|The Fiend",
     "3|applied|Class Feature|Eldritch Invocations|Eldritch Invocation (Level 2)|family=feature-pick|Armor of Shadows",
@@ -228,6 +227,7 @@
     "Class Feature|Pact Magic|Cantrip (Warlock)|Mage Hand|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_MAGE_HAND",
     "Class Feature|Pact Magic|Cantrip (Warlock)|Mage Hand|core-players-handbook|ID_PHB_SPELL_MAGE_HAND",
     "Class Feature|Pact Magic|Cantrip (Warlock)|Magic Stone|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_MAGICSTONE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Magic Stone|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_MAGIC_STONE",
     "Class Feature|Pact Magic|Cantrip (Warlock)|Mind Sliver|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_MIND_SLIVER",
     "Class Feature|Pact Magic|Cantrip (Warlock)|Mind Sliver|supplements-tashas-cauldron-of-everything|ID_WOTC_TCOE_SPELL_MIND_SLIVER",
     "Class Feature|Pact Magic|Cantrip (Warlock)|Minor Illusion|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_MINOR_ILLUSION",
@@ -240,7 +240,6 @@
     "Class Feature|Pact Magic|Cantrip (Warlock)|Sword Burst|supplements-tashas-cauldron-of-everything|ID_WOTC_TCOE_SPELL_SWORD_BURST",
     "Class Feature|Pact Magic|Cantrip (Warlock)|Thunderclap|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_THUNDERCLAP",
     "Class Feature|Pact Magic|Cantrip (Warlock)|Thunderclap|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_THUNDERCLAP",
-    "Class Feature|Pact Magic|Cantrip (Warlock)|Thunderclap|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_THUNDERCLAP",
     "Class Feature|Pact Magic|Cantrip (Warlock)|Toll the Dead|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_TOLL_THE_DEAD",
     "Class Feature|Pact Magic|Cantrip (Warlock)|Toll the Dead|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_TOLL_THE_DEAD",
     "Class Feature|Pact Magic|Cantrip (Warlock)|True Strike|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_TRUE_STRIKE",
@@ -273,5 +272,6 @@
     "Class Feature|Pact Magic|Spellcasting (Warlock)|Unseen Servant|core-players-handbook|ID_PHB_SPELL_UNSEEN_SERVANT",
     "Class Feature|Pact Magic|Spellcasting (Warlock)|Witch Bolt|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_WITCH_BOLT",
     "Class Feature|Pact Magic|Spellcasting (Warlock)|Witch Bolt|core-players-handbook|ID_PHB_SPELL_WITCH_BOLT"
-  ]
+  ],
+  "FeatPickPreviewKeys": []
 }

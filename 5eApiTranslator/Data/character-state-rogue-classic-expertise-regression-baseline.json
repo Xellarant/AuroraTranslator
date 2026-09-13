@@ -1,12 +1,12 @@
 {
-  "CapturedAtUtc": "2026-05-20T22:09:03.0807451Z",
+  "CapturedAtUtc": "2026-09-13T00:22:16.5976531Z",
   "StateLabel": "character-state-rogue-classic-expertise-example.json",
   "DirectSelectionCount": 6,
   "DirectSelections": [
     "Class|Rogue|core-players-handbook|1",
     "Proficiency|Acrobatics|core-ale-xml|",
     "Proficiency|Investigation|core-ale-xml|",
-    "Proficiency|Perception|core-ale-xml|",
+    "Proficiency|Sleight of Hand|core-ale-xml|",
     "Proficiency|Stealth|core-ale-xml|",
     "Race|Elf|core-players-handbook|"
   ],
@@ -60,6 +60,7 @@
     "ID_PROFICIENCY_SKILL_ACROBATICS",
     "ID_PROFICIENCY_SKILL_INVESTIGATION",
     "ID_PROFICIENCY_SKILL_PERCEPTION",
+    "ID_PROFICIENCY_SKILL_SLEIGHTOFHAND",
     "ID_PROFICIENCY_SKILL_STEALTH",
     "ID_PROFICIENCY_TOOL_PROFICIENCY_THIEVES_TOOLS",
     "ID_PROFICIENCY_WEAPON_PROFICIENCY_CROSSBOW_HAND",
@@ -84,7 +85,7 @@
   "ChoiceSelectionKeys": [
     "$(choice||Class||Rogue||Skill Proficiency (Rogue))|ID_PROFICIENCY_SKILL_ACROBATICS",
     "$(choice||Class||Rogue||Skill Proficiency (Rogue))|ID_PROFICIENCY_SKILL_INVESTIGATION",
-    "$(choice||Class||Rogue||Skill Proficiency (Rogue))|ID_PROFICIENCY_SKILL_PERCEPTION",
+    "$(choice||Class||Rogue||Skill Proficiency (Rogue))|ID_PROFICIENCY_SKILL_SLEIGHTOFHAND",
     "$(choice||Class||Rogue||Skill Proficiency (Rogue))|ID_PROFICIENCY_SKILL_STEALTH"
   ],
   "TraitKeys": [
@@ -110,6 +111,7 @@
     "proficiency|proficiency|ID_PROFICIENCY_SKILL_ACROBATICS|Acrobatics",
     "proficiency|proficiency|ID_PROFICIENCY_SKILL_INVESTIGATION|Investigation",
     "proficiency|proficiency|ID_PROFICIENCY_SKILL_PERCEPTION|Perception",
+    "proficiency|proficiency|ID_PROFICIENCY_SKILL_SLEIGHTOFHAND|Sleight of Hand",
     "proficiency|proficiency|ID_PROFICIENCY_SKILL_STEALTH|Stealth",
     "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_DEXTERITY|Saving Throw Proficiency (Dexterity)",
     "proficiency|saving-throw|ID_PROFICIENCY_SAVINGTHROW_INTELLIGENCE|Saving Throw Proficiency (Intelligence)",
@@ -167,7 +169,10 @@
   "AppliedChoiceStates": [
     "0|applied|Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|Acrobatics",
     "1|applied|Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|Investigation",
-    "2|applied|Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|Perception",
+    "2|applied|Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|Sleight of Hand",
     "3|applied|Class|Rogue|Skill Proficiency (Rogue)|family=skill-pick|Stealth"
-  ]
+  ],
+  "SpellSelectOptionCounts": [],
+  "SpellSelectOptionKeys": [],
+  "FeatPickPreviewKeys": []
 }

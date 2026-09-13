@@ -104,8 +104,8 @@
       "ownerTypeName": "Feat Feature",
       "selectName": "Level 1 Spell (Magic Initiate)",
       "selectType": "Spell",
-      "optionAuroraId": "ID_WOTC_PHB24_SPELL_BLESS",
-      "optionName": "Bless"
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_GUIDING_BOLT",
+      "optionName": "Guiding Bolt"
     },
     {
       "ownerName": "Human",

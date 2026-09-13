@@ -1,9 +1,9 @@
 {
-  "CapturedAtUtc": "2026-05-20T22:08:51.308099Z",
+  "CapturedAtUtc": "2026-09-13T00:22:03.5790777Z",
   "StateLabel": "character-state-badger-example.json",
   "DirectSelectionCount": 1,
   "DirectSelections": [
-    "Companion|Badger|core-players-handbook-2024|"
+    "Companion|Badger|core-monster-manual-2025|"
   ],
   "ActiveFeatureCount": 0,
   "ActiveFeatures": [],
@@ -46,5 +46,8 @@
       "Count": 1
     }
   ],
-  "AppliedChoiceStates": []
+  "AppliedChoiceStates": [],
+  "SpellSelectOptionCounts": [],
+  "SpellSelectOptionKeys": [],
+  "FeatPickPreviewKeys": []
 }

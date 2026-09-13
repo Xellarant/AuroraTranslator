@@ -1,7 +1,7 @@
 {
-  "CapturedAtUtc": "2026-05-20T22:09:05.2470238Z",
+  "CapturedAtUtc": "2026-09-13T00:22:25.6359981Z",
   "StateLabel": "character-state-warlock-invocations-complete-example.json",
-  "DirectSelectionCount": 11,
+  "DirectSelectionCount": 12,
   "DirectSelections": [
     "Archetype|The Fiend|core-players-handbook|",
     "Class Feature|Armor of Shadows|core-players-handbook|",
@@ -11,6 +11,7 @@
     "Proficiency|Deception|core-ale-xml|",
     "Race|Elf|core-players-handbook|",
     "Spell|Armor of Agathys|core-players-handbook|",
+    "Spell|Charm Person|core-players-handbook|",
     "Spell|Eldritch Blast|core-players-handbook|",
     "Spell|Hex|core-players-handbook|",
     "Spell|Mage Hand|core-players-handbook|"
@@ -27,12 +28,8 @@
   "AvailableSelectCount": 7,
   "PendingChoiceCount": 1,
   "BlockingPendingChoiceCount": 1,
-  "WarningCount": 2,
+  "WarningCount": 1,
   "WarningKindCounts": [
-    {
-      "Key": "over-selected-choice|error",
-      "Count": 1
-    },
     {
       "Key": "pending-choice|warning",
       "Count": 1
@@ -98,6 +95,7 @@
     "$(choice||Class Feature||Pact Magic||Cantrip (Warlock))|ID_PHB_SPELL_ELDRITCH_BLAST",
     "$(choice||Class Feature||Pact Magic||Cantrip (Warlock))|ID_PHB_SPELL_MAGE_HAND",
     "$(choice||Class Feature||Pact Magic||Spellcasting (Warlock))|ID_PHB_SPELL_ARMOR_OF_AGATHYS",
+    "$(choice||Class Feature||Pact Magic||Spellcasting (Warlock))|ID_PHB_SPELL_CHARM_PERSON",
     "$(choice||Class Feature||Pact Magic||Spellcasting (Warlock))|ID_PHB_SPELL_HEX",
     "$(choice||Class||Warlock||Skill Proficiency (Warlock))|ID_PROFICIENCY_SKILL_ARCANA",
     "$(choice||Class||Warlock||Skill Proficiency (Warlock))|ID_PROFICIENCY_SKILL_DECEPTION"
@@ -145,7 +143,7 @@
     },
     {
       "Key": "choice-selection|selected-choice",
-      "Count": 9
+      "Count": 10
     },
     {
       "Key": "feature|active-feature",
@@ -193,6 +191,81 @@
     "5|applied|Class Feature|Pact Magic|Cantrip (Warlock)|family=spell-pick|Eldritch Blast",
     "6|applied|Class Feature|Pact Magic|Cantrip (Warlock)|family=spell-pick|Mage Hand",
     "7|applied|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Armor of Agathys",
-    "8|applied|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Hex"
-  ]
+    "8|applied|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Hex",
+    "9|applied|Class Feature|Pact Magic|Spellcasting (Warlock)|family=spell-pick|Charm Person"
+  ],
+  "SpellSelectOptionCounts": [
+    "Class Feature|Pact Magic|Cantrip (Warlock)|options=38",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|options=28",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|options=28"
+  ],
+  "SpellSelectOptionKeys": [
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Blade Ward|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_BLADE_WARD",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Blade Ward|core-players-handbook|ID_PHB_SPELL_BLADE_WARD",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Booming Blade|supplements-sword-coast-adventurers-guide|ID_SCAG_SPELL_BOOMING_BLADE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Booming Blade|supplements-tashas-cauldron-of-everything|ID_WOTC_TCOE_SPELL_BOOMING_BLADE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Chill Touch|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_CHILL_TOUCH",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Chill Touch|core-players-handbook|ID_PHB_SPELL_CHILL_TOUCH",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Create Bonfire|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_CREATEBONFIRE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Create Bonfire|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_CREATE_BONFIRE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Eldritch Blast|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ELDRITCH_BLAST",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Eldritch Blast|core-players-handbook|ID_PHB_SPELL_ELDRITCH_BLAST",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Friends|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_FRIENDS",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Friends|core-players-handbook|ID_PHB_SPELL_FRIENDS",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Frostbite|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_FROSTBITE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Green-Flame Blade|supplements-sword-coast-adventurers-guide|ID_SCAG_SPELL_GREEN_FLAME_BLADE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Green-Flame Blade|supplements-tashas-cauldron-of-everything|ID_WOTC_TCOE_SPELL_GREENFLAME_BLADE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Infestation|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_INFESTATION",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Lightning Lure|supplements-sword-coast-adventurers-guide|ID_SCAG_SPELL_LIGHTNING_LURE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Lightning Lure|supplements-tashas-cauldron-of-everything|ID_WOTC_TCOE_SPELL_LIGHTNING_LURE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Mage Hand|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_MAGE_HAND",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Mage Hand|core-players-handbook|ID_PHB_SPELL_MAGE_HAND",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Magic Stone|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_MAGICSTONE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Magic Stone|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_MAGIC_STONE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Mind Sliver|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_MIND_SLIVER",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Mind Sliver|supplements-tashas-cauldron-of-everything|ID_WOTC_TCOE_SPELL_MIND_SLIVER",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Minor Illusion|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_MINOR_ILLUSION",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Minor Illusion|core-players-handbook|ID_PHB_SPELL_MINOR_ILLUSION",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Poison Spray|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_POISON_SPRAY",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Poison Spray|core-players-handbook|ID_PHB_SPELL_POISON_SPRAY",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Prestidigitation|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_PRESTIDIGITATION",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Prestidigitation|core-players-handbook|ID_PHB_SPELL_PRESTIDIGITATION",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Sword Burst|supplements-sword-coast-adventurers-guide|ID_SCAG_SPELL_SWORD_BURST",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Sword Burst|supplements-tashas-cauldron-of-everything|ID_WOTC_TCOE_SPELL_SWORD_BURST",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Thunderclap|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_THUNDERCLAP",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Thunderclap|supplements-princes-of-the-apocalypse|ID_POTA_SPELL_THUNDERCLAP",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Toll the Dead|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_TOLL_THE_DEAD",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|Toll the Dead|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_TOLL_THE_DEAD",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|True Strike|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_TRUE_STRIKE",
+    "Class Feature|Pact Magic|Cantrip (Warlock)|True Strike|core-players-handbook|ID_PHB_SPELL_TRUE_STRIKE",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Armor of Agathys|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ARMOR_OF_AGATHYS",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Armor of Agathys|core-players-handbook|ID_PHB_SPELL_ARMOR_OF_AGATHYS",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Arms of Hadar|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ARMS_OF_HADAR",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Arms of Hadar|core-players-handbook|ID_PHB_SPELL_ARMS_OF_HADAR",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Bane|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_BANE",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Cause Fear|supplements-xanathars-guide-to-everything|ID_XGTE_SPELL_CAUSE_FEAR",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Charm Person|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_CHARM_PERSON",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Charm Person|core-players-handbook|ID_PHB_SPELL_CHARM_PERSON",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Comprehend Languages|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_COMPREHEND_LANGUAGES",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Comprehend Languages|core-players-handbook|ID_PHB_SPELL_COMPREHEND_LANGUAGES",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Detect Magic|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_DETECT_MAGIC",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Distort Value|supplements-acquisitions-incorporated|ID_WOTC_ACQINC_SPELL_DISTORT_VALUE",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Expeditious Retreat|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_EXPEDITIOUS_RETREAT",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Expeditious Retreat|core-players-handbook|ID_PHB_SPELL_EXPEDITIOUS_RETREAT",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Hellish Rebuke|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_HELLISH_REBUKE",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Hellish Rebuke|core-players-handbook|ID_PHB_SPELL_HELLISH_REBUKE",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Hex|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_HEX",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Hex|core-players-handbook|ID_PHB_SPELL_HEX",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Illusory Script|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_ILLUSORY_SCRIPT",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Illusory Script|core-players-handbook|ID_PHB_SPELL_ILLUSORY_SCRIPT",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Protection from Evil and Good|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_PROTECTION_FROM_EVIL_AND_GOOD",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Protection from Evil and Good|core-players-handbook|ID_PHB_SPELL_PROTECTION_FROM_EVIL_AND_GOOD",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Speak with Animals|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_SPEAK_WITH_ANIMALS",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Tasha\u2019s Hideous Laughter|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_TASHAS_HIDEOUS_LAUGHTER",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Unseen Servant|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_UNSEEN_SERVANT",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Unseen Servant|core-players-handbook|ID_PHB_SPELL_UNSEEN_SERVANT",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Witch Bolt|core-players-handbook-2024|ID_WOTC_PHB24_SPELL_WITCH_BOLT",
+    "Class Feature|Pact Magic|Spellcasting (Warlock)|Witch Bolt|core-players-handbook|ID_PHB_SPELL_WITCH_BOLT"
+  ],
+  "FeatPickPreviewKeys": []
 }

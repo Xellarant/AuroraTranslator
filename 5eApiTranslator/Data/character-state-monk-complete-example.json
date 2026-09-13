@@ -43,8 +43,8 @@
       "ownerTypeName": "Class",
       "selectName": "Tool Proficiency (Monk)",
       "selectType": "Proficiency",
-      "optionAuroraId": "ID_PROFICIENCY_TOOL_PROFICIENCY_CALLIGRAPHERS_SUPPLIES",
-      "optionName": "Tool Proficiency (Calligrapher's supplies)"
+      "optionAuroraId": "ID_PROFICIENCY_TOOL_PROFICIENCY_FLUTE",
+      "optionName": "Tool Proficiency (Flute)"
     },
     {
       "ownerName": "Human",

@@ -329,13 +329,14 @@ namespace AuroraTranslator
             AuroraCharacterStateDocument workingDocument = CloneDocument(document);
             var appliedChoiceResults = new Dictionary<int, AppliedCharacterChoiceResult>();
             var completedChoices = new HashSet<int>();
+            var implicitChoiceMetadata = new Dictionary<string, CharacterSelectResult>(StringComparer.OrdinalIgnoreCase);
             CharacterEvaluationResult current = EvaluateCore(connection, workingDocument, Array.Empty<AppliedCharacterChoiceResult>());
 
             for (int iteration = 0; iteration < 4; iteration++)
             {
                 bool anyApplied = false;
 
-                if (ApplyImplicitFeaturePickSelections(connection, workingDocument, current))
+                if (ApplyImplicitFeaturePickSelections(connection, workingDocument, current, implicitChoiceMetadata))
                 {
                     anyApplied = true;
                     current = EvaluateCore(connection, workingDocument, appliedChoiceResults.Values.OrderBy(x => x.ChoiceIndex).ToList());
@@ -391,7 +392,7 @@ namespace AuroraTranslator
             IReadOnlyList<AppliedCharacterChoiceResult> finalizedChoices = appliedChoiceResults.Values
                 .OrderBy(x => x.ChoiceIndex)
                 .ToList();
-            ComputedCharacterResult computedCharacter = BuildComputedCharacter(connection, document, workingDocument, final with
+            ComputedCharacterResult computedCharacter = BuildComputedCharacter(connection, document, workingDocument, implicitChoiceMetadata, final with
             {
                 AppliedChoices = finalizedChoices
             });
@@ -939,7 +940,8 @@ ORDER BY rec.package_key ASC, e.name ASC;";
         private static bool ApplyImplicitFeaturePickSelections(
             SqliteConnection connection,
             AuroraCharacterStateDocument document,
-            CharacterEvaluationResult current)
+            CharacterEvaluationResult current,
+            IDictionary<string, CharacterSelectResult> implicitChoiceMetadata)
         {
             if (current?.AvailableSelects == null || current.AvailableSelects.Count == 0)
                 return false;
@@ -950,12 +952,26 @@ ORDER BY rec.package_key ASC, e.name ASC;";
                 if (!ShouldImplicitlyApplyFeaturePick(select))
                     continue;
 
+                // Ownership filtering can leave one alternative available in an already-filled pool.
+                if (CountSatisfiedChoicesForSelect(
+                        connection,
+                        select,
+                        current.AvailableSelects,
+                        current.AppliedChoices,
+                        current.DirectSelections,
+                        document) >= select.NumberToChoose)
+                {
+                    continue;
+                }
+
                 CharacterSelectOptionResult option = select.Options.FirstOrDefault(x => x.IsAvailable);
                 if (option == null)
                     continue;
 
                 bool applied = ApplyOptionToDocument(connection, document, select, option);
                 bool appliedReplacementTokens = ApplyReplacementTokensToDocument(document, select, option);
+                // Replacement tokens can remove the select from subsequent evaluations.
+                implicitChoiceMetadata[GetPreferredChoiceMacroName(select)] = select;
                 changed = applied || appliedReplacementTokens || changed;
             }
 
@@ -4187,6 +4203,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             SqliteConnection connection,
             AuroraCharacterStateDocument originalDocument,
             AuroraCharacterStateDocument workingDocument,
+            IReadOnlyDictionary<string, CharacterSelectResult> implicitChoiceMetadata,
             CharacterEvaluationResult evaluation)
         {
             var provenance = new List<CharacterProvenanceEntry>();
@@ -4197,7 +4214,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             List<ComputedCharacterItemResult> features = BuildComputedFeatures(evaluation, provenance);
             List<ComputedGrantedSpellResult> grantedSpells = BuildComputedGrantedSpells(evaluation, provenance);
             List<ComputedSpellcastingProfileResult> spellcastingProfiles = BuildComputedSpellcastingProfiles(grantedSpells);
-            List<ComputedCharacterItemResult> choiceSelections = BuildComputedChoiceSelections(workingDocument, provenance);
+            List<ComputedCharacterItemResult> choiceSelections = BuildComputedChoiceSelections(workingDocument, implicitChoiceMetadata, provenance);
             List<ComputedCharacterItemResult> traits = BuildComputedTraits(connection, evaluation, provenance);
             List<ComputedEffectRowResult> effectRows = BuildComputedEffectRows(
                 abilityScores,
@@ -4682,6 +4699,7 @@ ORDER BY e.name ASC, rec.package_key ASC;";
 
         private static List<ComputedCharacterItemResult> BuildComputedChoiceSelections(
             AuroraCharacterStateDocument workingDocument,
+            IReadOnlyDictionary<string, CharacterSelectResult> implicitChoiceMetadata,
             List<CharacterProvenanceEntry> provenanceSink)
         {
             var items = new List<ComputedCharacterItemResult>();
@@ -4689,7 +4707,14 @@ ORDER BY e.name ASC, rec.package_key ASC;";
             foreach (KeyValuePair<string, List<string>> pair in workingDocument.MacroValues ?? new Dictionary<string, List<string>>())
             {
                 if (!TryResolveChoiceMacroName(pair.Key, workingDocument, out string ownerTypeName, out string ownerName, out string selectName))
-                    continue;
+                {
+                    if (!implicitChoiceMetadata.TryGetValue(pair.Key, out CharacterSelectResult implicitSelect))
+                        continue;
+
+                    ownerTypeName = implicitSelect.OwnerTypeName;
+                    ownerName = implicitSelect.OwnerName;
+                    selectName = implicitSelect.SelectName;
+                }
 
                 foreach (string value in pair.Value ?? Enumerable.Empty<string>())
                 {

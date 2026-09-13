@@ -40,8 +40,8 @@
       "ownerTypeName": "Class",
       "selectName": "Skill Proficiency (Rogue)",
       "selectType": "Proficiency",
-      "optionAuroraId": "ID_PROFICIENCY_SKILL_PERCEPTION",
-      "optionName": "Perception"
+      "optionAuroraId": "ID_PROFICIENCY_SKILL_SLEIGHTOFHAND",
+      "optionName": "Sleight of Hand"
     },
     {
       "ownerName": "Rogue",

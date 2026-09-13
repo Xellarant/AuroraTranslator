@@ -69,6 +69,7 @@
       "ownerTypeName": "Class Feature",
       "selectName": "Spell (Sorcerer)",
       "selectType": "Spell",
+      "choiceRowKey": "id_wotc_phb24_class_feature_sorcerer_spellcasting|class feature|core-players-handbook-2024|core\\players-handbook-2024\\class-sorcerer.xml|spell (sorcerer)|spell-pick|spell|1|2|0|broad-spell-pool|$(spellcasting:list), $(spellcasting:slots)|",
       "optionAuroraId": "ID_WOTC_PHB24_SPELL_MAGIC_MISSILE",
       "optionName": "Magic Missile"
     },
@@ -77,8 +78,27 @@
       "ownerTypeName": "Class Feature",
       "selectName": "Spell (Sorcerer)",
       "selectType": "Spell",
+      "choiceRowKey": "id_wotc_phb24_class_feature_sorcerer_spellcasting|class feature|core-players-handbook-2024|core\\players-handbook-2024\\class-sorcerer.xml|spell (sorcerer)|spell-pick|spell|1|2|0|broad-spell-pool|$(spellcasting:list), $(spellcasting:slots)|",
       "optionAuroraId": "ID_WOTC_PHB24_SPELL_SHIELD",
       "optionName": "Shield"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Spell (Sorcerer)",
+      "selectType": "Spell",
+      "choiceRowKey": "id_wotc_phb24_class_feature_sorcerer_spellcasting|class feature|core-players-handbook-2024|core\\players-handbook-2024\\class-sorcerer.xml|spell (sorcerer)|spell-pick|spell|2|2|0|broad-spell-pool|$(spellcasting:list), $(spellcasting:slots)|",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_MAGE_ARMOR",
+      "optionName": "Mage Armor"
+    },
+    {
+      "ownerName": "Level 1: Spellcasting",
+      "ownerTypeName": "Class Feature",
+      "selectName": "Spell (Sorcerer)",
+      "selectType": "Spell",
+      "choiceRowKey": "id_wotc_phb24_class_feature_sorcerer_spellcasting|class feature|core-players-handbook-2024|core\\players-handbook-2024\\class-sorcerer.xml|spell (sorcerer)|spell-pick|spell|2|2|0|broad-spell-pool|$(spellcasting:list), $(spellcasting:slots)|",
+      "optionAuroraId": "ID_WOTC_PHB24_SPELL_BURNING_HANDS",
+      "optionName": "Burning Hands"
     },
     {
       "ownerName": "Level 2: Metamagic",
