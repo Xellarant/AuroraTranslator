@@ -1,0 +1,28 @@
+<elements><element name="Demon Summoner" type="Archetype Feature" source="The Great Dale" id="ID_DMSG_TGD_ARCHETYPE_FEATURE_DEMONBINDER_DEMON_SUMMONER">
+		<description>
+			<p>At 6th level, you may add the <em>summon lesser demons</em> spell to your spellbook in addition to the usual spells gained at a new level. When you cast this spell, the summoned demons have disadvantage on attack rolls against you and allies within 30 feet of you if the demons can see you and you’re wearing your Symbol of Protection.</p>
+		</description>
+		<sheet>
+			<description>When you cast summon lesser demons, the summoned demons have disadvantage on attack rolls against you and allies within 30 feet of you if the demons can see you and you’re wearing your Symbol of Protection.</description>
+		</sheet>
+		<rules>
+			<grant type="Spell" id="ID_PHB_SPELL_SUMMON_LESSER_DEMONS" spellcasting="Wizard" />
+		</rules>
+	</element>	
+	<element name="Master Demon Summoner" type="Archetype Feature" source="The Great Dale" id="ID_DMSG_TGD_ARCHETYPE_FEATURE_DEMONBINDER_MASTER_DEMON_SUMMONER">
+		<description>
+			<p>At 10th level, you add the <em>planar binding</em> and <em>summon greater demon</em> spells to your spellbook in addition to the usual spells gained at a new level. A demon you summon with the <em>summon greater demon</em> spell has disadvantage on its saving throws to break your control over it if you’re wearing your Symbol of Protection and it can see you; the demon doesn’t get a saving throw if you also say its true name. Likewise, a demon you attempt to bind with the <em>planar binding</em> spell that can see you while you’re wearing the amulet has disadvantage on its saving throw to resist the spell, or it doesn’t get a saving throw if you also say its true name.</p>
+			<p class="indent">In addition, the dispel evil and good spell is considered a wizard spell for you, and you can choose to add it to your spellbook when you gain a level, including when you gain this feature at 10th level.</p>
+		</description>
+		<sheet>
+			<description>A demon you summon with the summon greater demon spell has disadvantage on its saving throws to break your control over it if you’re wearing your Symbol of Protection and it can see you; the demon doesn’t get a saving throw if you also say its true name. Likewise, a demon you attempt to bind with the planar binding spell that can see you while you’re wearing the amulet has disadvantage on its saving throw to resist the spell, or it doesn’t get a saving throw if you also say its true name.</description>
+		</sheet>
+		<spellcasting name="Wizard" extend="true">
+			<extend>ID_PHB_SPELL_DISPEL_EVIL_AND_GOOD</extend>
+		</spellcasting>
+		<rules>
+			<grant type="Spell" id="ID_PHB_SPELL_PLANAR_BINDING" spellcasting="Wizard" />
+			<grant type="Spell" id="ID_PHB_SPELL_SUMMON_GREATER_DEMONS" spellcasting="Wizard" />
+		</rules>
+	</element>
+	</elements>

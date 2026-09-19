@@ -4,6 +4,35 @@ using Microsoft.Data.Sqlite;
 
 var tests = new (string Name, Action Body)[]
 {
+    ("append effects survive unrestricted catalog imports", AppendPreparationTests.EffectsAndPreferences),
+    ("append follows protected corrections exactly once", AppendPreparationTests.CorrectionsBeforeExtensions),
+    ("append unresolved references and failed candidates stay protected", AppendPreparationTests.UnresolvedAndFailedCandidate),
+    ("append preparation retains protected local aliases", AppendPreparationTests.ProtectedAliases),
+    ("append preparation preserves unrecognized generic types", AppendPreparationTests.GenericTypes),
+    ("append preparation preserves spell rules and shared content", AppendPreparationTests.SpellRules),
+    ("follow-up dynamic supports use character bindings", FollowUpTests.DynamicSupports),
+    ("follow-up specialized supports preserve boolean rules", FollowUpTests.SpecializedSupports),
+    ("follow-up spell expressions preserve correlated branches", FollowUpTests.SpellExpressions),
+    ("follow-up distinct spell IDs remain separate choices", FollowUpTests.DistinctSpellIdentities),
+    ("follow-up spell owners use active grant provenance", FollowUpTests.SpellOwnership),
+    ("follow-up selected spell owners use applied choices", FollowUpTests.SelectedSpellOwnership),
+    ("follow-up spell slots use active owner and list predicates", FollowUpTests.SpellSlotBindings),
+    ("follow-up grant repairs preserve correction intent", GrantReferenceRepairTests.ProtectedRepairs),
+    ("audit support index respects complete rules", AuditRegressionTests.SupportIndex),
+    ("audit runtime choices respect complete rules", AuditRegressionTests.RuntimeSupports),
+    ("audit explicit item identity never falls back to names", AuditRegressionTests.ExplicitItemIdentity),
+    ("audit explicit grant identity never guesses from ID words", AuditRegressionTests.ExplicitGrantIdentity),
+    ("audit scoped refresh retains cross-package grant IDs", AuditRegressionTests.ScopedGrantIdentity),
+    ("audit stored choices preserve authoritative identity", AuditRegressionTests.ChoiceIdentity),
+    ("audit ambiguous direct selections require identity", AuditRegressionTests.AmbiguousDirectSelection),
+    ("audit direct selections must satisfy complete rules", AuditRegressionTests.DirectSelectionEligibility),
+    ("audit primary support preserves token identity", AuditRegressionTests.PrimarySupportIdentity),
+    ("audit conflicting publisher flags require review", AuditRegressionTests.ConflictingPublisherFlags),
+    ("parent/source family links respect support and ambiguity", ParentAndSourceTests.FamilyParents),
+    ("parent/source selectors use rules across publishers and names", ParentAndSourceTests.RuleBasedSelectors),
+    ("parent/source explicit identities beat name guesses", ParentAndSourceTests.DirectParents),
+    ("parent/source grant identities survive package refresh", ParentAndSourceTests.GrantParentRefresh),
+    ("parent/source publisher classification preserves preferences", ParentAndSourceTests.SourceClassification),
     ("correction fixtures preserve Staff and repaired grants", ContentPreparationTests.Fixtures),
     ("correction protection follows companions and mirrors intent", ContentPreparationTests.Lifecycle),
     ("correction accepts explicitly and retires only redundant files", ContentPreparationTests.Retirement),
@@ -106,7 +135,7 @@ internal static class SpellcastingProfileEntryTests
 
         using var connection = Open(workspace.DatabasePath);
 
-        TestAssert.Equal(11L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Equal(12L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
         TestAssert.Sequence(
             new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
             QueryStrings(connection, "SELECT entry_text FROM spellcasting_profile_entries WHERE entry_kind = 'list' ORDER BY ordinal;"));
@@ -137,7 +166,7 @@ internal static class SpellcastingProfileEntryTests
         AuroraSqliteImporter.ListContentPackages(workspace.DatabasePath, TestPaths.SchemaPath);
 
         using var migrated = Open(workspace.DatabasePath);
-        TestAssert.Equal(11L, ExecuteLong(migrated, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Equal(12L, ExecuteLong(migrated, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
         TestAssert.Equal(1L, ExecuteLong(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'spellcasting_profile_entries';"));
         TestAssert.Sequence(
             new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
@@ -158,7 +187,7 @@ internal static class SpellcastingProfileEntryTests
 
         using (var connection = Open(workspace.DatabasePath))
         {
-            TestAssert.Equal(11L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+            TestAssert.Equal(12L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
             ExecuteNonQuery(connection, "DELETE FROM spellcasting_profile_entries;");
             TestAssert.Equal(0L, ExecuteLong(connection, "SELECT COUNT(*) FROM spellcasting_profile_entries;"));
         }
@@ -166,7 +195,7 @@ internal static class SpellcastingProfileEntryTests
         AuroraSqliteImporter.ListContentPackages(workspace.DatabasePath, TestPaths.SchemaPath);
 
         using var repaired = Open(workspace.DatabasePath);
-        TestAssert.Equal(11L, ExecuteLong(repaired, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Equal(12L, ExecuteLong(repaired, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
         TestAssert.Sequence(
             new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
             QueryStrings(repaired, "SELECT entry_text FROM spellcasting_profile_entries WHERE entry_kind = 'list' ORDER BY ordinal;"));

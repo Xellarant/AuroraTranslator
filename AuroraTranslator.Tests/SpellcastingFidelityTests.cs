@@ -107,7 +107,7 @@ internal static class SpellcastingFidelityTests
             TestAssert.Sequence(new[] { "ID_TEST_WIZARD" }, Rows(connection, "SELECT recipient_owner_aurora_id FROM v_spellcasting_extension_targets WHERE extension_owner_aurora_id = 'ID_TEST_HEXBLADE';"));
         AuroraSqliteImporter.UpdateContentPackageSettings(workspace.DatabasePath, package, isEnabled: false, schemaPath: TestPaths.SchemaPath);
         using (var connection = Open(workspace.DatabasePath))
-            TestAssert.Sequence(new[] { "ID_TEST_WARLOCK_2014", "ID_TEST_WARLOCK_2024" }, Rows(connection, "SELECT recipient_owner_aurora_id FROM v_spellcasting_extension_targets WHERE extension_owner_aurora_id = 'ID_TEST_HEXBLADE' ORDER BY 1;"));
+            TestAssert.Sequence(new[] { "ID_TEST_WIZARD" }, Rows(connection, "SELECT recipient_owner_aurora_id FROM v_spellcasting_extension_targets WHERE extension_owner_aurora_id = 'ID_TEST_HEXBLADE' ORDER BY 1;"));
     }
 
     private static string CreateSource(TestWorkspace workspace)

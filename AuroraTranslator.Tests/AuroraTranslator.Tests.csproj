@@ -13,5 +13,6 @@
 
   <ItemGroup>
     <None Update="Fixtures\CorrectionMetadata\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\GrantReferenceRepairs\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

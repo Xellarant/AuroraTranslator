@@ -1,0 +1,36 @@
+<elements><element name="Greed" type="Class Feature" source="The Spiritualist" id="ID_DMSG_HSPRT_CLASS_FEATURE_CHANNEL_SPIRIT_GREED">
+		<supports>Spiritualist Channel Spirit</supports>
+		<description>
+			<p>Those who die wishing for nothing but a chance to acquire more wealth become spirits of greed. In death, their state makes riches pointless but they crave them all the same. While channeling a spirit of greed, you gain the following abilities.</p>
+			<p class="indent"><strong><em>Spell List.</em></strong> While you are channeling a spirit of Greed, the following spells are considered spiritualist spells prepared by you.</p>
+			<table>
+				<thead>
+					<tr><td>Spiritualist Level</td><td>Spells</td></tr>
+				</thead>
+				<tr><td>2nd</td><td>tenser’s floating disk</td></tr>
+				<tr><td>3rd</td><td>knock</td></tr>
+				<tr><td>5th</td><td>clairvoyance</td></tr>
+				<tr><td>7th</td><td>leomund’s secret chest</td></tr>
+				<tr><td>9th</td><td>animate object</td></tr>
+			</table>
+			<p class="indent"><strong><em>Sense Greed.</em></strong> When you make a Wisdom (Insight) ability check to understand the object of someone’s envy, you can spend 1 ectoplasm point to gain advantage on that ability check.</p>
+			<p class="indent"><strong><em>Blood Money.</em></strong> When a creature within 60 feet of you dies, you can use your reaction and spend 1 ectoplasm point to turn their fleeing soul into stygian coins. When you do, you gain a number of stygian coins equal to the creature’s challenge rating or 1 (whichever is higher).</p>
+			<div class="sidebar">
+				<h5>STYGIAN COINS</h5>
+				<p>Stygian coins are made of a polished black reflective metal. On one side is a skull with a crown of flowers. On the other side is a wrought iron gate. To creatures who can’t see through illusions and are not spiritualists, each one looks identical to a gold piece.</p>
+			</div>
+		</description>		
+		<sheet alt="Spirit of Greed">
+			<description />
+		</sheet>
+		<rules>
+			<grant type="Spell" id="ID_PHB_SPELL_TENSERS_FLOATING_DISK" level="2" spellcasting="Spiritualist" prepared="true" />
+			<grant type="Spell" id="ID_PHB_SPELL_KNOCK" level="3" spellcasting="Spiritualist" prepared="true" />
+			<grant type="Spell" id="ID_PHB_SPELL_CLAIRVOYANCE" level="5" spellcasting="Spiritualist" prepared="true" />
+			<grant type="Spell" id="ID_PHB_SPELL_LEOMUNDS_SECRET_CHEST" level="7" spellcasting="Spiritualist" prepared="true" />
+			<grant type="Spell" id="ID_PHB_SPELL_ANIMATE_OBJECT" level="9" spellcasting="Spiritualist" prepared="true" />
+			<grant type="Class Feature" id="ID_DMSG_HSPRT_CLASS_FEATURE_SPIRIT_GREED_SENSE_GREED" />
+			<grant type="Class Feature" id="ID_DMSG_HSPRT_CLASS_FEATURE_SPIRIT_GREED_BLOOD_MONEY" />
+		</rules>
+	</element>
+	</elements>

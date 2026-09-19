@@ -1,5 +1,10 @@
 # AuroraTranslator data and importer handoff
 
+**Latest work, September 14, 2026:** the append/unrestricted-catalog implementation,
+protected alias drafts, successful isolated verification, and remaining rollout work are in
+[the append follow-up](append-preparation-2026-09-14.md) and section 20. Earlier
+enabled-source behavior below is historical and is superseded by section 20.
+
 **Decision baseline: September 13, 2026.** Audience: AuroraTranslator maintainers
 and the future shared importer library. This document consolidates the accepted
 direction and the current Aurora Lights implementation. It is intended to travel
@@ -7,7 +12,7 @@ with a handoff; the essential rules are included here rather than only linked.
 
 **Status:** Aurora Lights checkpoint `624b6b7cec82e8ad6d0efffb36ba414908469a15`
 (`Add protected local corrections and content review foundations`) records this implementation on `main`.
-The Lights working tree is clean. Nothing was pushed or released; no version bump or
+The Lights working tree was clean at that checkpoint; the refresh-validation follow-up is now committed as `02d56c6`; the performance follow-up in section 13 remains uncommitted. Nothing was pushed or released; no version bump or
 production database refresh was performed. Canonical uniqueness, safe option consolidation,
 verified-download automatic acceptance and shared-library extraction remain follow-up work.
 The bundled Translator executable itself has not gained correction handling.
@@ -26,9 +31,15 @@ was changed.
 **Maintenance rule:** keep this handoff current as the session's features are
 completed. Update accepted rules, implementation boundaries, tests, and actual
 deployment status together; retain historical evidence as dated observations.
-Latest content deployment: the six known hotfixes now carry embedded v1 metadata
+Latest content deployment: Stoneheart's user-authorized local spell-reference
+correction was installed September 14; see section 18. The earlier six known
+hotfixes carry embedded v1 metadata
 (ten review-pending operations). See sections 7–9 and the
 [annotation record](../../Aurora-Lights/docs/hotfix-metadata-annotation-2026-09-13.md).
+
+Latest production refresh attempt, September 14: preparation rejected installed
+append operations before activation. Production remains unchanged; section 19
+records both refresh blockers, the record audit and all 59 passing regressions.
 
 Latest architecture clarification: conflict resolution belongs in shared
 **content preparation**, orchestrated by the app or headless CLI, before the
@@ -259,7 +270,9 @@ upstream snapshot by blindly copying a user's working database.
 
 For managed corrections or mirror cleanup, the wrapper backs up the current DB to
 a candidate, preserving availability settings, imports staged inputs, checks
-SQLite integrity/foreign keys and corrected IDs in `resolved_elements_cache`,
+SQLite integrity/foreign keys and corrected IDs under their authoritative
+source-file provenance in `elements`. Only enabled packages require corresponding
+IDs in `resolved_elements_cache`. It then
 mirrors evidence, and checks the input file set/hashes again. It activates only
 after successful validation. Failed/raced refreshes preserve the working DB.
 Package toggles share the app's sync lock. Failed refreshes stop content reload
@@ -746,3 +759,877 @@ The existing `refreshes spellcasting ownership after package changes` regression
 also passed, covering the unchanged legacy package path. The reviewed commit
 contains source, documentation and fixtures only; binary/snapshot publication and
 production refresh remain separate work.
+
+
+## 12. Lights refresh validation and app availability follow-up (September 13, 2026)
+
+A live-app refresh reported Tatsumi missing from the candidate. The installed DB
+already contained `ID_RGTTYR_RACE_TATSUMI`; Ryoko's package had `is_enabled=0`, so
+its definition was intentionally absent from the derived resolution cache. The
+Lights wrapper incorrectly treated that filtered cache as the complete import.
+The stored flag does not establish who changed it or when.
+
+Lights now validates corrected IDs in `elements` against the expected authoritative
+source file, regardless of package availability, and checks cache presence only
+for enabled packages. A same-ID declaration from a different file cannot mask a
+missing corrected definition. Missing data still rejects candidate activation
+and preserves the working database and local corrections.
+
+The user's clarified intent is that all eligible content remains in the catalog;
+enable/disable choices govern app availability, not eligibility for import.
+Currently Settings > Content > Sources persists those app choices in the local
+`content_packages.is_enabled` column and rebuilds the filtered cache. This fix
+does not relocate those preferences or enable Ryoko's. Do not publish personal
+availability settings as authoritative content policy or require disabled content
+to appear in the app's filtered resolution cache.
+
+The disabled-source regression failed before the Lights fix. All 24 lifecycle
+tests passed afterward, and the three new regression cases also passed through
+the actual bundled Translator (including both enabled/disabled provenance failures).
+Translator's independently recorded availability fixes in section 11 remain
+separate; its new executable has not been substituted into Lights by this work.
+
+A full rehearsal copied all 1,189 installed XML files and the working database,
+then ran the existing bundled Translator through the corrected Lights wrapper.
+The candidate passed integrity/foreign-key and correction-presence checks: 20,973
+elements, six mirrored files, ten review-pending corrections, and Tatsumi stored
+while absent from the disabled-source cache. Every existing enable/disable flag
+was preserved. SHA-256 comparisons confirmed the live DB and all XML unchanged.
+
+The additional assertion that every existing precedence rank remains unchanged
+did NOT pass: the bundled Translator changed 51 ranks (49 supplement entries
+200->400, UA 200->500, user 400->500). This is separate from the false missing-ID
+failure and has not been patched by this bounded Lights fix. Do not describe the
+full rehearsal as complete package-setting preservation. Reconcile the bundled
+writer's classification/precedence behavior with Translator section 11 before
+claiming a fully preference-preserving refresh. No production activation, binary
+replacement, commit or push was performed for this Lights follow-up.
+
+Activation semantics clarified: protected definitions are materialized in prepared
+XML even if upstream omits them. If an importer subsequently drops an expected
+definition, reject the candidate and retain the entire previous working DB.
+Intentional upstream deletions of unprotected companions are separate. Per-element
+carry-forward into an otherwise refreshed DB is not implemented; it would also
+need to preserve related rules/grants/references and validate their consistency.
+
+
+## 13. Lights scan and correction-tracking performance (September 13, 2026)
+
+The ordinary change scan used to construct the entire XML gameplay catalog before
+comparing file hashes. Lights now uses `BuildFileCatalog` to enumerate the same
+file paths and root prefixes without parsing definitions. The existing MD5 file
+comparison remains; correction-aware scans still use the recorded SHA-256 input
+snapshot. Do not substitute timestamps or file lengths for content hashes: edits
+with unchanged timestamps and sizes must remain detectable.
+
+The new correction wrapper also committed each input hash separately. It now
+records the complete input snapshot in one SQLite transaction with a reused
+prepared insert. Keep integrity/provenance validation, post-import input hash/set
+revalidation, candidate activation and retirement ordering. This optimization
+does not weaken correction protection or permit partial imports.
+
+Temporary-copy measurements using 1,189 XML files:
+
+| Operation | Before | After |
+| --- | ---: | ---: |
+| Ordinary scan of the same frozen DB/root, three runs | 1.44-1.89 seconds | 35-44 milliseconds |
+| Post-import validation, mirroring, activation and cleanup | 12.35 seconds | 2.48 seconds |
+| Direct wrapper/import invocation, zero changed files | 43.17 seconds | 33.80 seconds |
+
+The existing bundled Translator still consumed about 27 seconds with zero files
+changed. That remains a target for the authoritative importer/shared-library
+work; determine which derived rebuilds can be skipped for unchanged inputs and
+which are required by writer/schema changes. Do not bypass writer upgrades or
+skip validation merely because source files are unchanged. Lights already avoids
+calling the importer during UI reload when its change scan reports no changes.
+The direct-import measurements above exclude the app's subsequent element reload
+and diagnostics. The earlier full import rebuilt all 1,189 files across a data
+version transition; failed candidates caused retries to repeat that conversion.
+
+Validation: 29 focused tests passed (24 lifecycle, five change-scan cases). A new
+scan test failed before the fix because malformed changed XML was parsed rather
+than reported as changed. Tests cover same-size/same-timestamp edits, additional
+roots and Windows separators, additions/deletions/renames, and correction failure
+and race safeguards. The temporary bundled-importer output retained all 1,189
+input records, six mirrored files, ten pinned corrections and valid foreign keys.
+The separate precedence issue in section 12 is not resolved by this optimization.
+
+No live database/XML was used as an output target by the performance work. The
+live DB did change externally during measurement, so the final scan comparison
+used the same frozen temporary DB/root for both implementations. The provenance
+fix was committed externally as `02d56c6` during this work; the performance edits
+remain uncommitted. No executable was rebuilt/published into the Lights bundle.
+
+**Refresh progress display follow-up:** Lights Settings now keeps a progress bar
+visible while checking for changes and reloading content, even when no import is
+needed. Preparation, unknown totals and post-import finalization use an animated
+indeterminate bar. Known importer progress retains its existing determinate
+presentation. The bundled executable currently emits totals only at exit; it
+therefore displays "Importing content" with an animated bar, without claiming
+zero changed files or remaining stuck at zero percent. Future shared-library or
+CLI progress should report actual stages/counts; preserve the indeterminate path
+where totals are unavailable. Overlapping check/refresh button actions are
+blocked. The Windows app build passed with zero warnings/errors. This small UI
+change did not run a live database refresh or a native UI smoke test.
+
+## 14. Measured implications of the 51 changed ranks
+
+The earlier rank warning now has a controlled follow-up. See the full
+[priority-impact audit](../../Aurora-Lights/docs/content-priority-impact-audit-2026-09-13.md).
+Two copies of the frozen 20,973-element candidate differed only in the 51 ranks.
+The actual bundled Translator ran `refresh-package-resolution` on each. All 61
+application tables were compared; both outputs passed integrity/FK checks.
+
+- All 19,808 enabled Aurora-ID winners were identical. All 20,873 winners were
+  also identical with every package enabled; none of the 100 duplicate pairs
+  changed order. Own element identities/definitions did not change.
+- Four `features.parent_element_id` values and their four primary-parent
+  `element_support_links` changed: Arcane Cord, Elemental Focus, Focused Lightblade,
+  and Helm of Heat-vision from Blazing Dawn Player's Companion.
+- Their parent changed from `ID_WOTC_ERLW_CLASS_FEATURE_ARTIFICER_INFUSE_ITEM` to
+  `ID_WOTC_UA20190228_CLASS_FEATURE_ARTIFICER_INFUSE_ITEM`. The alias `Artificer
+  Infusion` resolves by the name `Infuse Item`; the new UA rank beats Eberron.
+- This is not equivalent parentage: the four options declare `Artificer Infusion`,
+  whereas UA choices require `UA Artificer Infusion`. The old Eberron selection
+  itself relied on a final row-ID tie-break, so merely restoring ranks does not
+  make that inference semantically robust.
+- All other tables were identical apart from the expected rank columns in
+  `content_packages` and `resolved_elements_cache`. Grants/rules/selection links
+  and correction mirrors stayed unchanged. The four options retained all 40
+  selectable memberships: 20 Eberron and 20 Tasha selection rows.
+
+Current Lights `DbElementLoader` reads feature minimum levels, not these feature
+parent IDs or primary-parent support links. No current Lights character-choice
+regression was demonstrated; the feature/support loader views do expose the
+changed parentage. Do not label this as 51 broken sources or a proven blocker for
+the progress-display commit. Treat the parent inference and differing package
+classification as concrete issues to resolve before using inferred parents as
+an authoritative shared-library contract.
+
+Preserving ranks is a compatibility measure. The durable fix should constrain
+parent inference by explicit identity and compatible support/edition context,
+retaining ambiguity/multiple valid parents where appropriate. Global Aurora-ID
+uniqueness cannot resolve these two parents because their IDs differ. The
+Translator's path derivation also labels supplements as homebrew and UA/user/reddit
+as local; the app displays/sorts package kind. That classification issue was held
+constant in this rank-only experiment and needs its own reconciliation.
+
+No importer source, bundle, live XML or live database was changed by this audit.
+The audit DLL hash and precise feature IDs are recorded in the linked report.
+
+## 15. Translator parent identity and publisher classification follow-up
+
+September 13, 2026. Sections 12–14 and the linked priority-impact audit were read
+before this implementation. Those existing handoff edits were preserved.
+
+### Why parentage depended on names and ranks
+
+Many Aurora child declarations carry a support-family label rather than a parent
+ID. The importer stored the first/preferred support token as `parent_support_text`,
+then used `parent_family_aliases` to translate labels such as `Artificer Infusion`
+to a parent name such as `Infuse Item`. The old feature/archetype queries chose
+among candidates by file/package affinity, cache membership, package rank, alias
+priority and numeric row ID. Other parent queries combined ID/name matches and
+selected `MIN(element_id)`, so even an explicit ID could lose to a display-name
+collision. Background features also guessed from declaration order.
+
+These were compatibility heuristics for incomplete relationship metadata, not
+explicit XML parent identities. The four-infusions audit proves that the result
+was not stable or edition-safe. Restoring package ranks cannot fix that.
+
+### Implemented parent and selector behavior
+
+UA is eligible whenever its actual rules select the option's type and supports.
+Section 14's particular UA selector requires `UA Artificer Infusion`; the four
+options declare `Artificer Infusion`. That literal mismatch, not UA authorship or
+edition assumptions, excludes this particular selector. A UA feature with matching
+supports qualifies regardless of its name, package or rank.
+
+`AuroraParentRelationships.cs` supplies one resolver for features, archetypes,
+subraces, race variants and background variants:
+
+- Explicit Aurora IDs from all child supports resolve directly. An unresolved ID
+  is never converted into a display-name match.
+- Parent grant rules and inline selection items match raw target Aurora IDs.
+  These relationships coexist with support-based selection relationships.
+- Selectors are discovered through their actual rules, without a parent-name
+  alias. Static support conditions evaluate against the child's ID and complete
+  support set using `AuroraExpressionEngine`, including AND, OR, parentheses and
+  negation. Type compatibility is extracted unchanged from the character engine
+  into `AuroraSelectionRules` and reused.
+- For a subclass selected by a granted feature, explicit incoming grant chains
+  lead to its Class. The same mechanism handles Race/Background root columns.
+  Cycles terminate through deduplication.
+- Every distinct rule-backed candidate is retained. Package rank, names, source
+  affinity, declaration order and evidence rank cannot choose between parents.
+  The singular parent column is populated only when one candidate remains.
+- Name aliases, same-file and declaration-order parent guesses are removed.
+  The historical alias table remains for compatibility but is not consulted.
+  Implicit display-name matching is also removed from element/select support
+  links and the selectable-option index. Explicitly authored inline text choices
+  retain their existing handling.
+
+The additive `parent_relationship_candidates` table records relationship kinds
+and candidate IDs. Its retained `evidence_rank` field is uniform and has no
+selection role. `v_ambiguous_parent_relationships` exposes multiple candidate IDs.
+`parent_selector_diagnostics` identifies invalid expressions as `actionable`
+with the select ID, expression and parser error; character-dependent expressions
+and selectors without static targets are `deferred`, with the missing evaluation
+context/evidence explained. There is no arbitrary fallback for these cases.
+
+Full imports and package refreshes rebuild this derived parent graph. The first
+package update on an older database triggers full legacy resolution when the
+candidate table is absent. Later updates still rebuild parent evidence
+conservatively, since a changed grant ancestor can affect a selector several
+edges away. Dependency indexing is a future performance improvement.
+
+This is structural relationship evidence, not character-specific availability.
+Levels, requirements and character-dependent macros remain the character
+evaluator's responsibility. The broader existing dynamic-choice evaluator and
+its candidate-cache semantics have not been rewritten in this slice; removing
+implicit support/name matches is the selectable-index change. Missing supports
+do not establish an exclusive parent. Consumers must handle multiple parents
+without substituting a rank/name winner. No new authoring proposal format or
+canonical-ID migration is introduced.
+
+### Accepted publisher categories and implementation
+
+The user's clarified categories supersede the old path defaults:
+
+| Content | Stored package kind |
+| --- | --- |
+| Wizards UA (`unearthed-arcana` / `ua`) | `official` (existing first-party bucket) |
+| Core Wizards books | `core` |
+| Other Wizards publications, including supplements | `official` |
+| Published non-Wizards supplements | `third-party` |
+| Explicit user/local/homebrew and Reddit community content | `homebrew` |
+
+`official` identifies the existing first-party category here; it does not turn
+UA playtest material into finalized rules. Reddit's `reddit-unearthed-arcana`
+directory is community homebrew, not Wizards UA.
+
+`ContentPackageClassification` reuses the Source-element setter vocabulary from
+Lights: `core`, `official`, `third-party`, `homebrew`, `supplement`, and author
+metadata. It aggregates evidence across the existing package's files and source
+references, keeping Wizards supplements first party even though they live under
+`supplements`. Explicit local/community roots remain homebrew despite copied
+official Source metadata. Published third-party Source metadata can classify an
+otherwise unrecognized root such as Ryoko's. Unknown roots default to homebrew;
+supplemental/third-party paths default to third party absent stronger metadata.
+Conflicting publisher categories inside one package fail with a diagnostic asking
+for corrected Source metadata or a separated package; no category wins by order.
+
+Package keys are unchanged. Every XML import refreshes classifications, including
+unchanged files, while the prepared path preserves existing enable flags and
+custom ranks. New packages receive defaults for the corrected category. The
+separate database-only resolution command does not re-read XML classification.
+Original Source-element flags are retained as supplied; this is package
+classification, not a rewrite of installed XML or proof of publication authority.
+
+### Verification and scope
+
+The initial regressions reproduced wrong UA parent inference, an explicit ID
+losing to a display-name collision, and UA classified as local. The follow-up
+regression also failed before removing the name gate: a differently named UA
+feature with matching supports could not become a candidate. A second assertion
+reproduced a display-name collision incorrectly entering its selectable pool.
+
+**Five parent/source tests passed**, covering matching UA across package and name
+boundaries, non-primary support tags, name-only rejection, OR/exclusion conditions,
+explicit inline IDs, grants alongside selectors, grant ancestry, ambiguity,
+package enable/rank changes, complete/legacy refresh, deferred/invalid selectors,
+and publisher classification with preserved settings. **11 correction tests**,
+**11 choice tests**, and the existing **package/spellcasting refresh test** passed.
+Verification used temporary data and existing regression fixtures.
+
+A temporary copy of section 14's frozen `changed-ranks.sqlite` was refreshed with
+the updated Translator. Integrity was `ok` with zero foreign-key failures. All four
+reported Blazing Dawn infusions retained Eberron and Tasha candidates through
+actual select supports, and all **40 recorded selection memberships** remained
+identical. Their singular parent fields are null because multiple selectors
+qualify. This particular UA selector still does not match; the new UA regression
+proves a matching UA selector does qualify.
+
+The refreshed copy has **17,740 parent candidate relationships**. It reports
+**172 character-dependent selectors** and **one selector without static targets**
+as deferred. All **263 implicit display-name selectable links** were removed.
+Compared raw elements, grants, selects, select items/supports, resolved Aurora-ID
+winners and both correction mirrors were unchanged. The original frozen database's
+SHA-256 was unchanged. This replaces the earlier local name-gated parent audit;
+its parent counts and timing are not evidence for the final implementation.
+
+The final isolated database refresh took about **3.5 seconds** on this machine;
+this is a diagnostic observation, not a controlled performance benchmark. There
+was no live Lights builder end-to-end test. Temporary evidence:
+`C:\Users\Ralla\AppData\Local\Temp\translator-rule-audit-c7fst7pz\evidence.json`.
+
+No installed XML, production database, Lights bundle or sibling implementation
+was changed. These follow-up source changes remain local and uncommitted; no
+snapshot or executable was published. Sections 12–14's pre-existing handoff edits
+remain intact.
+
+## 16. Follow-up project audit and corrected regression inputs
+
+September 13, 2026. The [project audit](aurora-translator-project-audit-2026-09-13.md)
+records ten reproduced discrepancies in option membership, explicit reference
+handling, direct-choice accounting, primary support marking and publisher flags.
+The static generic option index and runtime loader now share complete support
+expression evaluation across packages. This extends section 15's earlier boundary,
+which had only removed implicit support/name matching from the option index.
+
+Missing grant, extract and inline item IDs no longer resolve through name guesses;
+stored choices cannot replace an explicit Aurora ID with a name or recycled row ID.
+Nine malformed content grant references are now exposed for explicit authoring
+correction and are listed in the audit. Installed XML was not edited. Three
+Warlock example fixtures had a nonexistent Fiend ID masked by that fallback; they
+now use the actual fixture definition ID without changing the expected behavior.
+Scoped package refresh also preserves valid grants into unchanged packages;
+full/scoped parity checks now include parent candidates and selector diagnostics.
+
+All **51 console regressions passed**, including ten new audit regressions and
+the existing correction lifecycle coverage. `git diff --check` passed. The audit
+records the commands and captured verification log.
+
+The correction preparation/acceptance lifecycle remains unchanged. See the audit
+for verification, remaining dynamic/multiclass review boundaries, and temporary
+database evidence. No production refresh, snapshot, commit or push was performed.
+
+## 17. Runtime selection follow-ups and protected grant-repair drafts
+
+September 13, 2026. The [follow-up report](aurora-translator-followups-2026-09-13.md)
+supersedes section 16's dynamic-selector and implicit spell-list lookup boundaries.
+Runtime support pools now preserve complete boolean expressions, character macro
+bindings and unknown values under negation. Spell lists retain nested predicates;
+slot caps use active owners. Direct selections satisfy choices only through the
+actual option pool.
+
+Implicit spellcasting follows active grants and validated applied-choice
+provenance, rather than installed grant/selector row order. Ambiguous active
+classes or profiles produce diagnostics and leave the list binding unresolved.
+Legacy direct selections lacking ownership evidence may require explicit
+choice/profile information; no name or package-rank fallback was restored.
+
+Eight grant-reference repairs have extracted regression fixtures and full-file,
+review-pending XML drafts under `artifacts/grant-reference-review`. These reuse
+the existing correction contract and XMLHelper repair vocabulary. Complete
+embedded baselines, fingerprints and source/output hash evidence are retained.
+The subsequent user clarification preserves both POTA and XGTE Erupting Earth
+definitions because their Aurora IDs differ. Xanathar's preference applied only
+if they shared an ID. Stoneheart's third, nonexistent grant ID remains an explicit
+unresolved diagnostic with both repair candidates; it is not silently aliased.
+No draft was installed or accepted automatically, and no production database was
+refreshed. All **58 console regressions passed**, including seven follow-up tests;
+the build and `git diff --check` passed. The report records the commands and
+outstanding boundaries. Changes remain local and uncommitted.
+
+The distinct-ID clarification also removed the runtime spell-equivalence filter
+that could hide one definition based on matching content and package precedence.
+Different IDs remain independent choices, including under source restrictions.
+The follow-up report records focused verification after the earlier 58-test run.
+
+## 18. Stoneheart local correction installed
+
+September 14, 2026. The user authorized resolving Stoneheart's missing
+`ID_PHB_SPELL_ERUPTING_EARTH` reference to `ID_XGTE_SPELL_ERUPTING_EARTH`, assuming
+this unresolved homebrew grant intended the Xanathar's first-party spell. This
+supersedes section 17's unresolved-reference status without merging or removing
+either existing Erupting Earth definition.
+
+The protected local file was installed at
+`custom/user/local/sorcerer-stoneheart.xml`. It preserves the full original
+baseline, original declaration fingerprint and all other gameplay content, and
+records the assumption and pending KibblesTasty confirmation in its reason. Its
+single `replace` operation remains `review-pending`, not accepted upstream.
+
+The updated protected-repair regression and an isolated CLI import of the actual
+full file passed. The grant resolves to XGTE; both POTA and XGTE definitions remain.
+SQLite integrity and foreign-key checks passed. Original and installed file
+hashes were checked, and the original source was unchanged. See the
+[correction record](stoneheart-local-correction-2026-09-14.md) for exact edits,
+hashes and evidence. Only this local XML was installed; the other eight drafts
+were not. No production database refresh, publisher contact, commit, push or
+binary publication was performed.
+
+## 19. Production refresh blocked; existing records audited
+
+September 14, 2026. The user authorized a production refresh and an audit, with
+new findings to be discussed before further fixes. Lights' configured working
+database is `custom/aurora-elements.sqlite`, with no additional content roots.
+A consistent SQLite backup was captured before a full import was attempted on
+a copy. The working database and all 1,190 installed XML files remain unchanged
+by SHA-256; no activation, acceptance, retirement or binary publication occurred.
+
+The existing unsupported-append guard in section 11 blocked preparation at
+`core/dungeon-masters-guide-2024/items-firearms-and-explosives.xml`. The installed
+corpus contains 1,215 active append operations across 55 files. Existing database
+records omit concrete effects, including DMG firearm grants and Acid Splash's
+appended `UA Artificer` support. Append-capable preparation is required before
+this route can refresh production; removing the guard would discard content.
+
+After applying the existing correction evaluator in memory, three unmarked local
+files also contain 78 nonmatching same-ID declarations: Farmer (1), PHB 2024
+equipment packs (31), and Eberron Artificer (46). These need reviewed correction
+intent rather than an inferred winner. All seven managed local files remain
+protected and non-retirable. Stoneheart's local correction is ready for import,
+but the unchanged production database still contains its old POTA guess.
+
+A separate derived-relationship rehearsal preserves raw content, correction
+mirrors, package settings and all 40 Blazing Dawn infusion memberships. Both
+Staff of Flowers item IDs and both real Erupting Earth spell IDs survive.
+Devout binds to the repaired targets; Tatsumi remains stored but unavailable
+under Ryoko's existing disabled setting. Nine old guessed grant links become
+unresolved, as intended. This copy was not activated and is not a full XML import.
+
+Diagnostic follow-ups: 462 supposedly missing archetype parents have multiple
+valid candidates, while 2,354 unresolved grants point to disabled installed
+definitions (2,021 Essentials, 333 Ryoko's). Report these separately from absent
+IDs. Eleven grants have absent definitions: the nine reviewed spell references
+and two Ryoko's feature references. Existing source warnings also include 93
+IDs authored in `name` but preserved exactly as target IDs, and three identical
+within-file duplicate pairs; raw totals are not gameplay-failure counts.
+
+**All 59 console regressions passed**, exit 0, with no build warnings/errors.
+SQLite integrity/foreign-key checks passed on the preserved database and derived
+copy; metadata/spellcasting integrity checks passed on the preserved database.
+No tests were weakened. Successful append preparation and more precise
+diagnostics require new focused coverage when implemented.
+
+See the [production audit](production-refresh-audit-2026-09-14.md) for findings,
+suggested next steps and verification boundaries. The rollback backup and
+detailed evidence are under `artifacts/production-refresh-20260914`; the full
+test log is `artifacts/production-refresh-tests-20260914.log`. No implementation
+fixes, package-setting changes, installed-content edits, commit or push were
+performed during this audit.
+
+## 20. Append preparation, unrestricted catalog, and consumer handoff
+
+September 14, 2026. The user authorized base/corrections-before-extension order,
+exact-ID append targets, protected source-qualified aliases for conflicting local
+definitions, and an unrestricted database with optional app-layer filtering.
+The [implementation and verification record](append-preparation-2026-09-14.md)
+documents the current Translator work and supersedes earlier sections that let
+saved enable/disable preferences influence global catalog membership or links.
+
+The source implements that preparation order, records append operations and all
+suppliers, and validates persisted append effects before activation.
+`PreparedCatalogReader` creates optional app projections from corrected base XML
+without mutating global data. Source classification distinguishes package Source
+declarations from entry citations and separates declared publishers in mixed
+collections while preserving old preference values. Published non-Wizards
+supplements remain third-party even when older metadata calls them homebrew.
+
+All 65 regressions passed, followed by focused verification of the final published
+source-classification refinement. Protected alias plans for 78 conflicting local
+IDs (Farmer 1, PHB24 packs 31, EFA 46) were verified in an isolated copy. They remain
+review-pending and uninstalled. The correction acceptance/download-evidence
+boundary is unchanged: matching installed files do not authorize acceptance,
+no files were retired, and verified-download evidence remains outside this slice.
+
+The full isolated 1,190-file import and repeat import passed candidate validation
+and the final record audit: 20,954 unique IDs, 1,194 applied appends and 21 retained
+unresolved operations. Integrity and foreign-key checks passed; old preferences
+are preserved and disabled packages do not remove definitions or links. Both
+Staff of Flowers and Erupting Earth IDs survive, repaired grants resolve, and all
+40 Blazing Dawn infusion memberships remain.
+
+Validation found and prevented two forms of silent data loss. Per the user's
+decision, unknown types `Action`, `Weapon Category` and `Feat Features` now remain
+generic records with diagnostics. Spell rules and other shared Aurora content
+use the existing element parser/writer, preserving Find Familiar's companion
+selection and appended rules. No specialized meaning was invented for unknown
+types. The report records nine absent grants, an incorrect authoritative Guard
+pack crossbow reference, unbound append operations and their review boundaries.
+
+All installed XML hashes and the working database are unchanged; production
+refresh remains pending the consumer rollout. The successful rehearsal contains
+its own input paths and must not be copied over the production database.
+
+The user requires Aurora-Lights edits to be handled in its own task. The
+[consumer handoff](proposals/reflections-prepared-content-v12.md) includes a staged
+eight-file patch; nothing was applied or built in that checkout. Reflections
+integration, Legacy verification, and coordinated v12 rollout remain pending.
+No commit, push, snapshot, app bundle, installed-content edit, or production
+activation was performed in this follow-up.
+
+## 21. Lights interim consumer integration and required shared writer
+
+September 14, 2026. The user clarified that the app ships with essentials only:
+users supply content and must build their own SQLite database on the device.
+Loading a database built elsewhere is not a substitute for this workflow. The
+interim Windows executable integration is accepted, provided the near-term shared
+library migration includes the complete preparation and database-writing pipeline.
+Android and Catalyst first-run database creation remains required work. Extracting
+only the reader/composer does not satisfy that requirement. Isolate CLI/SQL Server
+dependencies, then verify native SQLite, storage access, cancellation and memory
+behavior on each target.
+
+The Lights worktree now integrates the prepared consumer with changes beyond the
+original proposal. Primary content is imported through the updated bundled Windows
+Translator, with real paths and without Lights' old correction-staging wrapper.
+Until a CLI capability command exists, Lights probes the executable on disposable
+XML and verifies the output preparation marker and input hashes before giving it
+user content. Translator remains responsible for candidate validation, activation
+and correction retirement. The local bundle was rebuilt; no release was published.
+
+Secondary configured folders remain available through raw XML, without forcing
+them into the primary database. Runtime XML and current local corrections replace
+the appropriate prepared base files before database/runtime append operations are
+replayed together once in file order. Overlapping roots are deduplicated. Conflicting
+same-ID definitions require explicit correction intent or separate identities.
+Primary database freshness and secondary XML loading are separate. A valid runtime
+hotfix can apply before import; this is not correction acceptance or retirement.
+
+Loading/postprocessing uses a candidate collection and isolated lookup state;
+failed reconstruction preserves the previous working collection. Snapshot/parity
+reads do not publish live lookup maps. Prepared parity uses the app's projection
+policy and requires current primary input hashes. Unknown authored types retain
+shared content and produce generic diagnostics. The prepared loader does not expose
+a singular archetype parent guessed from unrestricted database rows.
+
+The copied reader now contains Lights-specific runtime-file composition and marker
+protection changes; do not overwrite it blindly during extraction. Its provenance
+is documented in Aurora-Lights/Aurora.Importer/PreparedContent/README.md. The detailed
+integration plan and remaining checks are in Aurora-Lights/docs/prepared-content-v12-integration-plan.md.
+
+Verification: 11 projection tests pass, including the actual bundled writer creating
+a fresh database from user XML, secondary XML, real intrinsic resources, isolated
+postprocessing, runtime corrections, append/filter isolation and future-contract
+rejection. The 25 selected existing correction-lifecycle/database-recovery tests also
+passed. Windows builds passed. These tests do not establish Android/Catalyst runtime
+support, full installed-corpus parity, or an interactive UI rehearsal.
+
+Production XML/database were not refreshed or altered. The alias drafts remain
+uninstalled and are still required to resolve the current full-corpus conflicts.
+No commit, push or public snapshot was made in this Lights integration turn.
+
+## 22. Lights full-corpus rehearsal and alias draft follow-ups
+
+September 15, 2026. Lights completed the requested disposable full-corpus and
+v10/v11 compatibility rehearsal. Installed XML/database hashes remain unchanged;
+no alias drafts were installed, and no production refresh or publication occurred.
+Detailed results and the reproducible headless harness are in Aurora-Lights at
+docs/content-database-rehearsal-2026-09-15.md and tools/ContentDatabaseRehearsal.
+Raw evidence is under buildtmp/content-rehearsal-20260914-235248-c2e091 there.
+
+The actual Windows app services successfully load v11 and a legacy-writer v10
+fixture, create fresh v12, and migrate both old versions to v12. Fresh/migrated
+prepared base/effective definitions, append operations and global catalog IDs
+match. All v12 cases contain 20,954 distinct canonical IDs, 1,194 applied appends,
+21 retained unresolved operations and 90 review-pending corrections. SQLite
+integrity and foreign-key checks pass. Disabled preferences survive migration,
+and 1,068 definitions from disabled packages remain stored. Enabled XML/database
+projections match all 20,134 complete parsed definitions, including built-ins.
+Thirty-seven focused tests pass; the Windows app and harness builds pass. This is
+headless service evidence, not character/UI or Android/Catalyst runtime proof.
+
+The three existing draft files rename 78 local-variant IDs (Farmer 1, PHB24 packs
+31, EFA 46); their 79 add corrections also include Farmer's already-unique Tough
+feature. They are separate local identities, not runtime alias redirections.
+Saved character references are not automatically migrated by these drafts.
+
+Do not install the EFA draft unchanged: its nested multiclass declaration still
+uses ID_EFA_MULTICLASS_ARTIFICER, shared with the authoritative class. Extend the
+draft/helper to assign a distinct local multiclass ID and rewrite related exact
+requirements/references, preserving the embedded authoritative baseline. This
+nested generated identity is outside the canonical elements table. It is the
+only newly duplicated runtime ID compared with the v11 rehearsal; 462 other v12
+runtime duplicate-ID groups already existed in v11, largely among generated
+scroll/proxy identities. Canonical SQL uniqueness does not establish uniqueness
+for those generated objects. No draft changes were made during this rehearsal.
+
+A Lights runtime-composition bug was fixed: new local add definitions now retain
+the local supplier, matching ContentPreparation.Evaluate, while replacements
+retain the authoritative supplier. Otherwise a local variant inherited the
+source preference of the official file. A focused regression verifies independent
+supplier filtering. Preserve this behavior in the shared-library extraction.
+Generic diagnostics also now skip intrinsic resources rather than labeling the
+built-in Weapon Category as unknown authored content.
+
+Observed timings: fresh v12 build 23.2 seconds; v11 upgrade 188.0 seconds; v10
+upgrade 169.6 seconds; unchanged refresh 25.0 seconds; unchanged scan 0.276 seconds.
+The saved-preference v12 load peaks at 848 MiB versus 579 MiB for v11, with load
+times 21.0 and 19.0 seconds respectively. These are single-run observations, not
+controlled benchmarks. Profile retained XML/projection memory before mobile
+release; no particular allocation source has yet been proved responsible.
+Refresh parent-process metrics exclude the Translator child and do not measure
+writer peak memory. The all-enabled fresh-v12 load peaks at 904 MiB.
+
+Minor producer metadata follow-up: content_root_hash is null on fresh v12 and
+retains legacy values after migration. Input freshness uses local_correction_inputs
+and passes the unchanged scan; clarify or maintain the older field for diagnostics.
+
+Remaining work: repair/rehearse the nested EFA identity before draft installation,
+interactive character/source/choice and progress/failure checks, memory profiling,
+and the complete shared preparation/writer pipeline for on-device Android and
+Catalyst creation. Rehearsal databases contain disposable input paths and must not
+be copied over production. The shared library must carry full writer behavior,
+not merely reader compatibility.
+
+### September 15 follow-up: reconsider EFA alias intent; memory now measured
+
+The preceding EFA recommendation needs qualification before implementation.
+Installed user/local/efa-class.xml declares 0.1.4 versus authoritative 0.1.5, with
+the same update URL and the same 58 top-level IDs. Normalized comparison finds
+44 changed definitions: 41 description blocks, eight sheet blocks, one rules
+block and one setter block (overlapping categories). The only rules difference
+is the local subclass selector's extra level=3; the setter difference is a garbled
+dash for Steel Defender challenge. Much of the prose is condensed, with some
+omitted details. The local file already contains the class/feat/epic-boon changes
+in content commit 553cfd5 (July 27), but not its subclass-selector correction.
+
+This looks like an older working override, not evidence of an intended alternate
+Artificer. The original creation intent is not proved by the files. Before fixing
+and installing the alias draft, review whether this local override should instead
+be retired or reduced to specifically justified corrections. Do not infer that
+differing content requires a permanent second class. No installed content or draft
+was modified in this follow-up. See the updated Lights rehearsal report for details.
+
+The v12 fallback index now has an isolated measured retained cost: approximately
+175.8 MiB for 20,134 definitions. Independent projection-only and full-load
+experiments agree. Full-load managed retention drops from about 674.8 to 499.0
+MiB when both the fallback snapshot and its publication callback are released.
+Invalidating the snapshot alone does not free it: the lookup state's callback
+still captures it. These are managed heap measurements, not peak working set.
+
+Optimize the consumer by indexing existing parsed definitions with appropriate
+mutation isolation, clearing the publication callback after successful activation,
+and reducing repeated XML parsing/serialization. Preserve source filtering,
+complete-definition fidelity, runtime corrections and rollback. Some additional
+full-definition storage is intentional; the full peak delta is not attributed
+solely to this index. Only the diagnostic harness/docs changed in this follow-up;
+production memory optimizations remain to be implemented and verified.
+
+## 23. Duplicate fallback memory fixed; stale Artificer override archived
+
+September 15, 2026. The user approved fixing duplicate fallback storage and treating
+the local Artificer as an old hotfix to archive. Lights moved the installed
+custom/user/local/efa-class.xml to the sibling Content Archive directory at
+2026-09-15-stale-artificer/efa-class.xml.archived. Its bytes are unchanged (SHA-256
+4EEDAA7D481DAD269F696E576BA1743D60F15BCD06132049735E5905FAD0E11C). An installed-file
+hash audit confirms this is the only XML change and the production database is
+unchanged. The EFA alias draft is superseded: do not install it or automatically
+regenerate the variant. Farmer/PHB24 pack drafts remain uninstalled and unchanged.
+
+The consumer fallback index now shares the immutable serialized XML already held
+by parsed gameplay elements, with small lookup metadata. It creates a temporary
+independent XmlDocument only for a requested fallback operation. Do not share a
+mutable gameplay node with the cache or retain another full DOM. The prepared
+lazy-load path also retains XML strings. Legacy XML append assembly keeps its
+existing mutable-document behavior. Materialization reuses one temporary node
+through repair/parsing. The loader builds spell-access maps from parsed nodes
+and clears the publication callback after activation, preserving staged loading
+and rollback. No forced collections were added to production code.
+
+Same-corpus before/after measurements: peak working set 844.3 to 617.5 MiB;
+retained managed heap 674.8 to 503.1 MiB; fallback index 175.8 to 4.3 MiB. The
+publication callback is no longer retained. These are single-run observations
+and distinct memory measures; broader mobile profiling remains necessary.
+
+Nine linked-service checks pass for list/equipment lookup, mutation isolation,
+staging/activation/rollback, provenance, repeated materialization and exclusion.
+All 37 selected projection/correction/recovery tests and the Windows build pass.
+A disposable refresh/load/parity case without the EFA draft contains 20,908 unique
+canonical IDs, keeps the authoritative Artificer, and removes every _LOCAL_EFA ID.
+SQLite integrity/FKs pass. XML/database projections match all 20,088 definitions;
+the EFA multiclass duplicate is gone after postprocessing. The 462 pre-existing
+generated duplicate-ID groups remain outside this fix's scope.
+
+Detailed evidence: Aurora-Lights/docs/content-database-rehearsal-2026-09-15.md and
+buildtmp/content-rehearsal-20260914-235248-c2e091 (migration-v12 before/after,
+archived-efa-v12, installed-archive-audit.json). Future prepare.py rehearsals can
+explicitly exclude the retired draft using --exclude-draft efa-class.xml.
+Production refresh, UI/character rehearsal, commit and publication remain pending.
+
+## 24. Pre-UI validation: terminology, characters, reloads and packaging
+
+September 15, 2026. The user clarified terminology: a local XML file is not an
+override merely because it lives under user/local. Local files can add independent
+content. Use override only for actual replacement behavior; embedded correction
+metadata expresses managed correction intent. Same-ID differences do not prove
+that the user wants permanent alternate identities. Do not automatically apply
+the older Farmer/equipment-pack alias drafts on that assumption.
+
+Installed pack comparison: user/local/players-handbook-2024-items-packs.xml and
+core/players-handbook-2024/items-packs.xml both contain the same 36 IDs and declare
+0.0.1. Neither has correction metadata. Thirty description and thirty setter
+blocks differ largely in encoding; the local copy is not uniformly cleaner. Its
+one extract-rule change fixes Guard's crossbow from
+ID_WOTC_PHB24_WEAPON_CROSSBOW_LIGHT to the actually defined
+ID_WOTC_PHB24_WEAPON_LIGHT_CROSSBOW. There are no new local pack IDs.
+
+Farmer's local copy retains ID_WOTC_PHB24_BACKGROUND_FARMER but replaces its direct
+Tough grant with ID_WOTC_PHB24_BACKGROUND_FEATURE_FARMER_TOUGH, a new Background
+Feature named Origin Feat (Tough). That feature grants Tough plus
+ID_INTERNAL_GRANTS_BACKGROUND_WITH_A_FEAT and adds a sheet/display entry. Other
+Farmer grants are unchanged. Both copies declare 0.0.1 and neither has correction
+metadata. No Farmer or pack file was modified or archived in this follow-up.
+
+The requested automated checks are recorded in Aurora-Lights/docs/pre-ui-validation-2026-09-15.md.
+Four full-corpus reloads retain 502.02, 508.05, 508.05 and 508.06 MiB after diagnostic
+collection. Thirteen actual app-service checks pass for fresh creation, secondary
+XML updates without import, supplier enable/disable, retained canonical rows,
+malformed-correction reconstruction rollback, rejected refresh preservation, and
+cancellation at main-import start with intact database and Idle state. This is not
+power-loss verification at every activation boundary.
+
+Character evidence reveals a new compatibility gap: saved preferences disable
+core-ale-xml (Aurora Legacy Essentials). v11 supplied built-in copies anyway; v12's
+no-resurrection rule excludes intrinsic alignment/language/proficiency/vision IDs
+when their catalog supplier is disabled. Art E reports 44 unset items and Fresh E
+90 with these settings, versus v11 zero/three. Enabling only Essentials in a third
+disposable v12 database restores nearly all registrations; generated Claw remains
+a difference. Gobric, prepared-paladin and Remy Morningstar each pass isolated
+load/save/reopen under v11 and Essentials-enabled v12, but initially report 68,
+76 and 100 unset items with the saved v12 preferences. Their within-run ID/spell,
+choice-row and inventory round-trips are stable. Other cross-version differences
+include generated proficiencies from disabled Ryoko sources, which v11 included.
+
+The harness uses actual app selection/spell handlers and the shared character
+reader/writer, but not CharacterService/BuildService extras reapplication and UI
+normalization. Art E loses three ASI registrations on round-trip in both v11 and
+v12; sequential multi-character runs also stalled after two characters. These
+existing shared-reader/lifecycle findings require tracing through the app wrapper
+before assigning them to an equivalent UI failure. They were not counted as
+passing or hidden by saving already-reduced characters. Original user character
+hashes, XML and production database remain unchanged (apart from the previously
+authorized Artificer archive, which was not altered further).
+
+Proposed policy decision, not implemented: keep a narrowly defined intrinsic
+Essentials provider available independently of selectable published sources while
+continuing to exclude ordinary disabled content. Do not blanket-resurrect all
+excluded IDs. This needs an explicit host/supplier contract and consumer tests.
+
+A win-x64 Release publish succeeds; the exact bundled executable creates a fresh
+prepared v12 database from user XML with development paths removed from PATH.
+However, Windows CI/release workflows do not fetch/build the Git-ignored Translator
+bundle, so clean-CI packaging is not reproducible. Also, the current writer bundle
+is framework-dependent: an empty-runtime simulation fails with a missing-.NET
+error even though the app release workflow is self-contained. Recommend a pinned,
+compatible self-contained producer artifact for the interim Windows release,
+then the shared library. No producer artifact/version was invented or selected,
+and no workflow/dependency policy was changed. Windows ARM64 and clean-VM/installer
+execution were not verified. No commit, push or public release occurred.
+
+## 25. Required infrastructure, confirmed local intent, and character compatibility (2026-09-15)
+
+This supersedes section 24's pending Essentials policy and provisional pack/Farmer
+alias interpretation. The user approved mandatory Essentials/Internal/Core
+infrastructure, explicitly leaving PHB, DMG, and Monster Manual selectable even
+though their package kind is also `core`.
+
+Lights now implements `RequiredContentPolicy` in Builder.Data. It recognizes
+source labels `Internal`, `Core`, `Aurora Essentials`, and `Aurora Legacy
+Essentials` (case-insensitively), and known supplier keys `core-ale-xml`,
+`core-internal-xml`, `core:internal`, `core:core`,
+`core:aurora-legacy-essentials`, `core:aurora-essentials`, `runtime-builtins`.
+Broad `package_kind=core` is not an always-enabled flag. Consumer projection and
+package-list reads ignore stale disabled flags for these required suppliers;
+Settings locks their switches and the toggle API rejects attempts to disable
+them. Shared character source restrictions likewise protect required source
+identities while keeping rulebooks selectable. No producer filtering was added.
+Keep the catalog unrestricted; retain this policy at the consumer boundary when
+the reader/importer becomes a shared library. New supplier identities for this
+infrastructure need explicit policy alignment rather than reliance on kind alone.
+
+Actual saved preference: row 1, `core-ale-xml`, `ALE.xml`, `core`, `is_enabled=0`.
+The separate `core:aurora-legacy-essentials` row was enabled, but the physical ALE
+source file belonged to the disabled supplier. Its disabling action/time is
+unknown. The production database is unchanged; effective runtime policy now
+overrides that stale flag without requiring a database refresh or rewriting it
+during reads.
+
+Both installed PHB 2024 pack files define the same 36 IDs: 16 background bundles,
+13 class bundles, and seven shop packs. Those two categories are distinct; the
+duplicate declarations are across the full core/local file copies. No pack IDs
+were renamed or deleted. The local Guard entry's corrected Light Crossbow
+reference is now explicitly annotated using embedded correction metadata:
+
+- Local file: `user/local/players-handbook-2024-items-packs.xml`.
+- Source: `core/players-handbook-2024/items-packs.xml`.
+- Operation/key: `replace` / `guard-light-crossbow-reference`.
+- Target: `ID_WOTC_PHB24_ITEM_BACKGROUND_EQUIPMENT_PACK_GUARD`.
+- Correct weapon: `ID_WOTC_PHB24_WEAPON_LIGHT_CROSSBOW`.
+- State: `review-pending`; authoritative baseline and original fingerprint
+  embedded. All existing local XML payload is unchanged by annotation.
+- New SHA256: `2DD8407C1D3E155F2FD0B572308B7D0DEB24F245BD1B93BCADB6C51999236BE1`.
+
+Unclassified local text/encoding edits remain preserved; they can still prevent
+whole-file retirement. Do not blindly apply the old `_LOCAL_PHB24_PACKS` alias
+draft. Its input hash is now stale. Farmer's local feature wrapper and extra
+background-with-feat grant are an intentional preference, not an accidental
+duplicate. Farmer remains unchanged; do not install the earlier Farmer alias
+draft as though the user had requested a separate variant. Its eventual explicit
+replacement/preference representation must preserve the user's chosen behavior.
+
+Validation: 12 new policy cases; 26 passing tests across required policy,
+source-editor, and prepared-projection checks; successful Windows app build.
+Three direct Guard annotation checks passed. Installed-file audit confirms only
+the previous Artificer archive and new pack annotation differ from the original
+snapshot; Farmer and the production database are unchanged.
+
+Character compatibility is a separate Lights gap. Art E's existing racial ASI
+selection has a registered value but no active progression manager because its
+rule requires `!ID_INTERNAL_GRANTS_BACKGROUND_ASI` and that background grant is
+present. The shared writer omits the inactive rule subtree while retaining its
+three IDs in the summary, causing save/reopen to lose the +2 Intelligence/+1
+Constitution subtree. This reproduced with v11 previously and with v12 now;
+the definitions themselves exist. Recommended, not implemented: verify the
+app-wrapper normalization path, preserve unresolved historical choices without
+activating ineligible bonuses, and require explicit resolution when an equivalent
+legal mapping into current choices cannot be proven. Do not solve this by
+loosening catalog uniqueness, restoring excluded rulebooks, or double-applying
+racial and background bonuses.
+
+A new instrumented three-character sequential run with each save/reopen completed
+in 75.64 seconds, with no lifecycle-code fix. The earlier stall is not reproduced
+or explained; it must not be claimed fixed. Art E still fails roundtrip and Fresh
+E still reports six initial unset elements. App-wrapper tracing remains needed.
+The new run used disposable earlier Farmer/pack drafts, not a full rehearsal of
+the newly annotated installed corpus.
+
+Packaging remains a proposal: a pinned self-contained Translator artifact,
+explicitly acquired in Windows CI/release, until the shared library replaces the
+child process. No artifact version or workflow change was selected. No commit,
+push, release, or production refresh was performed in this follow-up.
+
+## 26. Background ASI authority and final pre-UI content prerequisite (2026-09-15)
+
+The user confirmed that PHB 2024 background ASIs should be authoritative and the
+builder must not allow the inactive racial ASI chain alongside them. This
+supersedes section 25's tentative preservation/manual-resolution plan for this
+particular ineligible ASI subtree.
+
+Lights now shares `AbilityScoreSelectionCleanup.Normalize` between CharacterFile
+load validation and the app's existing stale-ASI cleanup. After the whole
+character is registered, it removes selected ASIs whose originating choice is
+inactive, clears their slot registration, and repeats so nested selections are
+removed too. Eligibility comes from the current content rules and active
+progression managers; the implementation does not key on character names or
+unconditionally delete racial ASIs. Legal racial choices without a background
+ASI remain intact. Saved-count adjustment discounts only ID occurrences actually
+removed by cleanup; unrelated missing content is not discounted. No catalog,
+append contract, source precedence, or uniqueness change is involved.
+
+Validation: the earlier Art E sample now passes load/save/reopen with stable
+registered IDs, all six additional ability scores, choices, and inventory. Nine
+runtime checks cover background authority, full racial-subtree removal,
+idempotence, legal racial choices without the background, and background
+restoration. Three focused saved-count tests passed. Windows app build passed.
+The background's actual ASI option was unselected and remains for the user to
+choose; no automatic reassignment of the old Intelligence/Constitution bonuses
+was made. All edits to the character in tests were in memory or disposable
+roundtrip copies; original characters remain unchanged.
+
+The remaining content prerequisite is now verified: an isolated refresh with
+the actual installed Guard annotation and intentional Farmer file fails on
+`duplicate-element-id: ID_WOTC_PHB24_BACKGROUND_FARMER`. Propose annotating Farmer
+as an intentional replacement of the authoritative definition, retaining its
+ID, wrapper, and added background-with-feat grant, then rerunning the isolated
+refresh. Do not install the earlier Farmer alias draft. No Farmer annotation or
+production refresh was performed in this follow-up.
+
+The historical sequential stall still needs UI switching coverage; the latest
+instrumented sequential run completed and no causal fix is claimed. Fresh E's
+previous six-unset-element finding is separate from the ASI fix. Reproducible
+self-contained Translator packaging remains a release prerequisite, not a
+blocker for a local worktree UI review. No commit or release was made.

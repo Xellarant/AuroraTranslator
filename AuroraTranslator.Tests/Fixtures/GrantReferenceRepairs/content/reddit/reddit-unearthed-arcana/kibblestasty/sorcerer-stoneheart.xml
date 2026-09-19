@@ -1,0 +1,37 @@
+<elements><element name="Stoneheart" type="Archetype" source="Stoneheart Sorcerer" id="ID_KT_SS_ARCHETYPE_SORCERER_STONEHEART">
+        <supports>Sorcerous Origin</supports>
+        <description>
+            <p>Your blood comes from a steadfast lineage, touched by the elemental forces of the earth itself. Be it the blood of ancient dwarves first formed from stone or from a dao lineage from another plane, your blood runs thicker and your heart beats more steady than others. While particularly common among the genasi and the dwarves, these sorcerers can appear in any bloodline with ancient roots.</p>
+            <p class="indent">Blessed with natural resilience and command over the stones on which they stand, most these sorcerers are solid and deliberate in both action and thought, slow to act, but once set on a course they become stubborn and immovable from their chosen path.</p>
+            <h5 class="caption">VARIANT: ORIGIN SPELLS</h5>
+            <table>
+                <thead>
+                    <tr><td>Sorcerer Level</td><td>Spell</td></tr>
+                </thead>
+                <tr><td>1st</td><td><em>heavy blow*</em></td></tr>
+                <tr><td>3rd</td><td><em>earth ripple*</em></td></tr>
+                <tr><td>5th</td><td><em>erupting earth</em></td></tr>
+                <tr><td>7th</td><td><em>stoneskin</em></td></tr>
+                <tr><td>9th</td><td><em>wall of stone</em></td></tr>
+            </table>
+            <div element="ID_KT_SS_ARCHETYPE_FEATURE_STEADFAST_PROFICIENCIES" />
+            <div element="ID_KT_SS_ARCHETYPE_FEATURE_STONES_DURABILITY" />
+            <div element="ID_KT_SS_ARCHETYPE_FEATURE_STONES_AEGIS" />
+            <div element="ID_KT_SS_ARCHETYPE_FEATURE_STONEWALK" />
+            <div element="ID_KT_SS_ARCHETYPE_FEATURE_UNITY_OF_STONE" />
+        </description>
+        <sheet display="false" />
+        <rules>
+            <grant type="Spell" id="ID_KT_SS_SPELL_HEAVY_BLOW" spellcasting="Sorcerer" known="true" level="1" />
+            <grant type="Spell" id="ID_KT_SS_SPELL_EARTH_RIPPLE" spellcasting="Sorcerer" known="true" level="3" />
+            <grant type="Spell" id="ID_PHB_SPELL_ERUPTING_EARTH" spellcasting="Sorcerer" known="true" level="5" />
+            <grant type="Spell" id="ID_PHB_SPELL_STONESKIN" spellcasting="Sorcerer" known="true" level="7" />
+            <grant type="Spell" id="ID_PHB_SPELL_WALL_OF_STONE" spellcasting="Sorcerer" known="true" level="9" />
+            <grant type="Archetype Feature" id="ID_KT_SS_ARCHETYPE_FEATURE_STEADFAST_PROFICIENCIES" level="1" />
+            <grant type="Archetype Feature" id="ID_KT_SS_ARCHETYPE_FEATURE_STONES_DURABILITY" level="1" />
+            <grant type="Archetype Feature" id="ID_KT_SS_ARCHETYPE_FEATURE_STONES_AEGIS" level="6" />
+            <grant type="Archetype Feature" id="ID_KT_SS_ARCHETYPE_FEATURE_STONEWALK" level="14" />
+            <grant type="Archetype Feature" id="ID_KT_SS_ARCHETYPE_FEATURE_UNITY_OF_STONE" level="18" />
+        </rules>
+    </element>
+        </elements>

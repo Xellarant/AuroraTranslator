@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS database_metadata
 (
     singleton_id      INTEGER NOT NULL PRIMARY KEY CHECK (singleton_id = 1),
     schema_version    INTEGER NOT NULL DEFAULT 1,
-    data_version      INTEGER NOT NULL DEFAULT 11,
+    data_version      INTEGER NOT NULL DEFAULT 12,
     importer_version  TEXT    NOT NULL DEFAULT '',
     built_utc         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     source_file_count INTEGER NOT NULL DEFAULT 0,

@@ -14,6 +14,7 @@ namespace AuroraTranslator.Models
         public bool compendium_display { get; set; }
         public string descriptionRawXml { get; set; }
         public AuroraSetters setters { get; set; }
+        public AuroraElement sharedContent { get; set; }
     }
 }
 

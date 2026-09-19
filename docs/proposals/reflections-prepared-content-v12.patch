@@ -1,0 +1,468 @@
+diff --git a/Aurora.Importer/PreparedContent/ContentText.cs b/Aurora.Importer/PreparedContent/ContentText.cs
+new file mode 100644
+--- /dev/null
++++ b/Aurora.Importer/PreparedContent/ContentText.cs
+@@ -0,0 +1,74 @@
++#nullable enable
++using System;
++using System.Collections.Generic;
++
++namespace AuroraTranslator.Content;
++
++// Extracted unchanged from the Translator catalog reader for composition consumers.
++public static class ContentText
++{
++    public static List<string> SplitTopLevel(string input, char separator)
++    {
++        var values = new List<string>();
++
++        if (string.IsNullOrWhiteSpace(input))
++            return values;
++
++        int parenthesesDepth = 0;
++        int bracketsDepth = 0;
++        int bracesDepth = 0;
++        var current = new System.Text.StringBuilder();
++
++        foreach (char ch in input)
++        {
++            switch (ch)
++            {
++                case '(':
++                    parenthesesDepth++;
++                    break;
++                case ')':
++                    parenthesesDepth = Math.Max(0, parenthesesDepth - 1);
++                    break;
++                case '[':
++                    bracketsDepth++;
++                    break;
++                case ']':
++                    bracketsDepth = Math.Max(0, bracketsDepth - 1);
++                    break;
++                case '{':
++                    bracesDepth++;
++                    break;
++                case '}':
++                    bracesDepth = Math.Max(0, bracesDepth - 1);
++                    break;
++            }
++
++            if (ch == separator
++                && parenthesesDepth == 0
++                && bracketsDepth == 0
++                && bracesDepth == 0)
++            {
++                string candidate = current.ToString().Trim();
++
++                if (!string.IsNullOrWhiteSpace(candidate))
++                {
++                    values.Add(candidate);
++                }
++
++                current.Clear();
++                continue;
++            }
++
++            current.Append(ch);
++        }
++
++        string finalCandidate = current.ToString().Trim();
++
++        if (!string.IsNullOrWhiteSpace(finalCandidate))
++        {
++            values.Add(finalCandidate);
++        }
++
++        return values;
++    }
++}
+diff --git a/Aurora.Importer/PreparedContent/ContentAppendComposer.cs b/Aurora.Importer/PreparedContent/ContentAppendComposer.cs
+new file mode 100644
+--- /dev/null
++++ b/Aurora.Importer/PreparedContent/ContentAppendComposer.cs
+@@ -0,0 +1,73 @@
++#nullable enable
++using System;
++using System.IO;
++using System.Linq;
++using System.Xml.Linq;
++
++namespace AuroraTranslator.Content;
++
++/// <summary>Pure, ID-directed extension of a prepared definition. Inputs remain unchanged.</summary>
++public static class ContentAppendComposer
++{
++    public static XElement Apply(XElement definition, XElement append)
++    {
++        if (append.Name != "append" || (string?)append.Attribute("id") != (string?)definition.Attribute("id"))
++            throw new InvalidDataException("Append requires an exact target Aurora ID.");
++        if (append.Attributes().Any(a => a.Name != "id" && a.Name != "type") ||
++            append.Elements().Any(e => e.Name != "supports" && e.Name != "rules" && e.Name != "description" && e.Name != "setters" && e.Name != "spellcasting"))
++            throw new InvalidDataException("Unsupported append attribute/container; preserve and review this operation.");
++        if (append.Attribute("type") is { Value.Length: > 0 } type &&
++            !string.Equals(type.Value, (string?)definition.Attribute("type"), StringComparison.OrdinalIgnoreCase))
++            throw new InvalidDataException("Append type does not match its target definition.");
++        var result = new XElement(definition);
++        foreach (var child in append.Elements())
++        {
++            if ((child.Name == "supports" && (child.HasAttributes || child.HasElements)) ||
++                (child.Name == "rules" && (child.HasAttributes || child.Elements().Any(e => e.Name != "grant" && e.Name != "select" && e.Name != "stat"))) ||
++                (child.Name == "setters" && (child.HasAttributes || child.Elements().Any(e => e.Name != "set" || string.IsNullOrWhiteSpace((string?)e.Attribute("name"))))))
++                throw new InvalidDataException($"Unsupported append {child.Name} structure; record an explicit supported correction.");
++            var container = result.Element(child.Name);
++            if (child.Name == "supports")
++            {
++                // Same token union as Legacy's AppendElements. Use Translator's
++                // balanced delimiter reader so nested expressions stay intact.
++                var tokens = ContentText.SplitTopLevel(container?.Value ?? "", ',')
++                    .Concat(ContentText.SplitTopLevel(child.Value, ',')).Distinct(StringComparer.Ordinal);
++                if (container == null) result.Add(new XElement("supports", string.Join(", ", tokens)));
++                else container.Value = string.Join(", ", tokens);
++            }
++            else if (child.Name == "spellcasting")
++            {
++                if (container != null)
++                    throw new InvalidDataException("Append cannot replace existing spellcasting; record an explicit correction.");
++                result.Add(new XElement(child));
++            }
++            else if (container == null) result.Add(new XElement(child));
++            else if (child.Name == "setters")
++            {
++                foreach (var setter in child.Elements())
++                {
++                    var existing = container.Elements().Where(e => (string?)e.Attribute("name") == (string?)setter.Attribute("name")).ToArray();
++                    if (existing.Any(e => !XNode.DeepEquals(e, setter)))
++                        throw new InvalidDataException($"Append setter '{(string?)setter.Attribute("name")}' conflicts with an existing value.");
++                    if (existing.Length == 0) container.Add(new XElement(setter));
++                }
++            }
++            else
++            {
++                if (child.Attributes().Any(a => (string?)container.Attribute(a.Name) != a.Value))
++                    throw new InvalidDataException($"Append {child.Name} attributes conflict with the target container.");
++                // Rules retain authored multiplicity and order. Description fragments
++                // are combined in one container rather than hidden behind a second one.
++                container.Add(child.Nodes().Select(Clone));
++            }
++        }
++        return result;
++    }
++
++    private static XNode Clone(XNode node) => node switch
++    {
++        XElement e => new XElement(e), XCData c => new XCData(c.Value), XText t => new XText(t.Value),
++        XComment c => new XComment(c.Value), _ => throw new InvalidDataException("Unsupported append XML node.")
++    };
++}
+diff --git a/Aurora.Importer/PreparedContent/PreparedCatalogReader.cs b/Aurora.Importer/PreparedContent/PreparedCatalogReader.cs
+new file mode 100644
+--- /dev/null
++++ b/Aurora.Importer/PreparedContent/PreparedCatalogReader.cs
+@@ -0,0 +1,93 @@
++#nullable enable
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Security.Cryptography;
++using System.Xml.Linq;
++using Microsoft.Data.Sqlite;
++
++namespace AuroraTranslator.Content;
++
++public sealed record PreparedCatalogSource(string FilePath, string RelativePath, string PackageKey, string PackageKind);
++public sealed record PreparedCatalogElement(string AuroraId, PreparedCatalogSource Source, string Xml);
++public sealed record PreparedCatalogAppend(PreparedCatalogSource Source, int Ordinal, string TargetId, string Xml, string Status);
++public sealed record PreparedCatalogProjection(IReadOnlyList<PreparedCatalogElement> Elements, IReadOnlyList<PreparedCatalogAppend> UnresolvedAppends);
++
++/// <summary>Optional app-side projections. Never mutates the complete catalog or consults saved enable flags.</summary>
++public static class PreparedCatalogReader
++{
++    public static bool IsPrepared(SqliteConnection connection)
++    {
++        using var q = connection.CreateCommand();
++        q.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='content_preparation_metadata'";
++        if (Convert.ToInt64(q.ExecuteScalar()) == 0) return false;
++        q.CommandText = "SELECT COUNT(*) FROM content_preparation_metadata WHERE singleton_id=1 AND contract_version=1 AND catalog_policy='unrestricted' AND append_policy='materialized'";
++        return Convert.ToInt64(q.ExecuteScalar()) == 1;
++    }
++
++    public static bool InputsMatch(SqliteConnection connection, IEnumerable<string> contentRoots)
++    {
++        using var q = connection.CreateCommand();
++        q.CommandText = "SELECT path,sha256 FROM local_correction_inputs";
++        var recorded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
++        using (var reader = q.ExecuteReader()) while (reader.Read()) recorded.Add(reader.GetString(0), reader.GetString(1));
++        var files = contentRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.xml", SearchOption.AllDirectories))
++            .Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
++        if (!files.SetEquals(recorded.Keys)) return false;
++        return files.All(p => string.Equals(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))), recorded[p], StringComparison.Ordinal));
++    }
++
++    public static PreparedCatalogProjection Read(SqliteConnection connection,
++        Func<PreparedCatalogSource, bool>? includeSource = null, Func<XElement, bool>? includeElement = null,
++        IEnumerable<PreparedCatalogElement>? hostDefinitions = null)
++    {
++        if (!IsPrepared(connection)) throw new InvalidDataException("A materialized, unrestricted content preparation snapshot is required.");
++        includeSource ??= _ => true;
++        var suppliers = new Dictionary<string, PreparedCatalogSource>(StringComparer.Ordinal);
++        using var q = connection.CreateCommand();
++        q.CommandText = "SELECT aurora_id,file_path,relative_path,package_key,package_kind FROM v_content_prepared_sources ORDER BY relative_path,aurora_id";
++        using (var reader = q.ExecuteReader()) while (reader.Read())
++        {
++            var source = new PreparedCatalogSource(reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4));
++            if (includeSource(source)) suppliers.TryAdd(reader.GetString(0), source);
++        }
++        var definitions = new Dictionary<string, XElement>(StringComparer.Ordinal);
++        var catalogIds = new HashSet<string>(StringComparer.Ordinal);
++        q.CommandText = "SELECT aurora_id,base_xml FROM content_prepared_elements ORDER BY aurora_id";
++        using (var reader = q.ExecuteReader()) while (reader.Read())
++        {
++            var element = XElement.Parse(reader.GetString(1));
++            catalogIds.Add(reader.GetString(0));
++            if (suppliers.ContainsKey(reader.GetString(0)) && (includeElement?.Invoke(element) ?? true))
++                definitions.Add(reader.GetString(0), element);
++        }
++        foreach (var host in hostDefinitions ?? [])
++        {
++            if (catalogIds.Contains(host.AuroraId) || !includeSource(host.Source)) continue;
++            var xml = XElement.Parse(host.Xml);
++            if ((string?)xml.Attribute("id") != host.AuroraId) throw new InvalidDataException("Host definition identity mismatch.");
++            if (!(includeElement?.Invoke(xml) ?? true)) continue;
++            if (definitions.TryGetValue(host.AuroraId, out var previous))
++            {
++                if (!XNode.DeepEquals(previous, xml)) throw new InvalidDataException($"Conflicting host definitions for '{host.AuroraId}'.");
++                continue;
++            }
++            suppliers.Add(host.AuroraId, host.Source);
++            definitions.Add(host.AuroraId, xml);
++        }
++        var unbound = new List<PreparedCatalogAppend>();
++        q.CommandText = "SELECT file_path,relative_path,package_key,package_kind,ordinal,target_aurora_id,operation_xml,status FROM v_content_append_operations ORDER BY file_path,ordinal";
++        using (var reader = q.ExecuteReader()) while (reader.Read())
++        {
++            var source = new PreparedCatalogSource(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3));
++            if (!includeSource(source)) continue;
++            var operation = new PreparedCatalogAppend(source, reader.GetInt32(4), reader.GetString(5), reader.GetString(6), reader.GetString(7));
++            if (definitions.TryGetValue(operation.TargetId, out var definition))
++                definitions[operation.TargetId] = ContentAppendComposer.Apply(definition, XElement.Parse(operation.Xml));
++            else if (operation.Status == "unresolved-target") unbound.Add(operation);
++            // A target intentionally excluded by this query does not become an error.
++        }
++        return new(definitions.Select(e => new PreparedCatalogElement(e.Key, suppliers[e.Key], e.Value.ToString(SaveOptions.DisableFormatting))).ToArray(), unbound);
++    }
++}
+diff --git a/Aurora.App/Services/DbElementLoader.cs b/Aurora.App/Services/DbElementLoader.cs
+--- a/Aurora.App/Services/DbElementLoader.cs
++++ b/Aurora.App/Services/DbElementLoader.cs
+@@ -5,6 +5,7 @@
+ using Aurora.Importer;
+ using Microsoft.Data.Sqlite;
+ using System.Xml;
++using AuroraTranslator.Content;
+ 
+ namespace Aurora.App.Services;
+ 
+@@ -251,8 +252,11 @@
+             DbLoadResult result = await Task.Run(() => LoadFromDb(dbPath, target));
+             if (result.Success && runPostProcessing)
+             {
+-                await Task.Run(() => RawUserXmlOverlayService.ApplyTo(target));
+-                await Task.Run(() => XmlContentFallbackService.MergeUnsynced());
++                if (result.DataVersion != 12)
++                {
++                    await Task.Run(() => RawUserXmlOverlayService.ApplyTo(target));
++                    await Task.Run(() => XmlContentFallbackService.MergeUnsynced());
++                }
+                 await Task.Run(() => DataManager.Current.RunPostProcessing());
+                 DebugLogService.Instance.Info(
+                     "DbElementLoader: load complete.",
+@@ -354,13 +358,16 @@
+ 
+         // The local importer still writes v10. Translator v11 preserves complete
+         // spellcasting XML; accepting it must not change the local writer's version.
+-        if (metadata.DataVersion is not (10 or 11))
++        if (metadata.DataVersion is not (10 or 11 or 12))
+         {
+             return DbLoadResult.Failed(
+                 dbPath,
+                 metadata.SchemaVersion,
+-                $"Database data version v{metadata.DataVersion} is incompatible with supported data versions v10 and v11.");
+-        }
++                $"Database data version v{metadata.DataVersion} is incompatible with supported data versions v10, v11 and v12.");
++        }
++
++        if (metadata.DataVersion == 12)
++            return LoadPreparedCatalog(conn, dbPath, metadata, target);
+ 
+         // Quick sanity check.
+         using (var chk = conn.CreateCommand())
+@@ -916,6 +923,68 @@
+             StringComparer.OrdinalIgnoreCase);
+     }
+ 
++    internal static PreparedCatalogProjection ReadPreparedProjection(SqliteConnection connection)
++    {
++        // Transitional app-preference storage. No catalog links depend on these flags.
++        var allowed = new HashSet<string>(StringComparer.Ordinal);
++        using var q = connection.CreateCommand();
++        q.CommandText = "SELECT package_key FROM content_packages WHERE is_enabled=1";
++        using (var reader = q.ExecuteReader())
++            while (reader.Read()) allowed.Add(reader.GetString(0));
++        var resources = DataManager.Current.LoadElementDocumentsFromResource()
++            .SelectMany(doc => doc.DocumentElement?.ChildNodes.Cast<XmlNode>() ?? [])
++            .Where(node => node.Name == "element" && node.Attributes?["id"] != null)
++            .Select(node => new PreparedCatalogElement(node.Attributes!["id"]!.Value,
++                new PreparedCatalogSource("resource://aurora/builtins", "runtime/builtins.xml", "runtime-builtins", "core"), node.OuterXml))
++            .ToArray();
++        return PreparedCatalogReader.Read(connection,
++            source => source.PackageKey == "runtime-builtins" || allowed.Contains(source.PackageKey), hostDefinitions: resources);
++    }
++
++    private static DbLoadResult LoadPreparedCatalog(SqliteConnection connection, string path,
++        MetadataRow metadata, ElementBaseCollection target)
++    {
++        if (!PreparedCatalogReader.IsPrepared(connection) ||
++            !PreparedCatalogReader.InputsMatch(connection, ContentDirectoryResolver.GetContentDirectories()))
++            return DbLoadResult.Failed(path, metadata.SchemaVersion,
++                "Prepared content inputs changed or the preparation contract is missing. Refresh with the current Translator; load complete XML meanwhile.");
++        var projection = ReadPreparedProjection(connection);
++        var parsers = ElementParserFactory.GetParsers().ToList();
++        var fallback = new ElementParser();
++        var parsed = new List<ElementBase>();
++        foreach (var prepared in projection.Elements)
++        {
++            var doc = new XmlDocument();
++            doc.LoadXml("<elements>" + prepared.Xml + "</elements>");
++            XmlNode node = doc.DocumentElement!.FirstChild!;
++            AuroraXmlCompatibilityRepair.RepairNode(node);
++            var header = fallback.ParseElementHeader(node);
++            var parser = parsers.FirstOrDefault(p => p.ParserType == header.Type) ?? fallback;
++            var element = parser.ParseElement(node);
++            element.ContentFilePath = prepared.Source.FilePath;
++            parsed.Add(element);
++        }
++        // Complete reconstruction only: an exception leaves the previous target
++        // untouched and invokes the caller's complete XML fallback.
++        target.Clear();
++        target.AddRange(parsed);
++        var ids = parsed.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
++        var rows = QueryElements(connection).Where(e => ids.Contains(e.AuroraId)).ToList();
++        ArchetypeParentMap = BuildArchetypeParentMap(rows, QueryArchetypeParentIds(connection));
++        SpellAccessMap = projection.Elements.Select(e => System.Xml.Linq.XElement.Parse(e.Xml))
++            .Where(e => string.Equals((string?)e.Attribute("type"), "Spell", StringComparison.OrdinalIgnoreCase))
++            .SelectMany(e => ContentText.SplitTopLevel(e.Element("supports")?.Value ?? "", ',')
++                .Select(support => (Support: support, Id: (string)e.Attribute("id")!)))
++            .GroupBy(e => e.Support, StringComparer.OrdinalIgnoreCase)
++            .ToDictionary(g => g.Key, g => (IReadOnlySet<string>)g.Select(e => e.Id).ToHashSet(StringComparer.Ordinal), StringComparer.OrdinalIgnoreCase);
++        ElementSortMetadataMap = BuildElementSortMetadataMap(rows);
++        foreach (var operation in projection.UnresolvedAppends)
++            DebugLogService.Instance.Warn($"Prepared append target remains unresolved: {operation.TargetId} ({operation.Source.RelativePath}, append {operation.Ordinal}).");
++        return DbLoadResult.Loaded(path, metadata.SchemaVersion, metadata.DataVersion,
++            metadata.ImporterVersion, metadata.BuiltUtc, metadata.SourceFileCount,
++            metadata.ContentRootHash, target.Count, 0);
++    }
++
+     private static IReadOnlyDictionary<string, ElementSortMetadata> BuildElementSortMetadataMap(
+         IReadOnlyList<ElementRow> elements)
+     {
+diff --git a/Aurora.Importer/AuroraContentImporter.cs b/Aurora.Importer/AuroraContentImporter.cs
+--- a/Aurora.Importer/AuroraContentImporter.cs
++++ b/Aurora.Importer/AuroraContentImporter.cs
+@@ -133,10 +133,12 @@
+     /// </summary>
+     public static void SetPackageEnabled(string sqlitePath, long packageId, bool enabled)
+     {
++        bool prepared;
+         using (var connection = new SqliteConnection(
+             new SqliteConnectionStringBuilder { DataSource = sqlitePath }.ToString()))
+         {
+             connection.Open();
++            prepared = AuroraTranslator.Content.PreparedCatalogReader.IsPrepared(connection);
+             using var update = connection.CreateCommand();
+             update.CommandText = "UPDATE content_packages SET is_enabled = $v WHERE content_package_id = $id;";
+             update.Parameters.AddWithValue("$v",  enabled ? 1 : 0);
+@@ -146,6 +148,6 @@
+ 
+         // Rebuild the resolution cache immediately so FK columns reflect the new state.
+         // Connection above is closed before this opens a second write connection.
+-        AuroraSqliteImporter.RebuildCacheOnly(sqlitePath);
++        if (!prepared) AuroraSqliteImporter.RebuildCacheOnly(sqlitePath);
+     }
+ }
+diff --git a/Aurora.Importer/AuroraSqliteImporter.cs b/Aurora.Importer/AuroraSqliteImporter.cs
+--- a/Aurora.Importer/AuroraSqliteImporter.cs
++++ b/Aurora.Importer/AuroraSqliteImporter.cs
+@@ -40,6 +40,9 @@
+         using var connection = new SqliteConnection(
+             new SqliteConnectionStringBuilder { DataSource = sqlitePath }.ToString());
+         connection.Open();
++
++        if (AuroraTranslator.Content.PreparedCatalogReader.IsPrepared(connection))
++            return AuroraImportResult.Failed("This catalog was prepared by Translator v12. Refresh it with that preparation-aware writer; the legacy importer cannot replace its append/provenance data.");
+ 
+         EnsureSchema(connection);
+         // When the importer logic changes in a way that affects stored data (e.g. adding a new
+diff --git a/Aurora.App/Services/ContentDatabaseService.cs b/Aurora.App/Services/ContentDatabaseService.cs
+--- a/Aurora.App/Services/ContentDatabaseService.cs
++++ b/Aurora.App/Services/ContentDatabaseService.cs
+@@ -193,6 +193,19 @@
+                 IsStale = false;
+                 StateChanged?.Invoke();
+                 return fail;
++            }
++
++            if (File.Exists(dbPath))
++            {
++                using var connection = AuroraContentImporter.OpenReadableConnection(dbPath);
++                if (AuroraTranslator.Content.PreparedCatalogReader.IsPrepared(connection))
++                {
++                    var fail = AuroraImportResult.Failed("This catalog uses Translator v12 content preparation. Use the current standalone Translator to refresh it until the preparation-aware bundle is deployed.");
++                    LastResult = fail;
++                    SyncState = ContentDatabaseSyncState.Failed;
++                    StateChanged?.Invoke();
++                    return fail;
++                }
+             }
+ 
+             SyncState = ContentDatabaseSyncState.Syncing;
+diff --git a/Aurora.App/Services/XmlContentFallbackService.cs b/Aurora.App/Services/XmlContentFallbackService.cs
+--- a/Aurora.App/Services/XmlContentFallbackService.cs
++++ b/Aurora.App/Services/XmlContentFallbackService.cs
+@@ -252,6 +252,24 @@
+     {
+         Dictionary<string, XmlFallbackElement> byId = new(StringComparer.OrdinalIgnoreCase);
+         List<XmlFallbackAppend> appendNodes = [];
++        if (ContentDatabaseService.GetDatabasePath() is { } preparedPath && File.Exists(preparedPath))
++        {
++            using var connection = Aurora.Importer.AuroraContentImporter.OpenReadableConnection(preparedPath);
++            if (AuroraTranslator.Content.PreparedCatalogReader.IsPrepared(connection) &&
++                AuroraTranslator.Content.PreparedCatalogReader.InputsMatch(connection, ContentDirectoryResolver.GetContentDirectories()))
++            {
++                var projection = DbElementLoader.ReadPreparedProjection(connection);
++                int preparedSkipped = 0;
++                foreach (var element in projection.Elements)
++                {
++                    var document = new XmlDocument();
++                    document.LoadXml("<elements>" + element.Xml + "</elements>");
++                    LoadDocument(document, byId, appendNodes, false, ref preparedSkipped, element.Source.FilePath);
++                }
++                return CreateSnapshot(byId);
++            }
++        }
++
+         int documentCount = 0;
+         int skipped = 0;
+ 
+@@ -309,6 +327,10 @@
+ 
+         return new XmlFallbackSnapshot(byId, byType);
+     }
++
++    private static XmlFallbackSnapshot CreateSnapshot(Dictionary<string, XmlFallbackElement> byId)
++        => new(byId, byId.Values.GroupBy(e => e.Type, StringComparer.OrdinalIgnoreCase)
++            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase));
+ 
+     private static void LoadDocument(
+         XmlDocument xmlDocument,

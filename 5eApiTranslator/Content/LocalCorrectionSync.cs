@@ -28,7 +28,9 @@ internal static class LocalCorrectionSync
         Func<IReadOnlyList<string>, string, CancellationToken, Task<CorrectionImportResult>> import,
         CancellationToken cancellationToken = default)
     {
-        using var prepared = ContentPreparation.Prepare(roots, cancellationToken, ReadDisabledPackages(database));
+        using var prepared = ContentPreparation.Prepare(roots, cancellationToken);
+        foreach (var operation in prepared.Appends.Where(a => a.Diagnostic != null))
+            Console.Error.WriteLine(operation.Diagnostic);
         var files = prepared.Files;
         var managed = prepared.Managed;
         string candidate = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(database))!, ".aurora-candidate-" + Guid.NewGuid().ToString("N") + ".sqlite");
@@ -59,12 +61,12 @@ internal static class LocalCorrectionSync
                 // Track the real inputs separately. Source-file hashes continue to describe
                 // staged effective content, so the importer correctly detects the next change.
                 Execute(connection, "CREATE TABLE IF NOT EXISTS local_correction_inputs (path TEXT PRIMARY KEY, sha256 TEXT NOT NULL); DELETE FROM local_correction_inputs;");
-                foreach (var file in files)
-                    Execute(connection, "INSERT INTO local_correction_inputs VALUES ($path,$hash);", ("$path", Path.GetFullPath(file.Path)), ("$hash", file.Hash));
-                using var remaining = connection.CreateCommand();
-                remaining.CommandText = "SELECT COUNT(*) FROM local_override_files";
-                if (Convert.ToInt64(remaining.ExecuteScalar()) == 0)
-                    Execute(connection, "DROP TABLE local_correction_inputs;");
+                using (var inputTransaction = connection.BeginTransaction())
+                {
+                    foreach (var file in files)
+                        Execute(connection, "INSERT INTO local_correction_inputs VALUES ($path,$hash);", inputTransaction, ("$path", Path.GetFullPath(file.Path)), ("$hash", file.Hash));
+                    inputTransaction.Commit();
+                }
             }
             // Refuse to activate a candidate built from files edited during the import.
             var currentPaths = roots.SelectMany(root => Directory.EnumerateFiles(root, "*.xml", SearchOption.AllDirectories)).Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -98,19 +100,6 @@ internal static class LocalCorrectionSync
             SqliteConnection.ClearAllPools();
             if (File.Exists(candidate)) File.Delete(candidate);
         }
-    }
-
-    private static IReadOnlySet<string> ReadDisabledPackages(string database)
-    {
-        var disabled = new HashSet<string>(StringComparer.Ordinal);
-        if (!File.Exists(database)) return disabled;
-        using var connection = Open(database);
-        if (!HasTable(connection, "content_packages")) return disabled;
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT package_key FROM content_packages WHERE is_enabled=0";
-        using var reader = command.ExecuteReader();
-        while (reader.Read()) disabled.Add(reader.GetString(0));
-        return disabled;
     }
 
     public static bool? IsStale(IReadOnlyList<string> roots, string database)

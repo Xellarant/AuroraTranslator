@@ -30,6 +30,9 @@ namespace AuroraTranslator
         public Dictionary<string, HashSet<string>> MacroValues { get; } = new(StringComparer.OrdinalIgnoreCase);
         internal HashSet<string> RestrictedElementIds { get; } = new(StringComparer.OrdinalIgnoreCase);
         internal HashSet<string> RestrictedSourceNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+        internal Dictionary<int, HashSet<int>> ActiveParents { get; } = new();
+        internal Dictionary<int, (string Id, string Name)> ActiveClasses { get; } = new();
+        internal List<CharacterWarningResult> SelectionWarnings { get; } = new();
 
         public static AuroraExpressionEvaluationContext Empty { get; } = new();
 
@@ -233,18 +236,20 @@ namespace AuroraTranslator
         public static bool Evaluate(AuroraExpressionNode node, AuroraExpressionEvaluationContext context)
         {
             context ??= AuroraExpressionEvaluationContext.Empty;
+            return EvaluateWithValues(node, value => EvaluateValue(value, context)) == true;
+        }
 
-            if (node == null)
-                return false;
-
-            return node.Kind switch
-            {
-                "and" => node.Children.All(child => Evaluate(child, context)),
-                "or" => node.Children.Any(child => Evaluate(child, context)),
-                "not" => node.Children.Count == 0 || !Evaluate(node.Children[0], context),
-                "value" => EvaluateValue(node, context),
-                _ => false
-            };
+        // Unknown character bindings remain unknown under negation. A definite
+        // branch can still decide an OR/AND without guessing the missing value.
+        internal static bool? EvaluateWithValues(AuroraExpressionNode node, Func<AuroraExpressionNode, bool?> value)
+        {
+            if (node == null) return false;
+            if (node.Kind == "value") return value(node);
+            if (node.Kind == "not") return node.Children.Count == 0 ? true : !EvaluateWithValues(node.Children[0], value);
+            var children = node.Children.Select(child => EvaluateWithValues(child, value)).ToArray();
+            if (node.Kind == "and") return children.Contains(false) ? false : children.Contains(null) ? null : true;
+            if (node.Kind == "or") return children.Contains(true) ? true : children.Contains(null) ? null : false;
+            return false;
         }
 
         private static bool EvaluateValue(AuroraExpressionNode node, AuroraExpressionEvaluationContext context)

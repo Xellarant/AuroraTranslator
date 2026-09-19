@@ -16,6 +16,8 @@ internal sealed class ContentPreparation : IDisposable
     internal sealed record FileState(string Root, string Relative, string Path, string Hash);
     internal sealed record ManagedFile(FileState File, LocalCorrectionEvaluation Evaluation);
     internal sealed record Declaration(string Id, string Path, string Hash, int Ordinal, string Fingerprint, string Xml);
+    internal sealed record AppendOperation(FileState File, int Ordinal, string TargetId, string Xml, string Status, string? Diagnostic);
+    internal sealed record FinalizedElement(string Id, string Path, string BaseXml, string EffectiveXml);
     private readonly string work = Path.Combine(Path.GetTempPath(), "translator-preparation-" + Guid.NewGuid().ToString("N"));
     internal List<FileState> Files { get; } = [];
     internal List<ManagedFile> Managed { get; } = [];
@@ -23,16 +25,17 @@ internal sealed class ContentPreparation : IDisposable
     private readonly Dictionary<string, string> stages = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Declaration> declarations = [];
     internal IReadOnlyList<Declaration> Declarations => declarations;
+    internal List<AppendOperation> Appends { get; } = [];
+    internal List<FinalizedElement> Finalized { get; } = [];
 
-    internal static ContentPreparation Prepare(IReadOnlyList<string> roots, CancellationToken cancellation = default,
-        IReadOnlySet<string>? disabledPackages = null)
+    internal static ContentPreparation Prepare(IReadOnlyList<string> roots, CancellationToken cancellation = default)
     {
         var prepared = new ContentPreparation();
         try
         {
             prepared.Capture(roots, cancellation);
             prepared.Evaluate(cancellation);
-            prepared.FinalizeDeclarations(disabledPackages);
+            prepared.FinalizeDeclarations();
             return prepared;
         }
         catch { prepared.Dispose(); throw; }
@@ -92,29 +95,39 @@ internal sealed class ContentPreparation : IDisposable
         foreach (var entry in Managed)
         {
             string stage = Stage(entry.File);
-            File.WriteAllText(LocalCorrectionDocument.ResolveSourcePath(stage, entry.Evaluation.SourcePath), entry.Evaluation.EffectiveXml);
+            var effective = LocalCorrectionDocument.Parse(entry.Evaluation.EffectiveXml);
             var local = LocalCorrectionDocument.Parse(entry.Evaluation.LocalXml);
             local.Root!.Elements().Where(e => e.Name != "info").Remove();
+            // Additions belong to the local supplier. Replacements/renames retain
+            // the corrected source's attribution. The v1 evaluator remains intact.
+            var additions = entry.Evaluation.Corrections.Where(c => c.Operation == "add" && c.State == "review-pending")
+                .Select(c => c.TargetId).ToHashSet(StringComparer.Ordinal);
+            var upstreamIds = LocalCorrectionDocument.Parse(entry.Evaluation.UpstreamXml).Root!.Elements("element")
+                .Select(e => (string?)e.Attribute("id")).ToHashSet(StringComparer.Ordinal);
+            foreach (var element in effective.Root!.Elements("element").Where(e => additions.Contains((string?)e.Attribute("id") ?? "") && !upstreamIds.Contains((string?)e.Attribute("id"))).ToArray())
+            {
+                element.Remove();
+                local.Root.Add(element);
+            }
+            File.WriteAllText(LocalCorrectionDocument.ResolveSourcePath(stage, entry.Evaluation.SourcePath), effective.ToString(SaveOptions.DisableFormatting));
             File.WriteAllText(Path.Combine(stage, entry.File.Relative), local.ToString(SaveOptions.DisableFormatting));
         }
     }
 
-    private void FinalizeDeclarations(IReadOnlySet<string>? disabledPackages)
+    private void FinalizeDeclarations()
     {
         var seen = new Dictionary<string, Declaration>(StringComparer.Ordinal);
         var spellings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        // Identical content can use any enabled supplier, but a disabled package
-        // must not hide an identical declaration supplied by an enabled package.
-        foreach (var file in Files.OrderBy(f => disabledPackages?.Contains(AuroraSqliteImporter.GetContentPackageKey(f.Relative)) == true))
+        var documents = new Dictionary<FileState, XDocument>();
+        var targets = new Dictionary<string, XElement>(StringComparer.Ordinal);
+        // Canonical representatives and all links are independent of app preferences.
+        foreach (var file in Files.OrderBy(f => f.Path, StringComparer.Ordinal))
         {
             string stagedPath = Path.Combine(Stage(file), file.Relative);
             var xml = LocalCorrectionDocument.Parse(File.ReadAllText(stagedPath));
+            documents.Add(file, xml);
             bool ignored = bool.TryParse((string?)xml.Root!.Attribute("ignore"), out bool flag) && flag;
             if (ignored) xml.Root.Elements().Where(e => e.Name != "info").Remove();
-            // The existing Translator catalog has no document-level append executor.
-            // Refuse these inputs instead of silently discarding correction effects.
-            if (xml.Root.Elements().Any(e => e.Name == "append"))
-                throw new InvalidDataException($"Unsupported document-level append in {file.Path}; preserve the file and import through an append-capable preparation path.");
             int ordinal = 0;
             foreach (var element in xml.Root.Elements("element").ToList())
             {
@@ -132,10 +145,52 @@ internal sealed class ContentPreparation : IDisposable
                         throw new InvalidDataException($"duplicate-element-id: '{id}' has conflicting definitions: {previous.Path} declaration {previous.Ordinal} ({previous.Fingerprint}) and {file.Path} declaration {declaration.Ordinal} ({declaration.Fingerprint}). Review these revisions and supply an explicit correction; no winner was selected.");
                     element.Remove();
                 }
-                else seen.Add(id, declaration);
+                else { seen.Add(id, declaration); targets.Add(id, element); }
             }
-            File.WriteAllText(stagedPath, xml.ToString(SaveOptions.DisableFormatting));
         }
+
+        // All base/corrected declarations exist before extensions are interpreted.
+        foreach (var (file, xml) in documents)
+        {
+            int ordinal = 0;
+            foreach (var append in xml.Root!.Elements("append").ToArray())
+            {
+                string id = (string?)append.Attribute("id") ?? "";
+                if (string.IsNullOrWhiteSpace(id)) throw new InvalidDataException($"append-missing-id: {file.Path}, append {ordinal}.");
+                string raw = append.ToString(SaveOptions.DisableFormatting);
+                string? diagnostic = null;
+                if (targets.TryGetValue(id, out var target))
+                {
+                    try
+                    {
+                        var merged = ContentAppendComposer.Apply(target, append);
+                        target.ReplaceWith(merged);
+                        targets[id] = merged;
+                    }
+                    catch (InvalidDataException ex)
+                    { throw new InvalidDataException($"append-conflict: {file.Path}, append {ordinal}, target '{id}': {ex.Message}", ex); }
+                }
+                else
+                {
+                    // Preserve unbound operations for consumers with intrinsic/runtime
+                    // definitions and for authoring review; never infer a replacement ID.
+                    try
+                    {
+                        ContentAppendComposer.Apply(new XElement("element", new XAttribute("id", id),
+                            new XAttribute("type", (string?)append.Attribute("type") ?? "")), append);
+                    }
+                    catch (InvalidDataException ex)
+                    { throw new InvalidDataException($"append-conflict: {file.Path}, append {ordinal}, target '{id}': {ex.Message}", ex); }
+                    diagnostic = $"append-target-unresolved: {file.Path}, append {ordinal}, target '{id}'. Supply the exact definition or correct this reference; the operation is retained without applying it.";
+                }
+                Appends.Add(new(file, ordinal++, id, raw, diagnostic == null ? "applied" : "unresolved-target", diagnostic));
+                append.Remove();
+            }
+        }
+        foreach (var (id, target) in targets)
+            Finalized.Add(new(id, seen[id].Path, seen[id].Xml, target.ToString(SaveOptions.DisableFormatting)));
+        foreach (var (file, xml) in documents)
+            File.WriteAllText(Path.Combine(Stage(file), file.Relative), xml.ToString(SaveOptions.DisableFormatting));
     }
 
     public void Dispose()

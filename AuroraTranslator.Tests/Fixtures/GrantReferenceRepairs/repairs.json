@@ -1,0 +1,256 @@
+{
+  "status": "review-pending",
+  "scope": "Nine explicit grant-ID corrections, including the user-authorized Stoneheart reference to Xanathar's Guide. Never a runtime alias map. Full-file hashes bind the review to inspected XML; test fixtures contain extracted owner declarations. Both distinct Erupting Earth definitions are retained. Corrections remain review-pending until upstream acceptance.",
+  "diagnostics": [
+    {
+      "severity": "error",
+      "category": "unresolved-grant-reference",
+      "fileName": "reddit/reddit-unearthed-arcana/kibblestasty/psion/psionic-disciplines.xml",
+      "elementId": "ID_KT_PSION_CLASS_FEATURE_PSIONIC_DISCIPLINE_TELEPATHY_DISCIPLINE",
+      "elementName": "Telepathy Discipline",
+      "elementType": "Class Feature",
+      "message": "Grant references missing Aurora ID ID_PHB_SPELL_CAUSE_FEAR",
+      "suggestion": "Telepathy lists cause fear at psi-limit 1.",
+      "inputSha256": "c9fd9e27c65becad613fcaa9ce5ec428d273ea6f704252222d0fcf154224c78e",
+      "repairs": [
+        {
+          "kind": "set-rule-attribute",
+          "confidence": "high",
+          "description": "Telepathy lists cause fear at psi-limit 1.",
+          "target": {
+            "elementId": "ID_KT_PSION_CLASS_FEATURE_PSIONIC_DISCIPLINE_TELEPATHY_DISCIPLINE",
+            "ruleKind": "grant",
+            "nodeXml": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_CAUSE_FEAR\" spellcasting=\"Psion\" known=\"true\" requirements=\"[psi-limit:1]\" />"
+          },
+          "attribute": "id",
+          "currentValue": "ID_PHB_SPELL_CAUSE_FEAR",
+          "replacementValue": "ID_XGTE_SPELL_CAUSE_FEAR",
+          "sample": "<grant type=\"Spell\" id=\"ID_XGTE_SPELL_CAUSE_FEAR\" spellcasting=\"Psion\" known=\"true\" requirements=\"[psi-limit:1]\" />"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "category": "unresolved-grant-reference",
+      "fileName": "reddit/reddit-unearthed-arcana/kibblestasty/psion/psionic-disciplines.xml",
+      "elementId": "ID_KT_PSION_CLASS_FEATURE_PSIONIC_DISCIPLINE_TELEPATHY_DISCIPLINE",
+      "elementName": "Telepathy Discipline",
+      "elementType": "Class Feature",
+      "message": "Grant references missing Aurora ID ID_PHB_SPELL_TELEPATHIC_BOND",
+      "suggestion": "Telepathy lists telepathic bond at psi-limit 5; the referenced PHB spell is Rarys Telepathic Bond.",
+      "inputSha256": "c9fd9e27c65becad613fcaa9ce5ec428d273ea6f704252222d0fcf154224c78e",
+      "repairs": [
+        {
+          "kind": "set-rule-attribute",
+          "confidence": "high",
+          "description": "Telepathy lists telepathic bond at psi-limit 5; the referenced PHB spell is Rarys Telepathic Bond.",
+          "target": {
+            "elementId": "ID_KT_PSION_CLASS_FEATURE_PSIONIC_DISCIPLINE_TELEPATHY_DISCIPLINE",
+            "ruleKind": "grant",
+            "nodeXml": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_TELEPATHIC_BOND\" spellcasting=\"Psion\" known=\"true\" requirements=\"[psi-limit:5]\" />"
+          },
+          "attribute": "id",
+          "currentValue": "ID_PHB_SPELL_TELEPATHIC_BOND",
+          "replacementValue": "ID_PHB_SPELL_RARYS_TELEPATHIC_BOND",
+          "sample": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_RARYS_TELEPATHIC_BOND\" spellcasting=\"Psion\" known=\"true\" requirements=\"[psi-limit:5]\" />"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "category": "unresolved-grant-reference",
+      "fileName": "reddit/reddit-unearthed-arcana/kibblestasty/psion/psionic-disciplines.xml",
+      "elementId": "ID_KT_PSION_CLASS_FEATURE_PSIONIC_DISCIPLINE_TRANSPOSITION_DISCIPLINE",
+      "elementName": "Transposition Discipline",
+      "elementType": "Class Feature",
+      "message": "Grant references missing Aurora ID ID_PHB_SPELL_BANISH",
+      "suggestion": "Transposition lists banish at psi-limit 4; the PHB spell declaration is Banishment. Review-pending authoring correction, not an importer alias.",
+      "inputSha256": "c9fd9e27c65becad613fcaa9ce5ec428d273ea6f704252222d0fcf154224c78e",
+      "repairs": [
+        {
+          "kind": "set-rule-attribute",
+          "confidence": "manual",
+          "description": "Transposition lists banish at psi-limit 4; the PHB spell declaration is Banishment. Review-pending authoring correction, not an importer alias.",
+          "target": {
+            "elementId": "ID_KT_PSION_CLASS_FEATURE_PSIONIC_DISCIPLINE_TRANSPOSITION_DISCIPLINE",
+            "ruleKind": "grant",
+            "nodeXml": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_BANISH\" spellcasting=\"Psion\" known=\"true\" requirements=\"[psi-limit:4]\" />"
+          },
+          "attribute": "id",
+          "currentValue": "ID_PHB_SPELL_BANISH",
+          "replacementValue": "ID_PHB_SPELL_BANISHMENT",
+          "sample": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_BANISHMENT\" spellcasting=\"Psion\" known=\"true\" requirements=\"[psi-limit:4]\" />"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "category": "unresolved-grant-reference",
+      "fileName": "reddit/reddit-unearthed-arcana/kibblestasty/psion/psionic-disciplines.xml",
+      "elementId": "ID_KT_PSION_CLASS_FEATURE_PSIONIC_DISCIPLINE_PSYCHOKINETICS_DISCIPLINE",
+      "elementName": "Psychokinetics Discipline",
+      "elementType": "Class Feature",
+      "message": "Grant references missing Aurora ID ID_PHB_SPELL_WALL_OF_FLAME",
+      "suggestion": "Psychokinetics lists wall of flame at psi-limit 4; the PHB spell declaration is Wall of Fire. Review-pending authoring correction, not an importer alias.",
+      "inputSha256": "c9fd9e27c65becad613fcaa9ce5ec428d273ea6f704252222d0fcf154224c78e",
+      "repairs": [
+        {
+          "kind": "set-rule-attribute",
+          "confidence": "manual",
+          "description": "Psychokinetics lists wall of flame at psi-limit 4; the PHB spell declaration is Wall of Fire. Review-pending authoring correction, not an importer alias.",
+          "target": {
+            "elementId": "ID_KT_PSION_CLASS_FEATURE_PSIONIC_DISCIPLINE_PSYCHOKINETICS_DISCIPLINE",
+            "ruleKind": "grant",
+            "nodeXml": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_WALL_OF_FLAME\" spellcasting=\"Psion\" known=\"true\" requirements=\"[psi-limit:4]\" />"
+          },
+          "attribute": "id",
+          "currentValue": "ID_PHB_SPELL_WALL_OF_FLAME",
+          "replacementValue": "ID_PHB_SPELL_WALL_OF_FIRE",
+          "sample": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_WALL_OF_FIRE\" spellcasting=\"Psion\" known=\"true\" requirements=\"[psi-limit:4]\" />"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "category": "unresolved-grant-reference",
+      "fileName": "third-party/dms-guild/class-spiritualist.xml",
+      "elementId": "ID_DMSG_HSPRT_CLASS_FEATURE_CHANNEL_SPIRIT_GREED",
+      "elementName": "Greed",
+      "elementType": "Class Feature",
+      "message": "Grant references missing Aurora ID ID_PHB_SPELL_ANIMATE_OBJECT",
+      "suggestion": "Greed grants animate object at class level 9; the PHB spell is Animate Objects (level 5).",
+      "inputSha256": "bc8ed0b0d936d1ae8cdf882e00fcbb97f6923fe73f023202cc630cb729e2bf37",
+      "repairs": [
+        {
+          "kind": "set-rule-attribute",
+          "confidence": "high",
+          "description": "Greed grants animate object at class level 9; the PHB spell is Animate Objects (level 5).",
+          "target": {
+            "elementId": "ID_DMSG_HSPRT_CLASS_FEATURE_CHANNEL_SPIRIT_GREED",
+            "ruleKind": "grant",
+            "nodeXml": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_ANIMATE_OBJECT\" level=\"9\" spellcasting=\"Spiritualist\" prepared=\"true\" />"
+          },
+          "attribute": "id",
+          "currentValue": "ID_PHB_SPELL_ANIMATE_OBJECT",
+          "replacementValue": "ID_PHB_SPELL_ANIMATE_OBJECTS",
+          "sample": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_ANIMATE_OBJECTS\" level=\"9\" spellcasting=\"Spiritualist\" prepared=\"true\" />"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "category": "unresolved-grant-reference",
+      "fileName": "third-party/dms-guild/the-great-dale/wizard-demonbinder.xml",
+      "elementId": "ID_DMSG_TGD_ARCHETYPE_FEATURE_DEMONBINDER_DEMON_SUMMONER",
+      "elementName": "Demon Summoner",
+      "elementType": "Archetype Feature",
+      "message": "Grant references missing Aurora ID ID_PHB_SPELL_SUMMON_LESSER_DEMONS",
+      "suggestion": "Demon Summoner explicitly adds summon lesser demons to the spellbook.",
+      "inputSha256": "10150208b6ed5480bc4ea8121aea5f2414d0a277733d47facec40c8444337686",
+      "repairs": [
+        {
+          "kind": "set-rule-attribute",
+          "confidence": "high",
+          "description": "Demon Summoner explicitly adds summon lesser demons to the spellbook.",
+          "target": {
+            "elementId": "ID_DMSG_TGD_ARCHETYPE_FEATURE_DEMONBINDER_DEMON_SUMMONER",
+            "ruleKind": "grant",
+            "nodeXml": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_SUMMON_LESSER_DEMONS\" spellcasting=\"Wizard\" />"
+          },
+          "attribute": "id",
+          "currentValue": "ID_PHB_SPELL_SUMMON_LESSER_DEMONS",
+          "replacementValue": "ID_XGTE_SPELL_SUMMON_LESSER_DEMONS",
+          "sample": "<grant type=\"Spell\" id=\"ID_XGTE_SPELL_SUMMON_LESSER_DEMONS\" spellcasting=\"Wizard\" />"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "category": "unresolved-grant-reference",
+      "fileName": "third-party/dms-guild/the-great-dale/wizard-demonbinder.xml",
+      "elementId": "ID_DMSG_TGD_ARCHETYPE_FEATURE_DEMONBINDER_MASTER_DEMON_SUMMONER",
+      "elementName": "Master Demon Summoner",
+      "elementType": "Archetype Feature",
+      "message": "Grant references missing Aurora ID ID_PHB_SPELL_SUMMON_GREATER_DEMONS",
+      "suggestion": "Master Demon Summoner explicitly adds summon greater demon to the spellbook.",
+      "inputSha256": "10150208b6ed5480bc4ea8121aea5f2414d0a277733d47facec40c8444337686",
+      "repairs": [
+        {
+          "kind": "set-rule-attribute",
+          "confidence": "high",
+          "description": "Master Demon Summoner explicitly adds summon greater demon to the spellbook.",
+          "target": {
+            "elementId": "ID_DMSG_TGD_ARCHETYPE_FEATURE_DEMONBINDER_MASTER_DEMON_SUMMONER",
+            "ruleKind": "grant",
+            "nodeXml": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_SUMMON_GREATER_DEMONS\" spellcasting=\"Wizard\" />"
+          },
+          "attribute": "id",
+          "currentValue": "ID_PHB_SPELL_SUMMON_GREATER_DEMONS",
+          "replacementValue": "ID_XGTE_SPELL_SUMMON_GREATER_DEMON",
+          "sample": "<grant type=\"Spell\" id=\"ID_XGTE_SPELL_SUMMON_GREATER_DEMON\" spellcasting=\"Wizard\" />"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "category": "unresolved-grant-reference",
+      "fileName": "third-party/genuine-fantasy-press/forgotten-secrets/race-imperial.xml",
+      "elementId": "ID_GFP_COFSA_RACIAL_TRAIT_VENOMOUS_BLESSING",
+      "elementName": "Venomous Blessing",
+      "elementType": "Racial Trait",
+      "message": "Grant references missing Aurora ID ID_GFP_PHB_SPELL_POISON_SPRAY",
+      "suggestion": "Venomous Blessing names the poison spray cantrip; retain its existing conditional requirement.",
+      "inputSha256": "3773f31763f468d2b8d161b080242cf87ab7b36ebf2acf6bf2dbecfafb1f9fd7",
+      "repairs": [
+        {
+          "kind": "set-rule-attribute",
+          "confidence": "high",
+          "description": "Venomous Blessing names the poison spray cantrip; retain its existing conditional requirement.",
+          "target": {
+            "elementId": "ID_GFP_COFSA_RACIAL_TRAIT_VENOMOUS_BLESSING",
+            "ruleKind": "grant",
+            "nodeXml": "<grant type=\"Spell\" id=\"ID_GFP_PHB_SPELL_POISON_SPRAY\" requirements=\"ID_GFP_COFSA_GRANTS_VENOMOUS_BLESSING_POISON_SPRAY_CANTRIP\" />"
+          },
+          "attribute": "id",
+          "currentValue": "ID_GFP_PHB_SPELL_POISON_SPRAY",
+          "replacementValue": "ID_PHB_SPELL_POISON_SPRAY",
+          "sample": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_POISON_SPRAY\" requirements=\"ID_GFP_COFSA_GRANTS_VENOMOUS_BLESSING_POISON_SPRAY_CANTRIP\" />"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "category": "unresolved-grant-reference",
+      "fileName": "reddit/reddit-unearthed-arcana/kibblestasty/sorcerer-stoneheart.xml",
+      "elementId": "ID_KT_SS_ARCHETYPE_SORCERER_STONEHEART",
+      "elementName": "Stoneheart",
+      "elementType": "Archetype",
+      "inputSha256": "996291a1f67daa706860d8e8ae775fcc6787fcbac75fc761b5350cb704f6cbdc",
+      "message": "Stoneheart references ID_PHB_SPELL_ERUPTING_EARTH, which is neither of the two existing Erupting Earth IDs.",
+      "suggestion": "User-authorized local correction: Stoneheart is unresolved KibblesTasty homebrew and declares no custom Erupting Earth spell. Use Xanathar's Guide to Everything (ID_XGTE_SPELL_ERUPTING_EARTH) as the assumed first-party reference. Preserve the distinct Princes of the Apocalypse definition. Pending confirmation with KibblesTasty; this is not an upstream-accepted correction.",
+      "node": {
+        "xml": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_ERUPTING_EARTH\" spellcasting=\"Sorcerer\" known=\"true\" level=\"5\" />"
+      },
+      "repairs": [
+        {
+          "kind": "set-rule-attribute",
+          "confidence": "manual",
+          "description": "User-authorized local correction: Stoneheart is unresolved KibblesTasty homebrew and declares no custom Erupting Earth spell. Use Xanathar's Guide to Everything (ID_XGTE_SPELL_ERUPTING_EARTH) as the assumed first-party reference. Preserve the distinct Princes of the Apocalypse definition. Pending confirmation with KibblesTasty; this is not an upstream-accepted correction.",
+          "target": {
+            "fileName": "reddit/reddit-unearthed-arcana/kibblestasty/sorcerer-stoneheart.xml",
+            "elementId": "ID_KT_SS_ARCHETYPE_SORCERER_STONEHEART",
+            "elementName": "Stoneheart",
+            "elementType": "Archetype",
+            "ruleKind": "grant",
+            "nodeXml": "<grant type=\"Spell\" id=\"ID_PHB_SPELL_ERUPTING_EARTH\" spellcasting=\"Sorcerer\" known=\"true\" level=\"5\" />"
+          },
+          "attribute": "id",
+          "currentValue": "ID_PHB_SPELL_ERUPTING_EARTH",
+          "replacementValue": "ID_XGTE_SPELL_ERUPTING_EARTH",
+          "sample": "<grant type=\"Spell\" id=\"ID_XGTE_SPELL_ERUPTING_EARTH\" spellcasting=\"Sorcerer\" known=\"true\" level=\"5\" />"
+        }
+      ]
+    }
+  ],
+  "unresolvedDiagnostics": []
+}

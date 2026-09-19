@@ -2635,11 +2635,15 @@ namespace AuroraTranslator
         private static AuroraSpell FillAuroraSpell(XElement spellElement, string name, string source, string id)
         {
             var spell = new AuroraSpell();
+            // Spells share Aurora's rule/extract/requirement contract. Keep the
+            // same parser used for other elements instead of dropping these blocks.
+            spell.sharedContent = FillAuroraElement(spellElement, name, source, id, "Spell");
 
             spell.name = name;
             spell.source = source;
             spell.aurora_id = id;
             spell.index = BuildSlug(spell.name);
+            spell.compendium_display = spell.sharedContent.compendium.display;
 
             foreach (var childElement in spellElement.Elements())
             {
@@ -3178,70 +3182,8 @@ namespace AuroraTranslator
             return collection;
         }
 
-        private static List<string> SplitTopLevel(string input, char separator)
-        {
-            var values = new List<string>();
-
-            if (string.IsNullOrWhiteSpace(input))
-                return values;
-
-            int parenthesesDepth = 0;
-            int bracketsDepth = 0;
-            int bracesDepth = 0;
-            var current = new System.Text.StringBuilder();
-
-            foreach (char ch in input)
-            {
-                switch (ch)
-                {
-                    case '(':
-                        parenthesesDepth++;
-                        break;
-                    case ')':
-                        parenthesesDepth = Math.Max(0, parenthesesDepth - 1);
-                        break;
-                    case '[':
-                        bracketsDepth++;
-                        break;
-                    case ']':
-                        bracketsDepth = Math.Max(0, bracketsDepth - 1);
-                        break;
-                    case '{':
-                        bracesDepth++;
-                        break;
-                    case '}':
-                        bracesDepth = Math.Max(0, bracesDepth - 1);
-                        break;
-                }
-
-                if (ch == separator
-                    && parenthesesDepth == 0
-                    && bracketsDepth == 0
-                    && bracesDepth == 0)
-                {
-                    string candidate = current.ToString().Trim();
-
-                    if (!string.IsNullOrWhiteSpace(candidate))
-                    {
-                        values.Add(candidate);
-                    }
-
-                    current.Clear();
-                    continue;
-                }
-
-                current.Append(ch);
-            }
-
-            string finalCandidate = current.ToString().Trim();
-
-            if (!string.IsNullOrWhiteSpace(finalCandidate))
-            {
-                values.Add(finalCandidate);
-            }
-
-            return values;
-        }
+        internal static List<string> SplitTopLevel(string input, char separator)
+            => Content.ContentText.SplitTopLevel(input, separator);
 
         private static bool? ParseNullableBoolean(string value)
         {

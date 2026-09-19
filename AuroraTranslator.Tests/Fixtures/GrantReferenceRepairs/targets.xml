@@ -1,0 +1,239 @@
+<elements><element name="Cause Fear" type="Spell" source="Xanathar’s Guide to Everything" id="ID_XGTE_SPELL_CAUSE_FEAR">
+        <supports>Warlock, Wizard, Spell Saving Throw</supports>
+        <description>
+            <p>You awaken the sense of mortality in one creature you can see within range. A construct or an undead is immune to this effect. The target must succeed on a Wisdom saving throw or become frightened of you until the spell ends. The frightened target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success.</p>
+            <p class="indent"><b><i>At Higher Levels. </i></b>When you cast this spell using a spell slot of 2nd level or higher, you can target one additional creature for each slot level above 1st. The creatures must be within 30 feet of each other when you target them.</p>
+        </description>
+        <setters>
+            <set name="keywords" />
+            <set name="level">1</set>
+            <set name="school">Necromancy</set>
+            <set name="time">1 action</set>
+            <set name="duration">Concentration, up to 1 minute</set>
+            <set name="range">60 feet</set>
+            <set name="hasVerbalComponent">true</set>
+            <set name="hasSomaticComponent">false</set>
+            <set name="hasMaterialComponent">false</set>
+            <set name="materialComponent" />
+            <set name="isConcentration">true</set>
+            <set name="isRitual">false</set>
+        </setters>
+    </element>
+    <element name="Rary’s Telepathic Bond" type="Spell" source="Player’s Handbook" id="ID_PHB_SPELL_RARYS_TELEPATHIC_BOND">
+		<supports>Wizard</supports>
+		<description>
+			<p>You forge a telepathic link among up to eight willing creatures of your choice within range, psychically linking each creature to all the others for the duration. Creatures with Intelligence scores of 2 or less aren’t affected by this spell.</p>
+			<p class="indent">Until the spell ends, the targets can communicated telepathically through the bond whether or not they have a common language. The communication is possible over any distance, though it can’t extend to other planes of existence.</p>
+		</description>
+		<setters>
+			<set name="keywords" />
+			<set name="level">5</set>
+			<set name="school">Divination</set>
+			<set name="time">1 action</set>
+			<set name="duration">1 hour</set>
+			<set name="range">30 feet</set>
+			<set name="hasVerbalComponent">true</set>
+			<set name="hasSomaticComponent">true</set>
+			<set name="hasMaterialComponent">true</set>
+			<set name="materialComponent">pieces of eggshell from two different kinds of creatures</set>
+			<set name="isConcentration">false</set>
+			<set name="isRitual">true</set>
+		</setters>
+	</element>
+	<element name="Banishment" type="Spell" source="Player’s Handbook" id="ID_PHB_SPELL_BANISHMENT">
+		<supports>Cleric, Paladin, Sorcerer, Warlock, Wizard, Spell Saving Throw</supports>
+		<description>
+			<p>You attempt to send one creature that you can see within range to another place of existence. The target must succeed on a Charisma saving throw or be banished.</p>
+			<p class="indent">If the target is native to the plane of existence you’re on, you banish the target to a harmless demiplane. While there, the target is incapacitated. The target remains there until the spell ends, at which point the target reappears in the space it left or in the nearest unoccupied space if that space is occupied.</p>
+			<p class="indent">If the target is native to a different plane of existence that the one you’re on, the target is banished with a faint popping noise, returning to its home plane. If the spell ends before 1 minute has passed, the target reappears in the space it left or in the nearest unoccupied space if that space is occupied. Otherwise, the target doesn’t return.</p>
+			<p class="indent"><b><i>At Higher Levels.</i></b> When you cast this spell using a spell slot of 5th level or higher, you can target one additional creature for each slot level above 4th.</p>
+		</description>
+		<setters>
+			<set name="keywords" />
+			<set name="level">4</set>
+			<set name="school">Abjuration</set>
+			<set name="time">1 action</set>
+			<set name="duration">Concentration, up to 1 minute</set>
+			<set name="range">60 feet</set>
+			<set name="hasVerbalComponent">true</set>
+			<set name="hasSomaticComponent">true</set>
+			<set name="hasMaterialComponent">true</set>
+			<set name="materialComponent">an item distasteful to the target</set>
+			<set name="isConcentration">true</set>
+			<set name="isRitual">false</set>
+		</setters>
+	</element>
+	<element name="Wall of Fire" type="Spell" source="Player’s Handbook" id="ID_PHB_SPELL_WALL_OF_FIRE">
+		<supports>Druid, Sorcerer, Wizard, Spell Saving Throw</supports>
+		<description>
+			<p>You create a wall of fire on a solid surface within range. You can make the wall up to 60 feet long, 20 feet high, and 1 foot think, or a ringed wall up to 20 feet in diameter, 20 feet high, and 1 foot think. The wall is opaque and lasts for the duration.</p>
+			<p class="indent">When the wall appears, each creature within its area must make a Dexterity saving throw. On a failed save, a creature takes 5d8 fire damage, or half as much damage on a successful save.</p>
+			<p class="indent">One side of the wall, selected by you when you cast this spell, deals 5d8 fire damage to each creature that ends its turn within 10 feet of that side or inside the wall. A creature takes the same damage when it enters the wall for the first time on a turn or ends its turn there. The other side of the wall deals no damage.</p>
+			<p class="indent"><b><i>At Higher Levels.</i></b> When you cast this spell using a spell slot of 5th level or higher, the damage increases by 1d8 for each slot level above 4th.</p>
+		</description>
+		<setters>
+			<set name="keywords">fire</set>
+			<set name="level">4</set>
+			<set name="school">Evocation</set>
+			<set name="time">1 action</set>
+			<set name="duration">Concentration, up to 1 minute</set>
+			<set name="range">120 feet</set>
+			<set name="hasVerbalComponent">true</set>
+			<set name="hasSomaticComponent">true</set>
+			<set name="hasMaterialComponent">true</set>
+			<set name="materialComponent">a small piece of phosphorus</set>
+			<set name="isConcentration">true</set>
+			<set name="isRitual">false</set>
+		</setters>
+	</element>
+	<element name="Animate Objects" type="Spell" source="Player’s Handbook" id="ID_PHB_SPELL_ANIMATE_OBJECTS">
+		<supports>Bard, Sorcerer, Wizard, Artificer</supports>
+		<description>
+			<p>Objects come to life at your command. Choose up to ten nonmagical objects within range that are not being worn or carried. Medium targets count as two objects, Large targets count as four objects, Huge targets count as eight objects. You can’t animate any object larger than Huge. Each target animates and becomes a creature under your control until the spell ends or until reduced to 0 hit points.</p>
+			<p class="indent">As a bonus action, you can mentally command any creature you made with this spell if the creature is within 500 feet of you (if you control multiple creatures, you can command any or all of them at the same time, issuing the same command to each one). You decide what action the creature will take and where it will move during its next turn, or you can issue a general command, such as to guard a particular chamber or corridor. If you issue no commands, the creature only defends itself against hostile creatures. Once given an order, the creature continues to follow it until its task is complete.</p>
+			<h5>ANIMATED OBJECT STATISTICS</h5>
+			<table>
+				<thead>
+					<tr> <td class="left">Size</td> <td>HP</td> <td>AC</td> <td class="left">Attack</td> <td>Str</td> <td>Dex</td> </tr>
+				</thead>
+				<tr> <td class="left">Tiny</td> <td>20</td> <td>18</td> <td class="left">+8 to hit, 1d4 + 4 damage</td> <td>4</td> <td>18</td> </tr>
+				<tr> <td class="left">Small</td> <td>25</td> <td>16</td> <td class="left">+6 to hit, 1d8 + 2 damage</td> <td>6</td> <td>14</td> </tr>
+				<tr> <td class="left">Medium</td> <td>40</td> <td>13</td> <td class="left">+5 to hit, 2d6 + 1 damage</td> <td>10</td> <td>12</td> </tr>
+				<tr> <td class="left">Large</td> <td>50</td> <td>10</td> <td class="left">+6 to hit, 2d10 + 2 damage</td> <td>14</td> <td>10</td> </tr>
+				<tr> <td class="left">Huge</td> <td>80</td> <td>10</td> <td class="left">+8 to hit, 2d12 + 4 damage</td> <td>18</td> <td>6</td> </tr>
+			</table>
+			<p class="indent">An animated object is a construct with AC, hit points, attacks, Strength, and Dexterity determine by its size. Its Constitution is 10 and its Intelligence and Wisdom are 3, and its Charisma is 1. Its speed is 30 feet; if the objects lack legs or other appendages it can use for locomotion, it instead has a flying speed of 30 feet and can hover. If the object is securely attached to a surface or larger object, such as a chain bolted to a wall, its speed is 0. It has blindsight with a radius of 30 feet and is blind beyond that distance. When the animated object drops to 0 hit points, it reverts to its original object form, and any remaining damage carries over to its original object form.</p>
+			<p class="indent">If you command an object to attack, it can make a single melee attack against a creature within 5 feet of it. It makes a slam attack with an attack bonus and bludgeoning damage determine by its size. The DM might rule that a specific object inflicts slashing or piercing damage based on its form.</p>
+			<p class="indent"><b><i>At Higher Levels.</i></b> If you cast this spell using a spell slot of 6th or higher, you can animate two additional objects for each slot level above 5th.</p>
+		</description>
+		<setters>
+			<set name="keywords" />
+			<set name="level">5</set>
+			<set name="school">Transmutation</set>
+			<set name="time">1 action</set>
+			<set name="duration">Concentration, up to 1 minute</set>
+			<set name="range">120 feet</set>
+			<set name="hasVerbalComponent">true</set>
+			<set name="hasSomaticComponent">true</set>
+			<set name="hasMaterialComponent">false</set>
+			<set name="materialComponent" />
+			<set name="isConcentration">true</set>
+			<set name="isRitual">false</set>
+		</setters>
+	</element>
+	<element name="Summon Lesser Demons" type="Spell" source="Xanathar’s Guide to Everything" id="ID_XGTE_SPELL_SUMMON_LESSER_DEMONS">
+        <supports>Warlock, Wizard</supports>
+        <description>
+            <p>You utter foul words, summoning demons from the chaos of the Abyss. Roll on the following table to determine what appears.</p>
+            <p class="indent">d6:1-2 Two demons of challenge rating 1 or lower</p>
+            <p class="indent">d6:3-4 Four demons of challenge rating 1/2 or lower</p>
+            <p class="indent">d6:5-6 Eight demons of challenge rating 1/4 or lower</p>
+            <p class="indent">The DM chooses the demons, such as manes or dretches, and you choose the unoccupied spaces you can see within range where they appear. A summoned demon disappears when it drops to 0 hit points or when the spell ends.</p>
+            <p class="indent">The demons are hostile to all creatures, including you. Roll initiative for the summoned demons as a group, which has its own turns. The demons pursue and attack the nearest non-demons to the best of their ability.</p>
+            <p class="indent">As part of casting the spell, you can form a circle on the ground with the blood used as a material component. The circle is large enough to encompass your space. While the spell lasts, the summoned demons can’t cross the circle or harm it, and they can't target anyone within it. Using the material component in this manner consumes it when the spell ends.</p>
+            <p class="indent"><b><i>At Higher Levels. </i></b>When you cast this spell using a spell slot of 6th or 7th level, you summon twice as many demons. If you cast it using a spell slot of 8th or 9th level, you summon three times as many demons.</p>
+        </description>
+        <setters>
+            <set name="keywords" />
+            <set name="level">3</set>
+            <set name="school">Conjuration</set>
+            <set name="time">1 action</set>
+            <set name="duration">Concentration, up to 1 hour</set>
+            <set name="range">60 feet</set>
+            <set name="hasVerbalComponent">true</set>
+            <set name="hasSomaticComponent">true</set>
+            <set name="hasMaterialComponent">true</set>
+            <set name="materialComponent">a vial of blood from a humanoid killed within the past 24 hours</set>
+            <set name="isConcentration">true</set>
+            <set name="isRitual">false</set>
+        </setters>
+    </element>
+    <element name="Summon Greater Demon" type="Spell" source="Xanathar’s Guide to Everything" id="ID_XGTE_SPELL_SUMMON_GREATER_DEMON">
+        <supports>Warlock, Wizard, Spell Saving Throw</supports>
+        <description>
+            <p>You utter foul words, summoning one demon from the chaos of the Abyss. You choose the demon’s type, which must be one of challenge rating 5 or lower, such as a shadow demon or a barlgura. The demon appears in an unoccupied space you can see within range, and the demon disappears when it drops to 0 hit points or when the spell ends.</p>
+            <p class="indent">Roll initiative for the demon, which has its own turns. When you summon it and on each of your turns thereafter, you can issue a verbal command to it (requiring no action on your part), telling it what it must do on its next turn. If you issue no command, it spends its turn attacking any creature within reach that has attacked it.</p>
+            <p class="indent">At the end of each of the demons turns, it makes a Charisma saving throw. The demon has disadvantage on this saving throw if you say its true name. On a failed save, the demon continues to obey you. On a successful save, your control of the demon ends for the rest of the duration, and the demon spends its turns pursuing and attacking the nearest non demons to the best of its ability. If you stop concentrating on the spell before it reaches its full duration, an uncontrolled demon doesn’t disappear for 1d6 rounds if it still has hit points.</p>
+            <p class="indent">As part of casting the spell, you can form a circle on the ground with the blood used as a material component. The circle is large enough to encompass your space. While the spell lasts, the summoned demon can’t cross the circle or harm it, and it can’t target anyone within it. Using the material component in this manner consumes it when the spell ends.</p>
+            <p class="indent"><b><i>At Higher Levels. </i></b>When you cast this spell using a spell slot of 5th level or higher, the challenge rating increases by 1 for each slot level above 4th.</p>
+        </description>
+        <setters>
+            <set name="keywords" />
+            <set name="level">4</set>
+            <set name="school">Conjuration</set>
+            <set name="time">1 action</set>
+            <set name="duration">Concentration, up to 1 hour</set>
+            <set name="range">60 feet</set>
+            <set name="hasVerbalComponent">true</set>
+            <set name="hasSomaticComponent">true</set>
+            <set name="hasMaterialComponent">true</set>
+            <set name="materialComponent">a vial of blood from a humanoid killed within the past 24 hours</set>
+            <set name="isConcentration">true</set>
+            <set name="isRitual">false</set>
+        </setters>
+    </element>
+    <element name="Poison Spray" type="Spell" source="Player’s Handbook" id="ID_PHB_SPELL_POISON_SPRAY">
+		<supports>Druid, Sorcerer, Warlock, Wizard, Artificer, Spell Saving Throw</supports>
+		<description>
+			<p>You extend your hand toward a creature you can see within range and project a puff of noxious gas from your palm. The creature must succeed on a Constitution saving throw or take 1d12 poison damage.</p>
+			<p class="indent">This spell’s damage increases by 1d12 when you reach 5th level (2d12), 11th level (3d12), and 17th level (4d12).</p>
+		</description>
+		<setters>
+			<set name="keywords">poison</set>
+			<set name="level">0</set>
+			<set name="school">Conjuration</set>
+			<set name="time">1 action</set>
+			<set name="duration">Instantaneous</set>
+			<set name="range">10 feet</set>
+			<set name="hasVerbalComponent">true</set>
+			<set name="hasSomaticComponent">true</set>
+			<set name="hasMaterialComponent">false</set>
+			<set name="materialComponent" />
+			<set name="isConcentration">false</set>
+			<set name="isRitual">false</set>
+		</setters>
+	</element>
+	<element name="Erupting Earth" type="Spell" source="Princes of the Apocalypse" id="ID_POTA_SPELL_ERUPTINGEARTH">
+		<supports>Druid, Sorcerer, Wizard, Spell Saving Throw</supports>
+		<description>
+			<p>Choose a point you can see on the ground within range. A fountain of churned earth and stone erupts in a 20-foot cube centered on that point. Each creature in that area must make a Dexterity saving throw. A creature takes 3d12 bludgeoning damage on a failed save, or half as much damage on a successful one. Additionally, the ground in that area becomes difficult terrain until cleared away. Each 5-foot-square portion of the area requires at least 1 minute to clear by hand.</p>
+			<p>
+				<span class="feature">At Higher Levels.</span> When you cast this spell using a spell slot of 4th level or higher, the damage increases by 1d12 for each slot level above 3rd.
+			</p>
+		</description>
+		<setters>
+			<set name="level">3</set>
+			<set name="school">Transmutation</set>
+			<set name="time">1 action</set>
+			<set name="duration">Instantaneous</set>
+			<set name="range">120 feet</set>
+			<set name="hasVerbalComponent">true</set>
+			<set name="hasSomaticComponent">true</set>
+			<set name="hasMaterialComponent">true</set>
+			<set name="materialComponent">a piece of obsidian</set>
+			<set name="isConcentration">false</set>
+			<set name="isRitual">false</set>
+		</setters>
+	</element>
+	<element name="Erupting Earth" type="Spell" source="Xanathar’s Guide to Everything" id="ID_XGTE_SPELL_ERUPTING_EARTH">
+        <supports>Druid, Sorcerer, Wizard, Spell Saving Throw</supports>
+        <description>
+            <p>Choose a point you can see on the ground within range. A fountain of churned earth and stone erupts in a 20-foot cube centered on that point. Each creature in that area must make a Dexterity saving throw. A creature takes 3d12 bludgeoning damage on a failed save, or half as much damage on a successful one. Additionally, the ground in that area becomes difficult terrain until cleared away. Each 5-foot-square portion of the area requires at least 1 minute to clear by hand.</p>
+            <p class="indent"><b><i>At Higher Levels. </i></b>When you cast this spell using a spell slot of 4th level or higher, the damage increases by 1d12 for each slot level above 3rd.</p>
+        </description>
+        <setters>
+            <set name="keywords" />
+            <set name="level">3</set>
+            <set name="school">Transmutation</set>
+            <set name="time">1 action</set>
+            <set name="duration">Instantaneous</set>
+            <set name="range">120 feet</set>
+            <set name="hasVerbalComponent">true</set>
+            <set name="hasSomaticComponent">true</set>
+            <set name="hasMaterialComponent">true</set>
+            <set name="materialComponent">a piece of obsidian</set>
+            <set name="isConcentration">false</set>
+            <set name="isRitual">false</set>
+        </setters>
+    </element>
+    </elements>

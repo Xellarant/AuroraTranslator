@@ -127,7 +127,7 @@ internal static class ContentPreparationTests
         w.Write("user/local/fix.xml", correction.Replace("<elements>", "<elements ignore='true'>"));
         w.Import(); Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_FIX'") == "Old", "Disabled correction applied");
         Require(File.Exists(w.Local), "Disabled local retired");
-        w.Write("operational.xml", "<elements><append id='ID_FIX'><supports>Local</supports></append></elements>");
+        w.Write("operational.xml", "<elements><append id='ID_FIX'><unsupported/></append></elements>");
         Reject(() => w.Import(), "append");
     }
 
@@ -146,23 +146,18 @@ internal static class ContentPreparationTests
         w.Import();
         Require(w.Query("SELECT is_enabled || ':' || precedence_rank FROM content_packages") == "0:731", "Prepared import overwrote package settings");
         Require(w.Query("SELECT COUNT(*) FROM elements") == "2", "Disabled package declarations were deleted");
-        Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache") == "0", "Disabled package content was activated");
+        Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache") == "2", "App preference filtered catalog records");
     }
 
     internal static void EnabledSupplier()
     {
         using var w = new Workspace(); w.Write("supplements/copy.xml", Baseline); w.Import();
         string packageKey = w.Query("SELECT package_key FROM content_packages WHERE package_kind='core'");
-        string beforeUpdate = Hash(w.Database);
-        Reject(() => AuroraSqliteImporter.UpdateContentPackageSettings(w.Database, packageKey, isEnabled: false), "preparation");
-        SqliteConnection.ClearAllPools();
-        Require(Hash(w.Database) == beforeUpdate, "Unsupported package maintenance changed the working database");
-        // Model settings supplied before preparation; the legacy database-only
-        // command cannot express the new supplier-selection workflow.
-        w.Query("UPDATE content_packages SET is_enabled=0 WHERE package_kind='core'; SELECT 1");
+        AuroraSqliteImporter.UpdateContentPackageSettings(w.Database, packageKey, isEnabled: false);
         w.Import();
-        Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache") == "2", "Disabled representative hid an enabled identical supplier");
-        Require(w.Query("SELECT COUNT(*) FROM content_declaration_provenance") == "4", "Disabled supplier provenance was lost");
+        Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache") == "2", "App preference filtered the catalog");
+        Require(w.Query("SELECT COUNT(*) FROM content_declaration_provenance") == "4", "Supplier provenance was lost");
+        Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache WHERE package_kind='core'") == "2", "Preference changed canonical attribution");
         w.Query("UPDATE content_packages SET is_enabled=CASE WHEN package_kind='core' THEN 1 ELSE 0 END; SELECT 1");
         w.Import();
         Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache WHERE package_kind='core'") == "2", "Re-enabled supplier was not selected during preparation");
