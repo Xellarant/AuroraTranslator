@@ -105,7 +105,7 @@ internal static class LocalCorrectionSync
     public static bool? IsStale(IReadOnlyList<string> roots, string database)
     {
         if (!File.Exists(database)) return null;
-        using var connection = Open(database);
+        using var connection = ContentDatabase.OpenReadableConnection(database);
         if (!HasTable(connection, "local_correction_inputs")) return null;
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT path,sha256 FROM local_correction_inputs";
@@ -119,7 +119,7 @@ internal static class LocalCorrectionSync
     public static IReadOnlyList<LocalCorrectionStatus> ReadStatuses(string database)
     {
         if (!File.Exists(database)) return [];
-        using var connection = Open(database);
+        using var connection = ContentDatabase.OpenReadableConnection(database);
         if (!HasTable(connection, "local_override_files")) return [];
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT file_path,source_path,status,review_details FROM local_override_files ORDER BY file_path";
@@ -135,7 +135,7 @@ internal static class LocalCorrectionSync
         if (!File.Exists(database)) return null;
         string? root = LocalCorrectionDocument.FindContentRoot(filePath);
         if (root == null) return null;
-        using var connection = Open(database);
+        using var connection = ContentDatabase.OpenReadableConnection(database);
         if (!HasTable(connection, "local_override_files")) return null;
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT source_path,effective_xml,suppressed_ids FROM local_override_files WHERE file_path=$path AND status <> 'retired'";
