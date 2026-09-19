@@ -68,7 +68,10 @@ var tests = new (string Name, Action Body)[]
     ("preserves spellcasting XML and ownership", SpellcastingFidelityTests.XmlOwnershipAndContributions),
     ("detects and repairs partial spellcasting damage", SpellcastingFidelityTests.PartialDamageAndSourceMismatch),
     ("reimports legacy spellcasting without guessing flags", SpellcastingFidelityTests.LegacyRefreshMatchesFreshImport),
-    ("refreshes spellcasting ownership after package changes", SpellcastingFidelityTests.PackageResolution)
+    ("refreshes spellcasting ownership after package changes", SpellcastingFidelityTests.PackageResolution),
+    ("reader reports stale inputs", ContentDatabaseReaderTests.Staleness),
+    ("reader treats unprepared databases as stale", ContentDatabaseReaderTests.UnpreparedDatabasesAreStale),
+    ("reader returns metadata and health", ContentDatabaseReaderTests.MetadataAndHealth)
 };
 
 if (args.Length > 0)
