@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>AuroraTranslator</RootNamespace>
   </PropertyGroup>
@@ -15,15 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Aurora.Content\Aurora.Content.csproj" />
+    <ProjectReference Include="..\Aurora.Content.Contracts\Aurora.Content.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Data\sqlite-character-loading.sql">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-    </Content>
+    <InternalsVisibleTo Include="AuroraTranslator" />
+    <InternalsVisibleTo Include="AuroraTranslator.Tests" />
   </ItemGroup>
 
 </Project>
-

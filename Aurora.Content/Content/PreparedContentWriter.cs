@@ -46,7 +46,7 @@ internal static class PreparedContentWriter
                 : "SELECT es.support_text FROM element_supports es JOIN elements e ON e.element_id=es.element_id WHERE e.aurora_id=$id";
             var supports = new HashSet<string>(StringComparer.Ordinal);
             using (var reader = command.ExecuteReader()) while (reader.Read()) supports.Add(reader.GetString(0));
-            if (Program.SplitTopLevel(xml.Element("supports")?.Value ?? "", ',').Any(s => !supports.Contains(s)))
+            if (ContentText.SplitTopLevel(xml.Element("supports")?.Value ?? "", ',').Any(s => !supports.Contains(s)))
                 throw new InvalidDataException($"Append support effects were lost while writing '{element.Id}'.");
             foreach (var (node, table) in new[] { ("grant", "grants"), ("select", "selects"), ("stat", "stats") })
             {

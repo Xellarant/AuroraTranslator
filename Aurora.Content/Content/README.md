@@ -1,6 +1,7 @@
 # Content preparation port
 
-`LocalCorrectionDocument.cs` is an unchanged, byte-for-byte port of
+[`LocalCorrectionDocument.cs`](../../Aurora.Content.Contracts/LocalCorrectionDocument.cs)
+(now in the dependency-free `Aurora.Content.Contracts` project) is an unchanged, byte-for-byte port of
 `Builder.Data/Files/LocalCorrectionDocument.cs` from Aurora-Lights checkpoint
 `624b6b7cec82e8ad6d0efffb36ba414908469a15`. Its SHA-256 is
 `4D754E96F67BDB438733A484306C6A57450C11BF33F5D21EB2F7A1E15FEFB6BF`.
