@@ -1,8 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\Aurora.Content.props" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>AuroraTranslator</RootNamespace>
+    <Description>Aurora content preparation, correction workflow, and SQLite catalog import/read library shared by AuroraTranslator and Aurora Lights.</Description>
   </PropertyGroup>
 
   <ItemGroup>

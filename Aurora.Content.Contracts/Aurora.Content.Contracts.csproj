@@ -1,8 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\Aurora.Content.props" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Aurora.Content.Contracts</RootNamespace>
+    <Description>Dependency-free Aurora content contracts: local correction documents and their fingerprints.</Description>
   </PropertyGroup>
 
   <ItemGroup>

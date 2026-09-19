@@ -1,0 +1,12 @@
+<Project>
+  <!-- Shared package metadata for Aurora.Content and Aurora.Content.Contracts.
+       Bump Version for every build consumed by Aurora Lights: vendored versions are immutable. -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Authors>Xellarant</Authors>
+    <RepositoryUrl>https://github.com/Xellarant/AuroraTranslator</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+</Project>
