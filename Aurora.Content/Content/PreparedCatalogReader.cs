@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 using System.Xml.Linq;
 using Microsoft.Data.Sqlite;
 
-namespace AuroraTranslator.Content;
+namespace Aurora.Content.Preparation;
 
 public sealed record PreparedCatalogSource(string FilePath, string RelativePath, string PackageKey, string PackageKind);
 public sealed record PreparedCatalogElement(string AuroraId, PreparedCatalogSource Source, string Xml);
@@ -83,7 +83,7 @@ public static class PreparedCatalogReader
                 if (!(includeElement?.Invoke(xml) ?? true)) continue;
                 if (definitions.TryGetValue(id, out var previous))
                 {
-                    if (Builder.Data.Files.LocalCorrectionDocument.Fingerprint(previous) != Builder.Data.Files.LocalCorrectionDocument.Fingerprint(xml))
+                    if (Aurora.Content.Contracts.LocalCorrectionDocument.Fingerprint(previous) != Aurora.Content.Contracts.LocalCorrectionDocument.Fingerprint(xml))
                         throw new InvalidDataException($"Conflicting runtime definitions for '{id}' in {file.Source.RelativePath}. Add explicit correction intent or distinct IDs.");
                     continue;
                 }

@@ -1,11 +1,11 @@
-using AuroraTranslator.Models;
+using Aurora.Content.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace AuroraTranslator
+namespace Aurora.Content
 {
     /// <summary>
     /// Shared helpers for formatting SRD JSON fields into human-readable strings

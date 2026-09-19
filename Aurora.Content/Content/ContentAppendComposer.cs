@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 
-namespace AuroraTranslator.Content;
+namespace Aurora.Content.Preparation;
 
 /// <summary>Pure, ID-directed extension of a prepared definition. Inputs remain unchanged.</summary>
 public static class ContentAppendComposer

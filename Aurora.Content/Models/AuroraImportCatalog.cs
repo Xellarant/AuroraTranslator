@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace AuroraTranslator.Models
+namespace Aurora.Content.Models
 {
     internal class AuroraImportCatalog
     {

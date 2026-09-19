@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace AuroraTranslator.Content;
+namespace Aurora.Content.Preparation;
 
 // Extracted unchanged from the Translator catalog reader for composition consumers.
 public static class ContentText

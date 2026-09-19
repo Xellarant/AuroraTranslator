@@ -11,7 +11,7 @@ internal static class FollowUpTests
             string root = Path.Combine(workspace.DirectoryPath, "content");
             Directory.CreateDirectory(Path.Combine(root, "core"));
             File.WriteAllText(Path.Combine(root, "core", "fixture.xml"), "<elements>" + xml + "</elements>");
-            AuroraSqliteImporter.ImportFinalized(AuroraTranslator.Program.BuildAuroraImportCatalog(root), TestPaths.SchemaPath, workspace.DatabasePath);
+            AuroraSqliteImporter.ImportFinalized(AuroraCatalogBuilder.BuildAuroraImportCatalog(root), TestPaths.SchemaPath, workspace.DatabasePath);
         }
         internal CharacterEvaluationResult Evaluate(AuroraCharacterStateDocument state)
         {

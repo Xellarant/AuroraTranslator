@@ -5,14 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using static AuroraTranslator.Content.ContentPreparation;
-using Builder.Data.Files;
+using static Aurora.Content.Preparation.ContentPreparation;
+using Aurora.Content.Contracts;
 using Microsoft.Data.Sqlite;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Xml.Linq;
 
-namespace AuroraTranslator.Content;
+namespace Aurora.Content.Preparation;
 
 internal sealed record CorrectionImportResult(bool Success);
 
@@ -26,11 +26,13 @@ internal static class LocalCorrectionSync
 
     public static async Task<CorrectionImportResult> ImportAsync(IReadOnlyList<string> roots, string database,
         Func<IReadOnlyList<string>, string, CancellationToken, Task<CorrectionImportResult>> import,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, ImportProgressReporter? progress = null,
+        Action<string>? diagnostic = null)
     {
-        using var prepared = ContentPreparation.Prepare(roots, cancellationToken);
+        using var prepared = ContentPreparation.Prepare(roots, cancellationToken, progress);
+        diagnostic ??= Console.Error.WriteLine;
         foreach (var operation in prepared.Appends.Where(a => a.Diagnostic != null))
-            Console.Error.WriteLine(operation.Diagnostic);
+            diagnostic(operation.Diagnostic!);
         var files = prepared.Files;
         var managed = prepared.Managed;
         string candidate = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(database))!, ".aurora-candidate-" + Guid.NewGuid().ToString("N") + ".sqlite");
@@ -46,6 +48,7 @@ internal static class LocalCorrectionSync
             var result = await import(prepared.StagedRoots, candidate, cancellationToken);
             if (!result.Success) return result;
             cancellationToken.ThrowIfCancellationRequested();
+            progress?.Report(ContentImportPhase.Activating, 0, 0);
             using (var connection = Open(candidate))
             {
                 Execute(connection, "PRAGMA foreign_keys=ON;");

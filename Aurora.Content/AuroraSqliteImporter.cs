@@ -1,4 +1,4 @@
-using AuroraTranslator.Models;
+using Aurora.Content.Models;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
@@ -6,8 +6,9 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading;
 
-namespace AuroraTranslator
+namespace Aurora.Content
 {
     internal static partial class AuroraSqliteImporter
     {
@@ -15,12 +16,15 @@ namespace AuroraTranslator
 
         // The standalone preparation workflow enters here. Legacy catalog callers
         // remain separate until the canonical identity migration replaces them.
-        internal static void ImportFinalized(AuroraImportCatalog catalog, string schemaPath, string sqlitePath, string srdJsonPath = null)
+        internal readonly record struct ImportSummary(int ElementsWritten, int FilesChanged, int FilesUnchanged);
+
+        internal static ImportSummary ImportFinalized(AuroraImportCatalog catalog, string schemaPath, string sqlitePath, string srdJsonPath = null,
+            ImportProgressReporter progress = null, CancellationToken cancellationToken = default)
         {
             var ids = catalog.Elements.Select(e => e.id).Concat(catalog.Spells.Select(s => s.aurora_id)).ToList();
             if (ids.Any(string.IsNullOrWhiteSpace) || ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
                 throw new InvalidDataException("The SQLite writer requires finalized content with one declaration per nonempty Aurora ID. Run content preparation and resolve conflicts first.");
-            Import(catalog, schemaPath, sqlitePath, srdJsonPath, preservePackageSettings: true);
+            return Import(catalog, schemaPath, sqlitePath, srdJsonPath, preservePackageSettings: true, progress, cancellationToken);
         }
 
         /// <summary>
@@ -31,14 +35,16 @@ namespace AuroraTranslator
         /// when provided the SRD monsters are also imported/updated if their
         /// file has changed.
         /// </summary>
-        public static void Import(
+        public static ImportSummary Import(
             AuroraImportCatalog catalog,
             string schemaPath,
             string sqlitePath,
             string srdJsonPath = null,
-            bool preservePackageSettings = false)
+            bool preservePackageSettings = false,
+            ImportProgressReporter progress = null,
+            CancellationToken cancellationToken = default)
         {
-            var packageKinds = Content.ContentPackageClassification.ForCatalog(catalog);
+            var packageKinds = Preparation.ContentPackageClassification.ForCatalog(catalog);
             Directory.CreateDirectory(Path.GetDirectoryName(sqlitePath) ?? AppContext.BaseDirectory);
 
             using var connection = new SqliteConnection(
@@ -73,8 +79,11 @@ namespace AuroraTranslator
             var changedPaths  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var seenPaths     = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            int filesCompared = 0;
             foreach (var file in catalog.Files)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                progress?.Report(ContentImportPhase.Comparing, filesCompared++, catalog.Files.Count, file.RelativePath);
                 seenPaths.Add(file.RelativePath);
                 string hash = ComputeFileHash(file.FullPath);
                 long contentPackageId = EnsureContentPackage(connection, transaction, file, preservePackageSettings, packageKinds[file.RelativePath]);
@@ -95,7 +104,9 @@ namespace AuroraTranslator
                 long newId = InsertSourceFile(connection, transaction, file, contentPackageId, hash);
                 sourceFileIds[file.RelativePath] = newId;
                 changedPaths.Add(file.RelativePath);
+                if (progress != null) progress.FilesChanged = changedPaths.Count;
             }
+            progress?.Report(ContentImportPhase.Comparing, catalog.Files.Count, catalog.Files.Count);
 
             // Remove source files that are no longer on disk (cascade cleans elements).
             foreach (var (path, existing) in existingFiles)
@@ -105,12 +116,17 @@ namespace AuroraTranslator
             }
 
             int addedElements = 0;
+            int elementsToWrite = progress == null ? 0
+                : catalog.Elements.Count(e => changedPaths.Contains(e.source_file_path ?? string.Empty) && elementTypeIds.ContainsKey(e.type))
+                  + (elementTypeIds.ContainsKey("Spell") ? catalog.Spells.Count(s => changedPaths.Contains(s.source_file_path ?? string.Empty)) : 0);
 
             // ── Elements: only process changed/new files ─────────────────────────
             foreach (var element in catalog.Elements)
             {
                 if (!changedPaths.Contains(element.source_file_path ?? string.Empty)) continue;
                 if (!elementTypeIds.TryGetValue(element.type, out long elementTypeId)) continue;
+                cancellationToken.ThrowIfCancellationRequested();
+                if (progress != null) { progress.ElementsWritten = addedElements; progress.Report(ContentImportPhase.Writing, addedElements, elementsToWrite, element.source_file_path); }
 
                 long elementId = InsertElementBase(
                     connection, transaction, elementTypeId,
@@ -148,6 +164,8 @@ namespace AuroraTranslator
             {
                 if (!changedPaths.Contains(spell.source_file_path ?? string.Empty)) continue;
                 if (!elementTypeIds.TryGetValue("Spell", out long elementTypeId)) continue;
+                cancellationToken.ThrowIfCancellationRequested();
+                if (progress != null) { progress.ElementsWritten = addedElements; progress.Report(ContentImportPhase.Writing, addedElements, elementsToWrite, spell.source_file_path); }
 
                 long elementId = InsertElementBase(
                     connection, transaction, elementTypeId,
@@ -177,6 +195,9 @@ namespace AuroraTranslator
             if (!string.IsNullOrEmpty(srdJsonPath) && File.Exists(srdJsonPath))
                 srdAdded = ImportSrdCreaturesIfChanged(connection, transaction, srdJsonPath);
 
+            if (progress != null) { progress.ElementsWritten = addedElements; progress.Report(ContentImportPhase.Resolving, 0, 0); }
+            cancellationToken.ThrowIfCancellationRequested();
+
             // Re-resolve precedence-sensitive relationships every run so package
             // changes take effect even when XML file contents are unchanged.
             RefreshPrecedenceResolution(connection, transaction);
@@ -197,6 +218,7 @@ namespace AuroraTranslator
                 Console.WriteLine($"SRD creatures: {srdAdded} creatures imported/updated.");
             else if (!string.IsNullOrEmpty(srdJsonPath))
                 Console.WriteLine("SRD creatures: no changes.");
+            return new ImportSummary(addedElements, changedPaths.Count, skipped);
         }
 
         // Consumers should check this versioned contract before using a new snapshot.
@@ -999,6 +1021,16 @@ LIMIT $sample_count;";
         private static string SqliteLiteral(string value)
             => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 
+        /// <summary>The schema SQL shipped inside this library; used when no schema file path is given.</summary>
+        internal static string ReadEmbeddedSchema()
+        {
+            using Stream stream = typeof(AuroraSqliteImporter).Assembly
+                .GetManifestResourceStream("Aurora.Content.Data.sqlite-character-loading.sql")
+                ?? throw new InvalidOperationException("The embedded SQLite schema is missing from Aurora.Content.");
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
+        }
+
         private static void EnsureSchema(SqliteConnection connection, string schemaPath)
         {
             // Always run the schema SQL — all DDL uses IF NOT EXISTS / INSERT OR IGNORE guards,
@@ -1010,7 +1042,7 @@ LIMIT $sample_count;";
             // own transaction and deliberately leave FK enforcement OFF during bulk import.
             bool grantColumnsBootstrapped = ApplySchemaBootstrapMigrations(connection);
 
-            string rawSql = File.ReadAllText(schemaPath);
+            string rawSql = schemaPath == null ? ReadEmbeddedSchema() : File.ReadAllText(schemaPath);
             string schemaSql = System.Text.RegularExpressions.Regex.Replace(
                 rawSql,
                 @"^\s*(PRAGMA\s+\S.*?;|BEGIN\s+TRANSACTION\s*;|COMMIT\s*;|ROLLBACK\s*;)\s*$",
@@ -3971,7 +4003,7 @@ WHERE si.select_id IN (SELECT select_id FROM temp.affected_selects)
             SqliteTransaction transaction,
             AuroraFileInfo file,
             bool preservePackageSettings,
-            Content.ContentPackageClassification.FileClassification classification)
+            Preparation.ContentPackageClassification.FileClassification classification)
         {
             ContentPackageDescriptor package = DeriveContentPackage(file, classification.Kind);
 
@@ -5214,7 +5246,7 @@ VALUES
             string root = segments.Length > 0 ? segments[0].Trim() : "local";
             string child = segments.Length > 1 ? segments[1].Trim() : null;
 
-            string packageKind = classifiedKind ?? Content.ContentPackageClassification.FromPath(file.RelativePath ?? "");
+            string packageKind = classifiedKind ?? Preparation.ContentPackageClassification.FromPath(file.RelativePath ?? "");
 
             int precedenceRank = packageKind switch
             {
@@ -6242,7 +6274,7 @@ WHERE support_kind = 'unclassified'
             return monsters.Count;
         }
 
-        private static void InsertSrdCreature(SqliteConnection connection, SqliteTransaction transaction, AuroraTranslator.Models.SrdMonster m)
+        private static void InsertSrdCreature(SqliteConnection connection, SqliteTransaction transaction, Aurora.Content.Models.SrdMonster m)
         {
             var crText           = SrdHelpers.FormatCr(m.ChallengeRating);
             var acText           = SrdHelpers.FormatAc(m.ArmorClass);

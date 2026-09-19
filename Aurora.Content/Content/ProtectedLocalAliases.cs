@@ -1,5 +1,5 @@
 #nullable enable
-using Builder.Data.Files;
+using Aurora.Content.Contracts;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
-namespace AuroraTranslator.Content;
+namespace Aurora.Content.Preparation;
 
 public sealed record LocalAliasPlan(string ProtectedXml, IReadOnlyDictionary<string, string> Aliases);
 

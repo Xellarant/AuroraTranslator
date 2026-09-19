@@ -9,7 +9,7 @@ internal static class ParentAndSourceTests
         internal string Root => Path.Combine(workspace.DirectoryPath, "content");
         internal string Database => workspace.DatabasePath;
         internal void Write(string path, string xml) { var target = Path.Combine(Root, path); Directory.CreateDirectory(Path.GetDirectoryName(target)!); File.WriteAllText(target, xml); }
-        internal void Import() => AuroraSqliteImporter.ImportFinalized(AuroraTranslator.Program.BuildAuroraImportCatalog(Root), TestPaths.SchemaPath, Database);
+        internal void Import() => AuroraSqliteImporter.ImportFinalized(AuroraCatalogBuilder.BuildAuroraImportCatalog(Root), TestPaths.SchemaPath, Database);
         internal string Query(string sql)
         {
             using var c = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Database, Pooling = false }.ToString()); c.Open();

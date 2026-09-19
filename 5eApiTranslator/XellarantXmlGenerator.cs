@@ -1,4 +1,4 @@
-using AuroraTranslator.Models;
+using Aurora.Content.Models;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;

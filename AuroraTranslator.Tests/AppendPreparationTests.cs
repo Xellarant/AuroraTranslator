@@ -1,6 +1,6 @@
 using AuroraTranslator;
-using AuroraTranslator.Content;
-using Builder.Data.Files;
+using Aurora.Content.Preparation;
+using Aurora.Content.Contracts;
 using Microsoft.Data.Sqlite;
 using System.Security.Cryptography;
 using System.Xml.Linq;
@@ -16,7 +16,7 @@ internal static class AppendPreparationTests
         { path = Path.Combine(Root, path); Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllText(path, xml); }
         internal void Import(Action<string>? damage = null) => LocalCorrectionSync.ImportAsync([Root], Database, (roots, candidate, _) =>
         {
-            AuroraSqliteImporter.ImportFinalized(AuroraTranslator.Program.BuildAuroraImportCatalog(roots[0]), TestPaths.SchemaPath, candidate);
+            AuroraSqliteImporter.ImportFinalized(AuroraCatalogBuilder.BuildAuroraImportCatalog(roots[0]), TestPaths.SchemaPath, candidate);
             damage?.Invoke(candidate);
             return Task.FromResult(new CorrectionImportResult(true));
         }).GetAwaiter().GetResult();

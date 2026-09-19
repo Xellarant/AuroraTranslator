@@ -1,5 +1,5 @@
 using AuroraTranslator;
-using AuroraTranslator.Models;
+using Aurora.Content.Models;
 using Microsoft.Data.Sqlite;
 
 var tests = new (string Name, Action Body)[]
@@ -940,14 +940,14 @@ internal static class TestPaths
     }
 
     private static string FindSchemaPath()
-        => DataPath("sqlite-character-loading.sql");
+        => Path.Combine(FindRepositoryRoot(), "Aurora.Content", "Data", "sqlite-character-loading.sql");
 
     private static string FindRepositoryRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
         while (directory != null)
         {
-            string candidate = Path.Combine(directory.FullName, "5eApiTranslator", "Data", "sqlite-character-loading.sql");
+            string candidate = Path.Combine(directory.FullName, "AuroraTranslator.sln");
             if (File.Exists(candidate))
                 return directory.FullName;
 

@@ -1,11 +1,11 @@
 #nullable enable
-using AuroraTranslator.Models;
+using Aurora.Content.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace AuroraTranslator.Content;
+namespace Aurora.Content.Preparation;
 
 internal static class ContentPackageClassification
 {

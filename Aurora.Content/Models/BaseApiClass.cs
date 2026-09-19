@@ -1,4 +1,4 @@
-namespace AuroraTranslator.Models
+namespace Aurora.Content.Models
 {
     public class BaseApiClass
     {

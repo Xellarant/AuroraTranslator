@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Data\sqlite-character-loading.sql" LogicalName="Aurora.Content.Data.sqlite-character-loading.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Aurora.Content.Contracts\Aurora.Content.Contracts.csproj" />
   </ItemGroup>
 

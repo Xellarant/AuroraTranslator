@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AuroraTranslator.Models
+namespace Aurora.Content.Models
 {
     internal class Author
     {

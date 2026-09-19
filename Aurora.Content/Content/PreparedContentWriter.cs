@@ -6,7 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 
-namespace AuroraTranslator.Content;
+namespace Aurora.Content.Preparation;
 
 /// <summary>Validates the candidate against finalized declarations and persists their provenance.</summary>
 internal static class PreparedContentWriter

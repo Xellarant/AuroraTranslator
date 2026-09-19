@@ -18,12 +18,5 @@
     <ProjectReference Include="..\Aurora.Content\Aurora.Content.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="Data\sqlite-character-loading.sql">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-    </Content>
-  </ItemGroup>
-
 </Project>
 

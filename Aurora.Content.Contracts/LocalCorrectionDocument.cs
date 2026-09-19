@@ -9,7 +9,7 @@ using System.Text.Json;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace Builder.Data.Files;
+namespace Aurora.Content.Contracts;
 
 public sealed record LocalCorrection(string Key, string Operation, string TargetId,
     string? ReplacementId, string? OriginalFingerprint, string State = "review-pending",

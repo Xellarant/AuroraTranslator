@@ -1,4 +1,4 @@
-namespace AuroraTranslator
+namespace Aurora.Content
 {
     internal sealed record CharacterWarningResult(
         string WarningKind,

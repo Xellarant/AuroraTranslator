@@ -1,5 +1,5 @@
 #nullable enable
-using Builder.Data.Files;
+using Aurora.Content.Contracts;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,7 +8,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Xml.Linq;
 
-namespace AuroraTranslator.Content;
+namespace Aurora.Content.Preparation;
 
 /// <summary>Owns correction decisions and finalized XML. No database writes or acceptance here.</summary>
 internal sealed class ContentPreparation : IDisposable
@@ -28,12 +28,13 @@ internal sealed class ContentPreparation : IDisposable
     internal List<AppendOperation> Appends { get; } = [];
     internal List<FinalizedElement> Finalized { get; } = [];
 
-    internal static ContentPreparation Prepare(IReadOnlyList<string> roots, CancellationToken cancellation = default)
+    internal static ContentPreparation Prepare(IReadOnlyList<string> roots, CancellationToken cancellation = default,
+        ImportProgressReporter? progress = null)
     {
         var prepared = new ContentPreparation();
         try
         {
-            prepared.Capture(roots, cancellation);
+            prepared.Capture(roots, cancellation, progress);
             prepared.Evaluate(cancellation);
             prepared.FinalizeDeclarations();
             return prepared;
@@ -41,7 +42,7 @@ internal sealed class ContentPreparation : IDisposable
         catch { prepared.Dispose(); throw; }
     }
 
-    private void Capture(IReadOnlyList<string> roots, CancellationToken cancellation)
+    private void Capture(IReadOnlyList<string> roots, CancellationToken cancellation, ImportProgressReporter? progress)
     {
         foreach (var inputRoot in roots)
         {
@@ -50,9 +51,12 @@ internal sealed class ContentPreparation : IDisposable
             StagedRoots.Add(stage);
             if (!stages.TryAdd(root, stage)) throw new InvalidDataException($"Repeated content root: {root}");
             Directory.CreateDirectory(stage);
-            foreach (var path in Directory.EnumerateFiles(root, "*.xml", SearchOption.AllDirectories).OrderBy(p => p, StringComparer.Ordinal))
+            var paths = Directory.EnumerateFiles(root, "*.xml", SearchOption.AllDirectories).OrderBy(p => p, StringComparer.Ordinal).ToList();
+            int captured = 0;
+            foreach (var path in paths)
             {
                 cancellation.ThrowIfCancellationRequested();
+                progress?.Report(ContentImportPhase.Preparing, captured++, paths.Count, Path.GetRelativePath(root, path));
                 // Reject links before capture as well as during origin resolution.
                 for (FileSystemInfo? current = new FileInfo(path); current != null; current = current is FileInfo f ? f.Directory : ((DirectoryInfo)current).Parent)
                 {

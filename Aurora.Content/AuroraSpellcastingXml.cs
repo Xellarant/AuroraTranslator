@@ -1,8 +1,8 @@
-using AuroraTranslator.Models;
+using Aurora.Content.Models;
 using System.Linq;
 using System.Xml.Linq;
 
-namespace AuroraTranslator;
+namespace Aurora.Content;
 
 internal static class AuroraSpellcastingXml
 {

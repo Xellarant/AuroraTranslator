@@ -1,6 +1,6 @@
 using AuroraTranslator;
-using AuroraTranslator.Content;
-using Builder.Data.Files;
+using Aurora.Content.Preparation;
+using Aurora.Content.Contracts;
 using Microsoft.Data.Sqlite;
 using System.Security.Cryptography;
 using System.Xml.Linq;
@@ -30,7 +30,7 @@ internal static class ContentPreparationTests
         internal void Mark(string state = "review-pending", string? local = null) => Write("user/local/fix.xml", LocalCorrectionDocument.Create(local ?? Fixed, Baseline, "core/features.xml", [Replacement(state)]));
         internal void Import(Action<string>? afterWrite = null, bool success = true) => LocalCorrectionSync.ImportAsync([Root], Database, (roots, candidate, _) =>
         {
-            AuroraSqliteImporter.ImportFinalized(AuroraTranslator.Program.BuildAuroraImportCatalog(roots[0]), TestPaths.SchemaPath, candidate);
+            AuroraSqliteImporter.ImportFinalized(AuroraCatalogBuilder.BuildAuroraImportCatalog(roots[0]), TestPaths.SchemaPath, candidate);
             afterWrite?.Invoke(candidate);
             return Task.FromResult(new CorrectionImportResult(success));
         }).GetAwaiter().GetResult();
@@ -134,7 +134,7 @@ internal static class ContentPreparationTests
     internal static void WriterGuard()
     {
         using var w = new Workspace(); w.Write("copy.xml", Baseline);
-        var catalog = AuroraTranslator.Program.BuildAuroraImportCatalog(w.Root);
+        var catalog = AuroraCatalogBuilder.BuildAuroraImportCatalog(w.Root);
         Reject(() => AuroraSqliteImporter.ImportFinalized(catalog, TestPaths.SchemaPath, w.Database), "finalized");
         Require(!File.Exists(w.Database), "Writer opened database before validation");
     }

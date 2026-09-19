@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 
-namespace AuroraTranslator
+namespace Aurora.Content
 {
     internal sealed class AuroraExpressionParseResult
     {

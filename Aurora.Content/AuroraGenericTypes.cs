@@ -1,10 +1,10 @@
-using AuroraTranslator.Models;
+using Aurora.Content.Models;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace AuroraTranslator;
+namespace Aurora.Content;
 
 internal static partial class AuroraSqliteImporter
 {

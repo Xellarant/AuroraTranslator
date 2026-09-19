@@ -2,7 +2,7 @@
 using System.IO;
 using Microsoft.Data.Sqlite;
 
-namespace AuroraTranslator.Content;
+namespace Aurora.Content.Preparation;
 
 public static class ContentDatabase
 {

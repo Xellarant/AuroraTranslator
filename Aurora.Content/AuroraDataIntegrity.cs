@@ -6,7 +6,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Xml.Linq;
 
-namespace AuroraTranslator;
+namespace Aurora.Content;
 
 internal static class AuroraDataIntegrity
 {

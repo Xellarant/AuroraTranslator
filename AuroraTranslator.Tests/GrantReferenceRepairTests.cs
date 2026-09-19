@@ -1,6 +1,6 @@
 using AuroraTranslator;
-using AuroraTranslator.Content;
-using Builder.Data.Files;
+using Aurora.Content.Preparation;
+using Aurora.Content.Contracts;
 using Microsoft.Data.Sqlite;
 using System.Text.Json;
 using System.Xml.Linq;
@@ -63,7 +63,7 @@ internal static class GrantReferenceRepairTests
         File.Copy(Path.Combine(fixtures, "targets.xml"), Path.Combine(root, "core", "repair-targets.xml"), overwrite: false);
         LocalCorrectionSync.ImportAsync([root], work.DatabasePath, (roots, candidate, _) =>
         {
-            AuroraSqliteImporter.ImportFinalized(AuroraTranslator.Program.BuildAuroraImportCatalog(roots[0]), TestPaths.SchemaPath, candidate);
+            AuroraSqliteImporter.ImportFinalized(AuroraCatalogBuilder.BuildAuroraImportCatalog(roots[0]), TestPaths.SchemaPath, candidate);
             return Task.FromResult(new CorrectionImportResult(true));
         }).GetAwaiter().GetResult();
         using var connection = new SqliteConnection($"Data Source={work.DatabasePath};Pooling=False"); connection.Open();

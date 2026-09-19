@@ -119,7 +119,7 @@ internal static class SpellcastingFidelityTests
     }
 
     private static void Import(string source, string database)
-        => AuroraSqliteImporter.Import(AuroraTranslator.Program.BuildAuroraImportCatalog(source), TestPaths.SchemaPath, database);
+        => AuroraSqliteImporter.Import(AuroraCatalogBuilder.BuildAuroraImportCatalog(source), TestPaths.SchemaPath, database);
     private static SqliteConnection Open(string path)
     {
         var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path }.ToString());
