@@ -92,6 +92,10 @@ internal static class PreparedContentWriter
             SELECT s.*,cp.package_key,cp.package_kind,cp.package_name,cp.is_enabled
             FROM content_prepared_sources s JOIN source_files sf ON sf.relative_path=s.relative_path
             JOIN content_packages cp ON cp.content_package_id=sf.content_package_id;
+            CREATE TABLE IF NOT EXISTS content_skipped_files (
+              skip_ordinal INTEGER PRIMARY KEY, file_path TEXT NOT NULL, relative_path TEXT NOT NULL,
+              kind TEXT NOT NULL, detail TEXT NOT NULL, related_path TEXT);
+            DELETE FROM content_skipped_files;
             CREATE TABLE IF NOT EXISTS content_append_operations (
               file_path TEXT NOT NULL, relative_path TEXT NOT NULL, input_sha256 TEXT NOT NULL,
               ordinal INTEGER NOT NULL, target_aurora_id TEXT NOT NULL, operation_xml TEXT NOT NULL,
@@ -131,6 +135,19 @@ internal static class PreparedContentWriter
             command.Parameters.Clear();
             command.Parameters.AddWithValue("$id", d.Id); command.Parameters.AddWithValue("$path", d.Path);
             command.Parameters.AddWithValue("$relative", relativePaths[d.Path]); command.ExecuteNonQuery();
+        }
+        int skipOrdinal = 0;
+        foreach (var skip in prepared.Skipped)
+        {
+            command.CommandText = "INSERT INTO content_skipped_files VALUES ($ordinal,$path,$relative,$kind,$detail,$related)";
+            command.Parameters.Clear();
+            command.Parameters.AddWithValue("$ordinal", skipOrdinal++);
+            command.Parameters.AddWithValue("$path", skip.Path);
+            command.Parameters.AddWithValue("$relative", skip.RelativePath);
+            command.Parameters.AddWithValue("$kind", skip.Kind);
+            command.Parameters.AddWithValue("$detail", skip.Detail);
+            command.Parameters.AddWithValue("$related", (object?)skip.RelatedPath ?? DBNull.Value);
+            command.ExecuteNonQuery();
         }
         foreach (var a in prepared.Appends)
         {

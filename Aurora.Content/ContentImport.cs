@@ -38,11 +38,26 @@ public sealed record ContentImportProgress(
     int ElementsWritten,
     string? CurrentFile);
 
+/// <summary>
+/// Something the import left out, kept so the user can put it right. <see cref="Kind"/> is
+/// "unreadable" (the file could not be interpreted), "conflict" (it redefines an element another
+/// file already declared differently, and no winner may be chosen), "correction" (its correction
+/// markup could not be evaluated) or "append" (one operation was dropped; the rest of the file was
+/// imported). Everything but "append" means none of the file was imported.
+/// </summary>
+public sealed record ContentImportSkip(
+    string Path,
+    string RelativePath,
+    string Kind,
+    string Detail,
+    string? RelatedPath);
+
 public sealed record ContentImportResult(
     int ElementsWritten,
     int FilesChanged,
     int FilesUnchanged,
-    IReadOnlyList<string> Diagnostics);
+    IReadOnlyList<string> Diagnostics,
+    IReadOnlyList<ContentImportSkip> Skipped);
 
 /// <summary>Builds or refreshes a content database in-process.</summary>
 public static class ContentImport
@@ -53,19 +68,27 @@ public static class ContentImport
     /// The database is replaced only after the candidate validates; failures and cancellation leave
     /// the existing database untouched. Throws on failure.
     /// </summary>
+    /// <param name="skipUnusableContent">
+    /// Leaves a file the import cannot use out of this import, listed in
+    /// <see cref="ContentImportResult.Skipped"/> and in the database, instead of refusing the whole
+    /// import over it. The files themselves are never touched, so the next import reads them again.
+    /// Off by default: an import that reports success has otherwise read everything it was given.
+    /// </param>
     public static async Task<ContentImportResult> ImportAsync(
         string contentRoot,
         string databasePath,
         IProgress<ContentImportProgress>? progress = null,
         CancellationToken cancellationToken = default,
         Action<string>? onDiagnostic = null,
-        string? srdMonstersJsonPath = null)
+        string? srdMonstersJsonPath = null,
+        bool skipUnusableContent = false)
     {
         if (!Directory.Exists(contentRoot))
             throw new DirectoryNotFoundException($"Aurora path was not found: {contentRoot}");
 
         var reporter = progress == null ? null : new ImportProgressReporter(progress);
         var diagnostics = new List<string>();
+        var skipped = new List<ContentImportSkip>();
         AuroraSqliteImporter.ImportSummary summary = default;
         await LocalCorrectionSync.ImportAsync(new[] { contentRoot }, databasePath,
             (roots, candidate, cancellation) =>
@@ -75,9 +98,10 @@ public static class ContentImport
                 return Task.FromResult(new CorrectionImportResult(true));
             },
             cancellationToken, reporter,
-            diagnostic => { diagnostics.Add(diagnostic); onDiagnostic?.Invoke(diagnostic); });
+            diagnostic => { diagnostics.Add(diagnostic); onDiagnostic?.Invoke(diagnostic); },
+            skipUnusableContent, skipped.AddRange);
         reporter?.Report(ContentImportPhase.Complete, 0, 0);
-        return new(summary.ElementsWritten, summary.FilesChanged, summary.FilesUnchanged, diagnostics);
+        return new(summary.ElementsWritten, summary.FilesChanged, summary.FilesUnchanged, diagnostics, skipped);
     }
 }
 

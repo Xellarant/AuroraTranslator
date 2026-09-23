@@ -73,7 +73,12 @@ var tests = new (string Name, Action Body)[]
     ("reader treats unprepared databases as stale", ContentDatabaseReaderTests.UnpreparedDatabasesAreStale),
     ("reader returns metadata and health", ContentDatabaseReaderTests.MetadataAndHealth),
     ("padded references still resolve", ContentReferenceHygieneTests.PaddedReferencesStillResolve),
-    ("an unreadable root names the file", ContentReferenceHygieneTests.UnreadableRootNamesTheFile)
+    ("an unreadable root names the file", ContentReferenceHygieneTests.UnreadableRootNamesTheFile),
+    ("an unreadable file is skipped and reported", ContentSkipTests.AnUnreadableFileIsSkippedAndReported),
+    ("conflicting definitions skip the later file", ContentSkipTests.ConflictingDefinitionsSkipTheLaterFile),
+    ("skipping is opt-in", ContentSkipTests.WithoutPermissionTheImportStillRefuses),
+    ("a fixed file stops being reported", ContentSkipTests.FixingTheFileClearsTheReport),
+    ("an unusable append leaves the rest of its file", ContentSkipTests.AnUnusableAppendLeavesTheRestOfItsFile)
 };
 
 if (args.Length > 0)

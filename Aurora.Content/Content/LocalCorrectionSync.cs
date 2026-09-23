@@ -27,12 +27,16 @@ internal static class LocalCorrectionSync
     public static async Task<CorrectionImportResult> ImportAsync(IReadOnlyList<string> roots, string database,
         Func<IReadOnlyList<string>, string, CancellationToken, Task<CorrectionImportResult>> import,
         CancellationToken cancellationToken = default, ImportProgressReporter? progress = null,
-        Action<string>? diagnostic = null)
+        Action<string>? diagnostic = null, bool skipUnusable = false,
+        Action<IReadOnlyList<ContentImportSkip>>? onSkipped = null)
     {
-        using var prepared = ContentPreparation.Prepare(roots, cancellationToken, progress);
+        using var prepared = ContentPreparation.Prepare(roots, cancellationToken, progress, skipUnusable);
         diagnostic ??= Console.Error.WriteLine;
         foreach (var operation in prepared.Appends.Where(a => a.Diagnostic != null))
             diagnostic(operation.Diagnostic!);
+        foreach (var skip in prepared.Skipped)
+            diagnostic($"content-skipped ({skip.Kind}): {skip.Detail}");
+        onSkipped?.Invoke(prepared.Skipped);
         var files = prepared.Files;
         var managed = prepared.Managed;
         string candidate = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(database))!, ".aurora-candidate-" + Guid.NewGuid().ToString("N") + ".sqlite");

@@ -29,6 +29,32 @@ public static class ContentDatabaseReader
     public static IReadOnlyList<LocalCorrectionStatus> ReadLocalCorrections(string databasePath) =>
         LocalCorrectionSync.ReadStatuses(databasePath);
 
+    /// <summary>
+    /// What the last import left out, for the user to put right. Empty for a database imported
+    /// without <c>skipUnusableContent</c>, which refuses rather than skips. The list is rewritten
+    /// by every import, so a file that has been fixed stops appearing and one that has not is
+    /// reported again.
+    /// </summary>
+    public static IReadOnlyList<ContentImportSkip> ReadSkippedContent(string databasePath)
+    {
+        if (!File.Exists(databasePath)) return [];
+        using var connection = ContentDatabase.OpenReadableConnection(databasePath);
+        using (var tableCheck = connection.CreateCommand())
+        {
+            tableCheck.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='content_skipped_files';";
+            if ((long)(tableCheck.ExecuteScalar() ?? 0L) == 0) return [];
+        }
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT file_path,relative_path,kind,detail,related_path FROM content_skipped_files ORDER BY skip_ordinal";
+        var skipped = new List<ContentImportSkip>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            skipped.Add(new ContentImportSkip(reader.GetString(0), reader.GetString(1), reader.GetString(2),
+                reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4)));
+        return skipped;
+    }
+
     /// <summary>The effective content of a managed local correction file, or null when it is not managed.</summary>
     public static LocalCorrectionRuntimeContent? ReadLocalCorrectionContent(string filePath, string databasePath) =>
         LocalCorrectionSync.ReadRuntimeContent(filePath, databasePath);
