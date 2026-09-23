@@ -156,31 +156,31 @@ internal sealed class ContentPreparation : IDisposable
         }
         foreach (var entry in Managed.ToList())
         {
-          try
-          {
-            string stage = Stage(entry.File);
-            var effective = LocalCorrectionDocument.Parse(entry.Evaluation.EffectiveXml);
-            var local = LocalCorrectionDocument.Parse(entry.Evaluation.LocalXml);
-            local.Root!.Elements().Where(e => e.Name != "info").Remove();
-            // Additions belong to the local supplier. Replacements/renames retain
-            // the corrected source's attribution. The v1 evaluator remains intact.
-            var additions = entry.Evaluation.Corrections.Where(c => c.Operation == "add" && c.State == "review-pending")
-                .Select(c => c.TargetId).ToHashSet(StringComparer.Ordinal);
-            var upstreamIds = LocalCorrectionDocument.Parse(entry.Evaluation.UpstreamXml).Root!.Elements("element")
-                .Select(e => (string?)e.Attribute("id")).ToHashSet(StringComparer.Ordinal);
-            foreach (var element in effective.Root!.Elements("element").Where(e => additions.Contains((string?)e.Attribute("id") ?? "") && !upstreamIds.Contains((string?)e.Attribute("id"))).ToArray())
+            try
             {
-                element.Remove();
-                local.Root.Add(element);
+                string stage = Stage(entry.File);
+                var effective = LocalCorrectionDocument.Parse(entry.Evaluation.EffectiveXml);
+                var local = LocalCorrectionDocument.Parse(entry.Evaluation.LocalXml);
+                local.Root!.Elements().Where(e => e.Name != "info").Remove();
+                // Additions belong to the local supplier. Replacements/renames retain
+                // the corrected source's attribution. The v1 evaluator remains intact.
+                var additions = entry.Evaluation.Corrections.Where(c => c.Operation == "add" && c.State == "review-pending")
+                    .Select(c => c.TargetId).ToHashSet(StringComparer.Ordinal);
+                var upstreamIds = LocalCorrectionDocument.Parse(entry.Evaluation.UpstreamXml).Root!.Elements("element")
+                    .Select(e => (string?)e.Attribute("id")).ToHashSet(StringComparer.Ordinal);
+                foreach (var element in effective.Root!.Elements("element").Where(e => additions.Contains((string?)e.Attribute("id") ?? "") && !upstreamIds.Contains((string?)e.Attribute("id"))).ToArray())
+                {
+                    element.Remove();
+                    local.Root.Add(element);
+                }
+                File.WriteAllText(LocalCorrectionDocument.ResolveSourcePath(stage, entry.Evaluation.SourcePath), effective.ToString(SaveOptions.DisableFormatting));
+                File.WriteAllText(Path.Combine(stage, entry.File.Relative), local.ToString(SaveOptions.DisableFormatting));
             }
-            File.WriteAllText(LocalCorrectionDocument.ResolveSourcePath(stage, entry.Evaluation.SourcePath), effective.ToString(SaveOptions.DisableFormatting));
-            File.WriteAllText(Path.Combine(stage, entry.File.Relative), local.ToString(SaveOptions.DisableFormatting));
-          }
-          catch (Exception ex) when (CanSkip(ex))
-          {
-            Discard(entry.File, "correction", $"Correction staging failed for {entry.File.Path}: {ex.Message}");
-            Managed.Remove(entry);
-          }
+            catch (Exception ex) when (CanSkip(ex))
+            {
+                Discard(entry.File, "correction", $"Correction staging failed for {entry.File.Path}: {ex.Message}");
+                Managed.Remove(entry);
+            }
         }
     }
 
