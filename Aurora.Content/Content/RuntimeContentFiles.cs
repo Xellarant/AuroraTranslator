@@ -58,7 +58,7 @@ public static class RuntimeContentFiles
             ?? new(path, Path.GetRelativePath(root, path), "runtime-xml", "homebrew");
         foreach (var (path, input) in files.OrderBy(f => f.Key, comparer))
         {
-            var document = LocalCorrectionDocument.Parse(input.Xml);
+            var document = LocalCorrectionDocument.Parse(input.Xml, path);
             if (LocalCorrectionDocument.HasMetadata(input.Xml))
             {
                 var evaluation = LocalCorrectionDocument.FromFile(path, input.Root)

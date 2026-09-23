@@ -26,13 +26,21 @@ public static class LocalCorrectionDocument
     public const string Namespace = "urn:aurora-lights:corrections:1";
     private static readonly XNamespace Ns = Namespace;
 
-    public static XDocument Parse(string xml)
+    /// <param name="origin">The file the content came from, named in errors so a bad file can be found.</param>
+    public static XDocument Parse(string xml, string? origin = null)
     {
         using var reader = XmlReader.Create(new StringReader(xml), new XmlReaderSettings
         { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
         var document = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
         if (document.Root?.Name != "elements")
-            throw new InvalidDataException("Correction content must have an unnamespaced elements root.");
+        {
+            // A namespace on the root is the usual cause: <elements xmlns="..."> is a different
+            // element name to XML, so nothing inside it would be recognised as Aurora content.
+            string where = string.IsNullOrWhiteSpace(origin) ? string.Empty : $" in {origin}";
+            string found = document.Root is null ? "no root element" : $"found '{document.Root.Name}'";
+            throw new InvalidDataException(
+                $"Content must have an unnamespaced elements root{where} ({found}).");
+        }
         return document;
     }
 

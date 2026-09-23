@@ -128,7 +128,7 @@ internal sealed class ContentPreparation : IDisposable
         foreach (var file in Files.OrderBy(f => f.Path, StringComparer.Ordinal))
         {
             string stagedPath = Path.Combine(Stage(file), file.Relative);
-            var xml = LocalCorrectionDocument.Parse(File.ReadAllText(stagedPath));
+            var xml = LocalCorrectionDocument.Parse(File.ReadAllText(stagedPath), file.Path);
             documents.Add(file, xml);
             bool ignored = bool.TryParse((string?)xml.Root!.Attribute("ignore"), out bool flag) && flag;
             if (ignored) xml.Root.Elements().Where(e => e.Name != "info").Remove();

@@ -4985,12 +4985,12 @@ LIMIT 1;";
             string attributeId = item?.GetAttribute("id");
             if (LooksLikeAuroraId(attributeId))
             {
-                return attributeId;
+                return NormalizeAuroraId(attributeId);
             }
 
             if (LooksLikeAuroraId(item?.value))
             {
-                return item.value;
+                return NormalizeAuroraId(item.value);
             }
 
             return null;
@@ -4999,10 +4999,10 @@ LIMIT 1;";
         private static string GetGrantTargetAuroraId(Grant grant)
         {
             if (LooksLikeAuroraId(grant?.id))
-                return grant.id;
+                return NormalizeAuroraId(grant.id);
 
             if (LooksLikeAuroraId(grant?.name))
-                return grant.name;
+                return NormalizeAuroraId(grant.name);
 
             return null;
         }
@@ -5012,6 +5012,13 @@ LIMIT 1;";
             return !string.IsNullOrWhiteSpace(value)
                 && value.TrimStart().StartsWith("ID_", StringComparison.OrdinalIgnoreCase);
         }
+
+        /// <summary>
+        /// An id reference written with surrounding whitespace names the same element as one written
+        /// without it. References are matched exactly once stored, so the padding is dropped here
+        /// rather than leaving the link unresolved. The element's own id is never rewritten.
+        /// </summary>
+        private static string NormalizeAuroraId(string value) => value?.Trim();
 
         private static string DetermineSelectItemOptionKind(Select select, AuroraItemEntry item, string targetAuroraId)
         {

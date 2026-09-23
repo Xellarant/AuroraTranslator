@@ -71,7 +71,9 @@ var tests = new (string Name, Action Body)[]
     ("refreshes spellcasting ownership after package changes", SpellcastingFidelityTests.PackageResolution),
     ("reader reports stale inputs", ContentDatabaseReaderTests.Staleness),
     ("reader treats unprepared databases as stale", ContentDatabaseReaderTests.UnpreparedDatabasesAreStale),
-    ("reader returns metadata and health", ContentDatabaseReaderTests.MetadataAndHealth)
+    ("reader returns metadata and health", ContentDatabaseReaderTests.MetadataAndHealth),
+    ("padded references still resolve", ContentReferenceHygieneTests.PaddedReferencesStillResolve),
+    ("an unreadable root names the file", ContentReferenceHygieneTests.UnreadableRootNamesTheFile)
 };
 
 if (args.Length > 0)
