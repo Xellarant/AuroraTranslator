@@ -1,3 +1,4 @@
+using Aurora.Content.Preparation;
 using Microsoft.Data.Sqlite;
 
 /// <summary>
@@ -128,6 +129,23 @@ internal static class ContentSkipTests
             "A file that has been fixed stops being reported.");
         Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_LATER'") == 1,
             "and its content is imported.");
+    }
+
+    internal static void SkippedFilesStayOutOfTheRuntimeRead()
+    {
+        using var w = new Workspace();
+        w.Write("core/good.xml", Good);
+        // Under user/, where the runtime overlay reads the files on disk rather than the database.
+        w.Write("user/homebrew.xml", "<elements><element name='Broken' type='Proficiency' source='Test' id='ID_BROKEN'>");
+
+        w.Import(skip: true);
+
+        using var connection = new SqliteConnection($"Data Source={w.Database};Pooling=False");
+        connection.Open();
+        var runtime = RuntimeContentFiles.Read(connection, w.Root, []);
+
+        Require(!runtime.Any(f => f.Source.FilePath.Contains("homebrew.xml", StringComparison.OrdinalIgnoreCase)),
+            "A file the import skipped must not be read back at load time; reading it would fail for the same reason.");
     }
 
     internal static void AnUnusableAppendLeavesTheRestOfItsFile()

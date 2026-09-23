@@ -78,7 +78,8 @@ var tests = new (string Name, Action Body)[]
     ("conflicting definitions skip the later file", ContentSkipTests.ConflictingDefinitionsSkipTheLaterFile),
     ("skipping is opt-in", ContentSkipTests.WithoutPermissionTheImportStillRefuses),
     ("a fixed file stops being reported", ContentSkipTests.FixingTheFileClearsTheReport),
-    ("an unusable append leaves the rest of its file", ContentSkipTests.AnUnusableAppendLeavesTheRestOfItsFile)
+    ("an unusable append leaves the rest of its file", ContentSkipTests.AnUnusableAppendLeavesTheRestOfItsFile),
+    ("skipped files stay out of the runtime read", ContentSkipTests.SkippedFilesStayOutOfTheRuntimeRead)
 };
 
 if (args.Length > 0)

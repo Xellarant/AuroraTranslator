@@ -27,6 +27,7 @@ public static class RuntimeContentFiles
             var source = new PreparedCatalogSource(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3));
             known.TryAdd(Path.GetFullPath(source.FilePath), source);
         }
+        var skipped = ReadSkippedPaths(connection, comparer);
         var files = new Dictionary<string, (string Root, string Xml)>(comparer);
         var roots = new[] { primaryRoot }.Concat(secondaryRoots).Select(Path.GetFullPath).Distinct(comparer).ToArray();
         for (int i = 0; i < roots.Length; i++)
@@ -39,6 +40,9 @@ public static class RuntimeContentFiles
                 // An overlapping secondary root must not reimport primary content.
                 string rel = Path.GetRelativePath(roots[0], path);
                 if (i > 0 && !rel.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) && !Path.IsPathRooted(rel)) continue;
+                // The import decided this file could not be used. Reading it here anyway would
+                // fail the load for the same reason the import skipped it.
+                if (skipped.Contains(path)) continue;
                 files.TryAdd(path, (roots[i], File.ReadAllText(path)));
             }
         }
@@ -92,5 +96,21 @@ public static class RuntimeContentFiles
             .Any(g => g.Select(c => c.State).Distinct().Count() > 1))
             throw new InvalidDataException("Related corrections across files must be reviewed together.");
         return result.Values.ToArray();
+    }
+
+    /// <summary>
+    /// Files the last import left out whole. An append skip is not one of them: that file was
+    /// imported, only one of its operations was dropped.
+    /// </summary>
+    private static HashSet<string> ReadSkippedPaths(SqliteConnection connection, StringComparer comparer)
+    {
+        var skipped = new HashSet<string>(comparer);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='content_skipped_files'";
+        if (Convert.ToInt64(command.ExecuteScalar() ?? 0L) == 0) return skipped;
+        command.CommandText = "SELECT file_path FROM content_skipped_files WHERE kind <> 'append'";
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) skipped.Add(Path.GetFullPath(reader.GetString(0)));
+        return skipped;
     }
 }
