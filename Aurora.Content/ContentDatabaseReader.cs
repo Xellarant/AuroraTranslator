@@ -10,6 +10,12 @@ namespace Aurora.Content;
 /// <summary>Read-only queries over a content database written by <see cref="ContentImport"/>.</summary>
 public static class ContentDatabaseReader
 {
+    /// <summary>The schema version written by this library.</summary>
+    public static int CurrentSchemaVersion => AuroraSqliteImporter.CurrentSchemaVersion;
+
+    /// <summary>The content projection version written by this library.</summary>
+    public static int CurrentDataVersion => AuroraSqliteImporter.CurrentDataVersion;
+
     /// <summary>
     /// True when the database needs an import: it is missing, was not prepared by this library's
     /// current data version, or its recorded XML inputs differ from the files under the roots.
@@ -19,8 +25,10 @@ public static class ContentDatabaseReader
         if (!File.Exists(databasePath)) return true;
         using (var connection = ContentDatabase.OpenReadableConnection(databasePath))
         {
+            var metadata = ReadMetadata(connection);
             if (!PreparedCatalogReader.IsPrepared(connection)
-                || ReadMetadata(connection)?.DataVersion != AuroraSqliteImporter.CurrentDataVersion)
+                || metadata?.SchemaVersion != CurrentSchemaVersion
+                || metadata.DataVersion != CurrentDataVersion)
                 return true;
         }
         return LocalCorrectionSync.IsStale(contentRoots, databasePath) ?? true;
@@ -29,11 +37,30 @@ public static class ContentDatabaseReader
     public static IReadOnlyList<LocalCorrectionStatus> ReadLocalCorrections(string databasePath) =>
         LocalCorrectionSync.ReadStatuses(databasePath);
 
+    /// <summary>Definitions deliberately unavailable until their conflicting declarations are resolved.</summary>
+    public static IReadOnlySet<string> ReadUnavailableIds(string databasePath)
+    {
+        if (!File.Exists(databasePath)) return new HashSet<string>(StringComparer.Ordinal);
+        using var connection = ContentDatabase.OpenReadableConnection(databasePath);
+        return ReadUnavailableIds(connection);
+    }
+
+    internal static IReadOnlySet<string> ReadUnavailableIds(SqliteConnection connection)
+    {
+        var unavailable = new HashSet<string>(StringComparer.Ordinal);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='content_unavailable_elements'";
+        if (Convert.ToInt64(command.ExecuteScalar()) == 0) return unavailable;
+        command.CommandText = "SELECT aurora_id FROM content_unavailable_elements ORDER BY aurora_id";
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) unavailable.Add(reader.GetString(0));
+        return unavailable;
+    }
+
     /// <summary>
-    /// What the last import left out, for the user to put right. Empty for a database imported
-    /// without <c>skipUnusableContent</c>, which refuses rather than skips. The list is rewritten
-    /// by every import, so a file that has been fixed stops appearing and one that has not is
-    /// reported again.
+    /// What the last import left out, for the user to put right: unavailable conflicting IDs,
+    /// and files/operations omitted with <c>skipUnusableContent</c>. The list is rewritten by
+    /// every import, so resolved issues stop appearing and unresolved ones are reported again.
     /// </summary>
     public static IReadOnlyList<ContentImportSkip> ReadSkippedContent(string databasePath)
     {

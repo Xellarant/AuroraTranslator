@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Xml.Linq;
 using Aurora.Content.Contracts;
 using Microsoft.Data.Sqlite;
@@ -27,8 +28,9 @@ public static class RuntimeContentFiles
             var source = new PreparedCatalogSource(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3));
             known.TryAdd(Path.GetFullPath(source.FilePath), source);
         }
-        var skipped = ReadSkippedPaths(connection, comparer);
-        var files = new Dictionary<string, (string Root, string Xml)>(comparer);
+        var skipped = ReadSkippedFiles(connection, comparer);
+        var skippedAppends = ReadSkippedAppends(connection, comparer);
+        var files = new Dictionary<string, RuntimeInput>(comparer);
         var roots = new[] { primaryRoot }.Concat(secondaryRoots).Select(Path.GetFullPath).Distinct(comparer).ToArray();
         for (int i = 0; i < roots.Length; i++)
         {
@@ -40,10 +42,11 @@ public static class RuntimeContentFiles
                 // An overlapping secondary root must not reimport primary content.
                 string rel = Path.GetRelativePath(roots[0], path);
                 if (i > 0 && !rel.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) && !Path.IsPathRooted(rel)) continue;
-                // The import decided this file could not be used. Reading it here anyway would
-                // fail the load for the same reason the import skipped it.
-                if (skipped.Contains(path)) continue;
-                files.TryAdd(path, (roots[i], File.ReadAllText(path)));
+                var input = Capture(path, roots[i]);
+                // Only the rejected revision is excluded. A local repair must be usable without
+                // waiting for another database refresh.
+                if (skipped.TryGetValue(path, out string? rejectedHash) && rejectedHash == input.Sha256) continue;
+                files.TryAdd(path, input);
             }
         }
         // When a managed local file is removed, restore its authoritative file at runtime.
@@ -53,8 +56,9 @@ public static class RuntimeContentFiles
             string local = reader.GetString(0);
             if (File.Exists(local)) continue;
             string origin = LocalCorrectionDocument.ResolveSourcePath(primaryRoot, reader.GetString(1));
-            if (File.Exists(origin)) files[origin] = (primaryRoot, File.ReadAllText(origin));
+            if (File.Exists(origin)) files[origin] = Capture(origin, primaryRoot);
         }
+        var revisions = files.ToDictionary(f => f.Key, f => f.Value.Sha256, comparer);
         var result = new Dictionary<string, PreparedCatalogFile>(comparer);
         var corrected = new HashSet<string>(comparer);
         var corrections = new List<LocalCorrection>();
@@ -65,10 +69,15 @@ public static class RuntimeContentFiles
             var document = LocalCorrectionDocument.Parse(input.Xml, path);
             if (LocalCorrectionDocument.HasMetadata(input.Xml))
             {
-                var evaluation = LocalCorrectionDocument.FromFile(path, input.Root)
-                    ?? throw new InvalidDataException($"Cannot evaluate local correction {path}.");
+                string relative = Path.GetRelativePath(input.Root, path).Replace('\\', '/');
+                if (!relative.StartsWith("user/local/", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Correction metadata is only active inside user/local.");
+                var section = document.Root!.Elements().Single(e => e.Name.LocalName == "corrections");
+                string origin = LocalCorrectionDocument.ResolveSourcePath(input.Root, (string?)section.Attribute("source-path") ?? "");
+                var upstream = Capture(origin, input.Root);
+                revisions[origin] = upstream.Sha256;
+                var evaluation = LocalCorrectionDocument.Evaluate(input.Xml, upstream.Xml);
                 corrections.AddRange(evaluation.Corrections);
-                string origin = LocalCorrectionDocument.ResolveSourcePath(input.Root, evaluation.SourcePath);
                 if (!corrected.Add(origin)) throw new InvalidDataException($"Multiple local corrections target {origin}.");
                 // Match Translator preparation: a new local definition belongs to
                 // its local supplier; replacements keep the authoritative supplier.
@@ -95,22 +104,65 @@ public static class RuntimeContentFiles
         if (corrections.Where(c => c.Group != null).GroupBy(c => c.Group)
             .Any(g => g.Select(c => c.State).Distinct().Count() > 1))
             throw new InvalidDataException("Related corrections across files must be reviewed together.");
-        return result.Values.ToArray();
+        return result.Values.Select(file => RemoveSkippedAppends(file, revisions, skippedAppends)).ToArray();
+    }
+
+    private sealed record RuntimeInput(string Root, string Xml, string Sha256);
+    private sealed record SkippedAppend(string Sha256, int Ordinal, string Xml);
+
+    private static RuntimeInput Capture(string path, string root)
+    {
+        byte[] bytes = File.ReadAllBytes(path);
+        using var reader = new StreamReader(new MemoryStream(bytes));
+        return new(root, reader.ReadToEnd(), Convert.ToHexString(SHA256.HashData(bytes)));
     }
 
     /// <summary>
     /// Files the last import left out whole. An append skip is not one of them: that file was
     /// imported, only one of its operations was dropped.
     /// </summary>
-    private static HashSet<string> ReadSkippedPaths(SqliteConnection connection, StringComparer comparer)
+    private static Dictionary<string, string> ReadSkippedFiles(SqliteConnection connection, StringComparer comparer)
     {
-        var skipped = new HashSet<string>(comparer);
+        var skipped = new Dictionary<string, string>(comparer);
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='content_skipped_files'";
         if (Convert.ToInt64(command.ExecuteScalar() ?? 0L) == 0) return skipped;
-        command.CommandText = "SELECT file_path FROM content_skipped_files WHERE kind <> 'append'";
+        command.CommandText = "SELECT s.file_path,i.sha256 FROM content_skipped_files s JOIN local_correction_inputs i ON i.path=s.file_path WHERE s.kind NOT IN ('append','definition-conflict')";
         using var reader = command.ExecuteReader();
-        while (reader.Read()) skipped.Add(Path.GetFullPath(reader.GetString(0)));
+        while (reader.Read()) skipped[Path.GetFullPath(reader.GetString(0))] = reader.GetString(1);
         return skipped;
+    }
+
+    private static Dictionary<string, List<SkippedAppend>> ReadSkippedAppends(SqliteConnection connection, StringComparer comparer)
+    {
+        var skipped = new Dictionary<string, List<SkippedAppend>>(comparer);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='content_append_operations'";
+        if (Convert.ToInt64(command.ExecuteScalar() ?? 0L) == 0) return skipped;
+        command.CommandText = "SELECT file_path,input_sha256,ordinal,operation_xml FROM content_append_operations WHERE status='skipped'";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            string path = Path.GetFullPath(reader.GetString(0));
+            if (!skipped.TryGetValue(path, out var operations)) skipped[path] = operations = [];
+            operations.Add(new(reader.GetString(1), reader.GetInt32(2), reader.GetString(3)));
+        }
+        return skipped;
+    }
+
+    private static PreparedCatalogFile RemoveSkippedAppends(PreparedCatalogFile file,
+        Dictionary<string, string> revisions, Dictionary<string, List<SkippedAppend>> skipped)
+    {
+        string path = Path.GetFullPath(file.Source.FilePath);
+        if (!revisions.TryGetValue(path, out string? revision) || !skipped.TryGetValue(path, out var operations)) return file;
+        var matches = operations.Where(operation => operation.Sha256 == revision).ToArray();
+        if (matches.Length == 0) return file;
+        var document = LocalCorrectionDocument.Parse(file.Xml, path);
+        var appends = document.Root!.Elements("append").ToArray();
+        foreach (var operation in matches)
+            if (operation.Ordinal >= 0 && operation.Ordinal < appends.Length &&
+                XNode.DeepEquals(appends[operation.Ordinal], XElement.Parse(operation.Xml, LoadOptions.PreserveWhitespace)))
+                appends[operation.Ordinal].Remove();
+        return file with { Xml = document.ToString(SaveOptions.DisableFormatting) };
     }
 }

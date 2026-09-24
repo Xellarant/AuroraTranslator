@@ -53,6 +53,11 @@ public static class PreparedCatalogReader
         if (!IsPrepared(connection)) throw new InvalidDataException("A materialized, unrestricted content preparation snapshot is required.");
         includeSource ??= _ => true;
         runtimeFiles ??= [];
+        var unavailable = ContentDatabaseReader.ReadUnavailableIds(connection);
+        // Consumers trim reference padding. Keep an excluded identity unavailable through that
+        // lookup too, without changing any persisted definition or declaration identity.
+        var unavailableReferences = unavailable.Select(id => id.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        bool IsUnavailable(string id) => unavailable.Contains(id) || unavailableReferences.Contains(id.Trim());
         var paths = runtimeFiles.Select(f => Path.GetFullPath(f.Source.FilePath)).ToHashSet(
             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         bool Replaced(PreparedCatalogSource source) => paths.Contains(Path.GetFullPath(source.FilePath));
@@ -62,15 +67,16 @@ public static class PreparedCatalogReader
         using (var reader = q.ExecuteReader()) while (reader.Read())
         {
             var source = new PreparedCatalogSource(reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4));
-            if (!Replaced(source) && includeSource(source)) suppliers.TryAdd(reader.GetString(0), source);
+            if (!IsUnavailable(reader.GetString(0)) && !Replaced(source) && includeSource(source)) suppliers.TryAdd(reader.GetString(0), source);
         }
         var definitions = new Dictionary<string, XElement>(StringComparer.Ordinal);
-        var catalogIds = new HashSet<string>(StringComparer.Ordinal);
+        var catalogIds = new HashSet<string>(unavailable, StringComparer.Ordinal);
         q.CommandText = "SELECT aurora_id,base_xml FROM content_prepared_elements ORDER BY aurora_id";
         using (var reader = q.ExecuteReader()) while (reader.Read())
         {
-            var element = XElement.Parse(reader.GetString(1));
             catalogIds.Add(reader.GetString(0));
+            if (IsUnavailable(reader.GetString(0))) continue;
+            var element = XElement.Parse(reader.GetString(1));
             if (suppliers.ContainsKey(reader.GetString(0)) && (includeElement?.Invoke(element) ?? true))
                 definitions.Add(reader.GetString(0), element);
         }
@@ -80,6 +86,7 @@ public static class PreparedCatalogReader
             {
                 string id = (string?)xml.Attribute("id") ?? throw new InvalidDataException("Runtime element has no ID.");
                 catalogIds.Add(id);
+                if (IsUnavailable(id)) continue;
                 if (!(includeElement?.Invoke(xml) ?? true)) continue;
                 if (definitions.TryGetValue(id, out var previous))
                 {
@@ -93,7 +100,7 @@ public static class PreparedCatalogReader
         }
         foreach (var host in hostDefinitions ?? [])
         {
-            if (catalogIds.Contains(host.AuroraId) || !includeSource(host.Source)) continue;
+            if (IsUnavailable(host.AuroraId) || catalogIds.Contains(host.AuroraId) || !includeSource(host.Source)) continue;
             var xml = XElement.Parse(host.Xml);
             if ((string?)xml.Attribute("id") != host.AuroraId) throw new InvalidDataException("Host definition identity mismatch.");
             if (!(includeElement?.Invoke(xml) ?? true)) continue;
@@ -107,7 +114,7 @@ public static class PreparedCatalogReader
         }
         var unbound = new List<PreparedCatalogAppend>();
         var operations = new List<PreparedCatalogAppend>();
-        q.CommandText = "SELECT file_path,relative_path,package_key,package_kind,ordinal,target_aurora_id,operation_xml,status FROM v_content_append_operations ORDER BY file_path,ordinal";
+        q.CommandText = "SELECT file_path,relative_path,package_key,package_kind,ordinal,target_aurora_id,operation_xml,status FROM v_content_append_operations WHERE status <> 'skipped' ORDER BY file_path,ordinal";
         using (var reader = q.ExecuteReader()) while (reader.Read())
         {
             var source = new PreparedCatalogSource(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3));
@@ -127,6 +134,7 @@ public static class PreparedCatalogReader
         }
         foreach (var operation in operations.OrderBy(o => o.Source.FilePath, StringComparer.Ordinal).ThenBy(o => o.Ordinal))
         {
+            if (IsUnavailable(operation.TargetId)) continue;
             if (definitions.TryGetValue(operation.TargetId, out var definition))
                 definitions[operation.TargetId] = ContentAppendComposer.Apply(definition, XElement.Parse(operation.Xml));
             else if (!catalogIds.Contains(operation.TargetId)) unbound.Add(operation);

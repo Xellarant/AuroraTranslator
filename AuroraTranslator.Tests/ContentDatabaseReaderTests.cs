@@ -63,11 +63,26 @@ internal static class ContentDatabaseReaderTests
         Require(ContentDatabaseReader.ReadHealth(w.Database) == null, "A missing database has no health report");
         w.Import();
         var metadata = ContentDatabaseReader.ReadMetadata(w.Database) ?? throw new Exception("Metadata missing");
-        Require(metadata.DataVersion == AuroraSqliteImporter.CurrentDataVersion, $"Data version {metadata.DataVersion}");
+        Require(metadata.SchemaVersion == ContentDatabaseReader.CurrentSchemaVersion, $"Schema version {metadata.SchemaVersion}");
+        Require(metadata.DataVersion == ContentDatabaseReader.CurrentDataVersion, $"Data version {metadata.DataVersion}");
         Require(metadata.ElementCount > 0 && metadata.SourceFileCount == 1, $"Counts {metadata.ElementCount}/{metadata.SourceFileCount}");
         var health = ContentDatabaseReader.ReadHealth(w.Database) ?? throw new Exception("Health missing");
         Require(health.Status == ContentDatabaseHealthStatus.Healthy && health.BlockingIssueCount == 0,
             $"Health {health.Status}, {health.BlockingIssueCount} blocking");
         Require(ContentDatabaseReader.ReadLocalCorrections(w.Database).Count == 0, "No corrections expected");
+    }
+
+    internal static void IncompatibleSchemaIsStale()
+    {
+        using var w = new Workspace();
+        w.Import();
+        using (var connection = new SqliteConnection($"Data Source={w.Database};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE database_metadata SET schema_version = schema_version + 1";
+            command.ExecuteNonQuery();
+        }
+        Require(w.IsStale(), "An incompatible schema must not be reported as current merely because its data version matches.");
     }
 }

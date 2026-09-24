@@ -27,12 +27,22 @@ internal sealed class ContentPreparation : IDisposable
     internal IReadOnlyList<Declaration> Declarations => declarations;
     internal List<AppendOperation> Appends { get; } = [];
     internal List<FinalizedElement> Finalized { get; } = [];
-    /// <summary>Files (and append operations) left out of the import, with the reason for each.</summary>
+    internal List<Declaration> UnavailableDeclarations { get; } = [];
+    internal HashSet<string> UnavailableIds { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, string> UnavailableReasons { get; } = new(StringComparer.Ordinal);
+    /// <summary>Unavailable identities and omitted files/operations, with the reason for each.</summary>
     internal List<ContentImportSkip> Skipped { get; } = [];
     private readonly bool skipUnusable;
+    private readonly bool quarantineConflicts;
+    private readonly IReadOnlySet<string> previouslyUnavailableIds;
     private readonly HashSet<string> discarded = new(StringComparer.OrdinalIgnoreCase);
 
-    private ContentPreparation(bool skipUnusable) => this.skipUnusable = skipUnusable;
+    private ContentPreparation(bool skipUnusable, bool quarantineConflicts, IReadOnlySet<string>? previouslyUnavailableIds)
+    {
+        this.skipUnusable = skipUnusable;
+        this.quarantineConflicts = quarantineConflicts;
+        this.previouslyUnavailableIds = previouslyUnavailableIds ?? new HashSet<string>(StringComparer.Ordinal);
+    }
 
     /// <param name="skipUnusable">
     /// Leaves a file that cannot be used out of the import instead of refusing the whole import,
@@ -40,9 +50,10 @@ internal sealed class ContentPreparation : IDisposable
     /// has read every file it was given.
     /// </param>
     internal static ContentPreparation Prepare(IReadOnlyList<string> roots, CancellationToken cancellation = default,
-        ImportProgressReporter? progress = null, bool skipUnusable = false)
+        ImportProgressReporter? progress = null, bool skipUnusable = false,
+        bool quarantineConflicts = false, IReadOnlySet<string>? previouslyUnavailableIds = null)
     {
-        var prepared = new ContentPreparation(skipUnusable);
+        var prepared = new ContentPreparation(skipUnusable, quarantineConflicts, previouslyUnavailableIds);
         try
         {
             prepared.Capture(roots, cancellation, progress);
@@ -57,8 +68,7 @@ internal sealed class ContentPreparation : IDisposable
     private (string Kind, string? RelatedPath)? fault;
 
     /// <summary>
-    /// A fault one file is answerable for: "unreadable" when the file cannot be interpreted,
-    /// "conflict" when it redefines an element another file already declared differently.
+    /// A fault one file is answerable for, such as an unreadable declaration.
     /// </summary>
     private InvalidDataException Fault(string kind, string detail, string? relatedPath = null)
     {
@@ -126,33 +136,49 @@ internal sealed class ContentPreparation : IDisposable
         {
             cancellation.ThrowIfCancellationRequested();
             if (!file.Relative.Replace('\\', '/').StartsWith("user/local/", StringComparison.OrdinalIgnoreCase)) continue;
+            string stagedPath = Path.Combine(Stage(file), file.Relative);
+            XDocument local;
             try
             {
-                var evaluation = LocalCorrectionDocument.FromFile(Path.Combine(Stage(file), file.Relative), Stage(file));
-                if (evaluation != null) Managed.Add(new(file, evaluation));
+                using var reader = System.Xml.XmlReader.Create(new StringReader(File.ReadAllText(stagedPath)),
+                    new System.Xml.XmlReaderSettings { DtdProcessing = System.Xml.DtdProcessing.Prohibit, XmlResolver = null });
+                local = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
+            }
+            catch (System.Xml.XmlException ex)
+            {
+                // A truncated document can hide a correction section after the damaged XML.
+                // Do not infer absence of protected intent from a substring search.
+                throw new InvalidDataException($"Cannot determine correction intent in {file.Path}: repair the malformed local XML before activation. {ex.Message}", ex);
+            }
+            bool marked = local.Root?.Name.LocalName == "corrections" ||
+                local.Root?.Elements().Any(e => e.Name.LocalName == "corrections") == true ||
+                local.Descendants().Any(e => e.Name.NamespaceName.StartsWith("urn:aurora-lights:corrections:", StringComparison.Ordinal));
+            // Local files are not automatically corrections. Let ordinary content use the
+            // normal unreadable-file policy in FinalizeDeclarations.
+            if (!marked) continue;
+            try
+            {
+                var evaluation = LocalCorrectionDocument.FromFile(stagedPath, Stage(file))
+                    ?? throw new InvalidDataException("Correction intent was found without a supported correction section.");
+                Managed.Add(new(file, evaluation));
             }
             catch (Exception ex) when (ex is InvalidDataException || ex is System.Xml.XmlException || ex is IOException)
             {
                 string detail = $"Correction preparation failed for {file.Path}: {ex.Message}";
-                if (!skipUnusable) throw new InvalidDataException(detail, ex);
-                Discard(file, "correction", detail);
+                throw new InvalidDataException(detail, ex);
             }
         }
         var overlaps = Managed.GroupBy(m => LocalCorrectionDocument.ResolveSourcePath(m.File.Root, m.Evaluation.SourcePath), StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).ToList();
         foreach (var overlapping in overlaps)
         {
             string detail = $"Multiple managed files target {overlapping.Key}: {string.Join(", ", overlapping.Select(m => m.File.Path))}. Consolidate or review them first.";
-            if (!skipUnusable) throw new InvalidDataException(detail);
-            // No winner can be chosen between them, so none of them corrects anything this time.
-            foreach (var entry in overlapping) { Discard(entry.File, "correction", detail); Managed.Remove(entry); }
+            throw new InvalidDataException(detail);
         }
         var partials = Managed.SelectMany(m => m.Evaluation.Corrections).Where(c => c.Group != null).GroupBy(c => c.Group).Where(g => g.Select(c => c.State).Distinct().Count() > 1).ToList();
         foreach (var partial in partials)
         {
             string detail = $"Related corrections in group '{partial.Key}' must be reviewed together.";
-            if (!skipUnusable) throw new InvalidDataException(detail);
-            foreach (var entry in Managed.Where(m => m.Evaluation.Corrections.Any(c => c.Group == partial.Key)).ToList())
-            { Discard(entry.File, "correction", detail); Managed.Remove(entry); }
+            throw new InvalidDataException(detail);
         }
         foreach (var entry in Managed.ToList())
         {
@@ -176,10 +202,9 @@ internal sealed class ContentPreparation : IDisposable
                 File.WriteAllText(LocalCorrectionDocument.ResolveSourcePath(stage, entry.Evaluation.SourcePath), effective.ToString(SaveOptions.DisableFormatting));
                 File.WriteAllText(Path.Combine(stage, entry.File.Relative), local.ToString(SaveOptions.DisableFormatting));
             }
-            catch (Exception ex) when (CanSkip(ex))
+            catch (Exception ex) when (ex is InvalidDataException || ex is System.Xml.XmlException || ex is IOException)
             {
-                Discard(entry.File, "correction", $"Correction staging failed for {entry.File.Path}: {ex.Message}");
-                Managed.Remove(entry);
+                throw new InvalidDataException($"Correction staging failed for {entry.File.Path}: {ex.Message}", ex);
             }
         }
     }
@@ -187,25 +212,54 @@ internal sealed class ContentPreparation : IDisposable
     private void FinalizeDeclarations()
     {
         var seen = new Dictionary<string, Declaration>(StringComparer.Ordinal);
-        var spellings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var spellingOrigins = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var documents = new Dictionary<FileState, XDocument>();
         var targets = new Dictionary<string, XElement>(StringComparer.Ordinal);
+        var collected = new List<(FileState File, XElement Element, Declaration Declaration)>();
+        var managedPaths = Managed.SelectMany(m => new[] { m.File.Path,
+            LocalCorrectionDocument.ResolveSourcePath(m.File.Root, m.Evaluation.SourcePath) })
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         // Canonical representatives and all links are independent of app preferences.
         foreach (var file in Files.OrderBy(f => f.Path, StringComparer.Ordinal))
         {
             if (discarded.Contains(file.Path)) continue;
             // Nothing a file declares counts until the file has been read through, so a file that
             // turns out to be unusable leaves no half-read remains in the catalog behind it.
-            int declarationMark = declarations.Count;
-            var claimedIds = new List<string>();
-            var claimedSpellings = new List<string>();
+            var fileDeclarations = new List<(FileState File, XElement Element, Declaration Declaration)>();
             fault = null;
+            XDocument xml;
+            bool misplacedCorrection = false;
             try
             {
                 string stagedPath = Path.Combine(Stage(file), file.Relative);
-                var xml = LocalCorrectionDocument.Parse(File.ReadAllText(stagedPath), file.Path);
-                documents.Add(file, xml);
+                string text = File.ReadAllText(stagedPath);
+                bool outsideLocal = !file.Relative.Replace('\\', '/').StartsWith("user/local/", StringComparison.OrdinalIgnoreCase);
+                // Preserve explicit intent even when malformed XML prevents a complete parse.
+                // After a successful parse, use actual elements so unused namespaces and prose
+                // examples do not turn an ordinary file into a correction.
+                misplacedCorrection = outsideLocal &&
+                    (text.Contains("urn:aurora-lights:corrections:", StringComparison.Ordinal) ||
+                     text.Contains(":corrections", StringComparison.Ordinal) || text.Contains("<corrections", StringComparison.Ordinal));
+                try
+                {
+                    using var reader = System.Xml.XmlReader.Create(new StringReader(text),
+                        new System.Xml.XmlReaderSettings { DtdProcessing = System.Xml.DtdProcessing.Prohibit, XmlResolver = null });
+                    xml = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
+                }
+                catch (System.Xml.XmlException ex) when (misplacedCorrection)
+                {
+                    throw new InvalidDataException($"Correction metadata in {file.Path} is malformed and must be repaired under user/local before importing.", ex);
+                }
+                misplacedCorrection = outsideLocal &&
+                    (xml.Root?.Name.LocalName == "corrections" ||
+                     xml.Root?.Elements().Any(e => e.Name.LocalName == "corrections") == true ||
+                     xml.Descendants().Any(e => e.Name.NamespaceName.StartsWith("urn:aurora-lights:corrections:", StringComparison.Ordinal)));
+                if (misplacedCorrection)
+                    throw new InvalidDataException($"Correction metadata in {file.Path} must be placed under user/local before importing.");
+                if (xml.Root?.Name != "elements")
+                {
+                    string found = xml.Root is null ? "no root element" : $"found '{xml.Root.Name}'";
+                    throw new InvalidDataException($"Content must have an unnamespaced elements root in {file.Path} ({found}).");
+                }
                 bool ignored = bool.TryParse((string?)xml.Root!.Attribute("ignore"), out bool flag) && flag;
                 if (ignored) xml.Root.Elements().Where(e => e.Name != "info").Remove();
                 int ordinal = 0;
@@ -214,30 +268,56 @@ internal sealed class ContentPreparation : IDisposable
                     string id = (string?)element.Attribute("id") ?? "";
                     if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace((string?)element.Attribute("type")))
                         throw Fault("unreadable", $"Missing element id/type in {file.Path}, declaration {ordinal}.");
-                    if (spellings.TryGetValue(id.Trim(), out string? spelling) && spelling != id)
-                        throw Fault("conflict", $"Identity spelling requires review: '{spelling}' and '{id}' in {file.Path}. No case/whitespace normalization was applied.", spellingOrigins.GetValueOrDefault(id.Trim()));
-                    if (!spellings.ContainsKey(id.Trim()))
-                    { claimedSpellings.Add(id.Trim()); spellingOrigins[id.Trim()] = file.Path; }
-                    spellings[id.Trim()] = id;
                     var declaration = new Declaration(id, file.Path, file.Hash, ordinal++, LocalCorrectionDocument.Fingerprint(element), element.ToString(SaveOptions.DisableFormatting));
-                    declarations.Add(declaration);
-                    if (seen.TryGetValue(id, out var previous))
-                    {
-                        if (previous.Fingerprint != declaration.Fingerprint)
-                            throw Fault("conflict", $"duplicate-element-id: '{id}' has conflicting definitions: {previous.Path} declaration {previous.Ordinal} ({previous.Fingerprint}) and {file.Path} declaration {declaration.Ordinal} ({declaration.Fingerprint}). Review these revisions and supply an explicit correction; no winner was selected.", previous.Path);
-                        element.Remove();
-                    }
-                    else { seen.Add(id, declaration); targets.Add(id, element); claimedIds.Add(id); }
+                    fileDeclarations.Add((file, element, declaration));
                 }
             }
-            catch (Exception ex) when (CanSkip(ex))
+            catch (Exception ex) when (CanSkip(ex) && !managedPaths.Contains(file.Path) && !misplacedCorrection)
             {
-                declarations.RemoveRange(declarationMark, declarations.Count - declarationMark);
-                foreach (string id in claimedIds) { seen.Remove(id); targets.Remove(id); }
-                foreach (string key in claimedSpellings) { spellings.Remove(key); spellingOrigins.Remove(key); }
-                documents.Remove(file);
                 Discard(file, fault?.Kind ?? "unreadable", ex.Message, fault?.RelatedPath);
+                continue;
             }
+            documents.Add(file, xml);
+            collected.AddRange(fileDeclarations);
+        }
+
+        // Inspect every supplier before selecting identical representatives. No path-order
+        // winner is meaningful when definitions differ, even within one input file.
+        var protectedIds = Managed.SelectMany(m => m.Evaluation.Corrections)
+            .SelectMany(c => new[] { c.TargetId, c.ReplacementId }).Where(id => id != null)
+            .Select(id => id!.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in collected.GroupBy(d => d.Declaration.Id.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            var entries = group.ToList();
+            var ids = entries.Select(d => d.Declaration.Id).Distinct(StringComparer.Ordinal).ToList();
+            bool conflict = ids.Count > 1 || entries.Select(d => d.Declaration.Fingerprint).Distinct().Skip(1).Any();
+            if (!conflict)
+            {
+                var first = entries[0];
+                seen.Add(first.Declaration.Id, first.Declaration);
+                targets.Add(first.Declaration.Id, first.Element);
+                declarations.AddRange(entries.Select(d => d.Declaration));
+                foreach (var duplicate in entries.Skip(1)) duplicate.Element.Remove();
+                continue;
+            }
+
+            string suppliers = string.Join("; ", entries.Select(d => $"{d.File.Path} declaration {d.Declaration.Ordinal} ({d.Declaration.Fingerprint})"));
+            string detail = $"duplicate-element-id: {string.Join(", ", ids.Select(id => $"'{id}'"))} has conflicting definitions: {suppliers}.";
+            if (protectedIds.Contains(group.Key))
+                throw new InvalidDataException(detail + " An explicit correction targets this identity; resolve the conflict before activation. The existing database was preserved.");
+            if (!quarantineConflicts && ids.Any(id => !previouslyUnavailableIds.Contains(id)))
+                throw new InvalidDataException(detail + " Resolve the conflict before refreshing; the existing database was preserved and no winner was selected.");
+
+            // Include trimmed aliases because consumers trim declaration IDs. This masks
+            // availability only; it never rewrites authored identities or references.
+            foreach (string id in ids.Concat(ids.Select(id => id.Trim())).Distinct(StringComparer.Ordinal))
+            {
+                UnavailableIds.Add(id);
+                UnavailableReasons.Add(id, detail + " This definition is unavailable until the conflict is resolved and the database refreshed.");
+                RecordSkip(entries[0].File, "definition-conflict", UnavailableReasons[id], entries.Skip(1).FirstOrDefault().File?.Path);
+            }
+            UnavailableDeclarations.AddRange(entries.Select(d => d.Declaration));
+            foreach (var entry in entries) entry.Element.Remove();
         }
 
         // All base/corrected declarations exist before extensions are interpreted.
@@ -249,6 +329,13 @@ internal sealed class ContentPreparation : IDisposable
                 string id = (string?)append.Attribute("id") ?? "";
                 string raw = append.ToString(SaveOptions.DisableFormatting);
                 string? diagnostic = null;
+                if (UnavailableIds.Contains(id) || UnavailableIds.Any(unavailable => string.Equals(unavailable.Trim(), id.Trim(), StringComparison.OrdinalIgnoreCase)))
+                {
+                    diagnostic = $"append-target-unavailable: {file.Path}, append {ordinal}, target '{id}' has conflicting definitions. The operation is retained without applying it.";
+                    Appends.Add(new(file, ordinal++, id, raw, "unavailable-target", diagnostic));
+                    append.Remove();
+                    continue;
+                }
                 try
                 {
                     if (string.IsNullOrWhiteSpace(id)) throw new InvalidDataException($"append-missing-id: {file.Path}, append {ordinal}.");

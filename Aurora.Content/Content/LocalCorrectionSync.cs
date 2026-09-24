@@ -30,7 +30,30 @@ internal static class LocalCorrectionSync
         Action<string>? diagnostic = null, bool skipUnusable = false,
         Action<IReadOnlyList<ContentImportSkip>>? onSkipped = null)
     {
-        using var prepared = ContentPreparation.Prepare(roots, cancellationToken, progress, skipUnusable);
+        bool firstImport = !File.Exists(database);
+        var previouslyUnavailable = firstImport ? new HashSet<string>(StringComparer.Ordinal) : ContentDatabaseReader.ReadUnavailableIds(database);
+        using var prepared = ContentPreparation.Prepare(roots, cancellationToken, progress, skipUnusable,
+            quarantineConflicts: firstImport, previouslyUnavailableIds: previouslyUnavailable);
+        var unreadableFiles = prepared.Skipped.Where(s => s.Kind == "unreadable").ToArray();
+        if (previouslyUnavailable.Count > 0 && unreadableFiles.Length > 0)
+        {
+            // An unreadable former supplier does not prove that its conflicting declaration
+            // was repaired. Never promote the remaining supplier merely because this one
+            // cannot participate in the current comparison.
+            using var previous = ContentDatabase.OpenReadableConnection(database);
+            using var suppliers = previous.CreateCommand();
+            suppliers.CommandText = "SELECT aurora_id FROM content_declaration_provenance WHERE file_path=$path" +
+                (OperatingSystem.IsWindows() ? " COLLATE NOCASE" : "");
+            var pathParameter = suppliers.Parameters.Add("$path", SqliteType.Text);
+            foreach (var unreadable in unreadableFiles)
+            {
+                pathParameter.Value = Path.GetFullPath(unreadable.Path);
+                using var reader = suppliers.ExecuteReader();
+                while (reader.Read())
+                    if (previouslyUnavailable.Contains(reader.GetString(0)))
+                        throw new InvalidDataException($"Cannot resolve the existing conflict for '{reader.GetString(0)}': its supplier {unreadable.Path} could not be read. Repair or deliberately remove that supplier before refreshing; the existing database was preserved.");
+            }
+        }
         diagnostic ??= Console.Error.WriteLine;
         foreach (var operation in prepared.Appends.Where(a => a.Diagnostic != null))
             diagnostic(operation.Diagnostic!);
@@ -83,7 +106,9 @@ internal static class LocalCorrectionSync
             // All readers in this module use nonpooled connections; release writer handles too.
             SqliteConnection.ClearAllPools();
             File.Move(candidate, database, overwrite: true);
-            foreach (var entry in managed.Where(m => m.Evaluation.CanRetire))
+            foreach (var entry in managed.Where(m => m.Evaluation.CanRetire &&
+                !LocalCorrectionDocument.Parse(m.Evaluation.EffectiveXml).Root!.Elements("element")
+                    .Any(e => prepared.UnavailableIds.Contains(((string?)e.Attribute("id") ?? "").Trim()))))
             {
                 // Retain the complete XML as a recoverable, non-scanned artifact. If an
                 // editor holds the file open, retry retirement on the next successful sync.

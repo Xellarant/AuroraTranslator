@@ -12,7 +12,8 @@ namespace Aurora.Content
 {
     internal static partial class AuroraSqliteImporter
     {
-        internal const int CurrentDataVersion = 12;
+        internal const int CurrentSchemaVersion = 1;
+        internal const int CurrentDataVersion = 13;
 
         // The standalone preparation workflow enters here. Legacy catalog callers
         // remain separate until the canonical identity migration replaces them.
@@ -239,7 +240,7 @@ INSERT INTO database_metadata
     (singleton_id, schema_version, data_version, importer_version,
      built_utc, source_file_count, element_count, content_root_hash)
 VALUES
-    (1, 1, $data_version, $importer_version, $built_utc, $source_file_count, $element_count, NULL)
+    (1, $schema_version, $data_version, $importer_version, $built_utc, $source_file_count, $element_count, NULL)
 ON CONFLICT(singleton_id) DO UPDATE SET
     schema_version    = excluded.schema_version,
     data_version      = excluded.data_version,
@@ -247,6 +248,7 @@ ON CONFLICT(singleton_id) DO UPDATE SET
     built_utc         = excluded.built_utc,
     source_file_count = excluded.source_file_count,
     element_count     = excluded.element_count;";
+            cmd.Parameters.AddWithValue("$schema_version", CurrentSchemaVersion);
             cmd.Parameters.AddWithValue("$data_version", CurrentDataVersion);
             cmd.Parameters.AddWithValue("$importer_version", "AuroraTranslator/1.0");
             cmd.Parameters.AddWithValue("$built_utc", DateTime.UtcNow.ToString("o"));

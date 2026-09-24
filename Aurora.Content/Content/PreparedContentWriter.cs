@@ -87,6 +87,9 @@ internal static class PreparedContentWriter
               aurora_id TEXT NOT NULL, file_path TEXT NOT NULL, relative_path TEXT NOT NULL,
               PRIMARY KEY(aurora_id,file_path));
             DELETE FROM content_prepared_sources;
+            CREATE TABLE IF NOT EXISTS content_unavailable_elements (
+              aurora_id TEXT PRIMARY KEY, detail TEXT NOT NULL);
+            DELETE FROM content_unavailable_elements;
             DROP VIEW IF EXISTS v_content_prepared_sources;
             CREATE VIEW v_content_prepared_sources AS
             SELECT s.*,cp.package_key,cp.package_kind,cp.package_name,cp.is_enabled
@@ -108,7 +111,7 @@ internal static class PreparedContentWriter
             LEFT JOIN content_packages cp ON cp.content_package_id=sf.content_package_id;
             """;
         command.ExecuteNonQuery();
-        foreach (var d in prepared.Declarations)
+        foreach (var d in prepared.Declarations.Concat(prepared.UnavailableDeclarations))
         {
             command.CommandText = "INSERT INTO content_declaration_provenance VALUES ($path,$hash,$ordinal,$id,$fingerprint,$xml)";
             command.Parameters.Clear();
@@ -118,6 +121,14 @@ internal static class PreparedContentWriter
             command.Parameters.AddWithValue("$id", d.Id);
             command.Parameters.AddWithValue("$fingerprint", d.Fingerprint);
             command.Parameters.AddWithValue("$xml", d.Xml);
+            command.ExecuteNonQuery();
+        }
+        foreach (var id in prepared.UnavailableIds.OrderBy(id => id, StringComparer.Ordinal))
+        {
+            command.CommandText = "INSERT INTO content_unavailable_elements VALUES ($id,$detail)";
+            command.Parameters.Clear();
+            command.Parameters.AddWithValue("$id", id);
+            command.Parameters.AddWithValue("$detail", prepared.UnavailableReasons[id]);
             command.ExecuteNonQuery();
         }
         foreach (var e in prepared.Finalized)

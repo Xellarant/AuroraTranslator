@@ -40,10 +40,10 @@ public sealed record ContentImportProgress(
 
 /// <summary>
 /// Something the import left out, kept so the user can put it right. <see cref="Kind"/> is
-/// "unreadable" (the file could not be interpreted), "conflict" (it redefines an element another
-/// file already declared differently, and no winner may be chosen), "correction" (its correction
-/// markup could not be evaluated) or "append" (one operation was dropped; the rest of the file was
-/// imported). Everything but "append" means none of the file was imported.
+/// "unreadable" (the entire file could not be interpreted), "definition-conflict" (all suppliers
+/// of an ambiguous ID were excluded, leaving unrelated definitions available), or "append"
+/// (one operation was dropped; the rest of the file was imported). Correction failures refuse
+/// activation instead of producing skip records. Older databases may contain other skip kinds.
 /// </summary>
 public sealed record ContentImportSkip(
     string Path,
@@ -66,13 +66,15 @@ public static class ContentImport
     /// Imports one content root through the correction-aware preparation workflow into
     /// <paramref name="databasePath"/>, the same path as the Translator's sqlite-import command.
     /// The database is replaced only after the candidate validates; failures and cancellation leave
-    /// the existing database untouched. Throws on failure.
+    /// the existing database untouched. A first import excludes conflicting IDs and reports them
+    /// as unavailable; later new conflicts refuse activation. Throws on failure.
     /// </summary>
     /// <param name="skipUnusableContent">
     /// Leaves a file the import cannot use out of this import, listed in
     /// <see cref="ContentImportResult.Skipped"/> and in the database, instead of refusing the whole
     /// import over it. The files themselves are never touched, so the next import reads them again.
-    /// Off by default: an import that reports success has otherwise read everything it was given.
+    /// Off by default. This option does not permit invalid corrections or new conflicts during
+    /// refresh; first-import identity quarantine is reported independently of this option.
     /// </param>
     public static async Task<ContentImportResult> ImportAsync(
         string contentRoot,

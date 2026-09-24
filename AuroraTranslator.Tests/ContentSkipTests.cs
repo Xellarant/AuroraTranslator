@@ -70,7 +70,7 @@ internal static class ContentSkipTests
             "The stored skip names the file: " + recorded[0].Path);
     }
 
-    internal static void ConflictingDefinitionsSkipTheLaterFile()
+    internal static void ConflictingDefinitionsLeaveOtherElementsAvailable()
     {
         using var w = new Workspace();
         w.Write("core/a-first.xml",
@@ -81,18 +81,16 @@ internal static class ContentSkipTests
 
         var result = w.Import(skip: true);
 
-        Require(result.Skipped.Count == 1, $"One conflict, one skipped file, not {result.Skipped.Count}.");
+        Require(result.Skipped.Count == 1, $"One conflicted ID, not {result.Skipped.Count}.");
         var skipped = result.Skipped[0];
-        Require(skipped.Kind == "conflict", "A redefinition is reported as a conflict, not " + skipped.Kind);
-        Require(skipped.RelativePath.Contains("b-second.xml", StringComparison.OrdinalIgnoreCase),
-            "The file that redefines an element already declared is the one skipped: " + skipped.RelativePath);
-        Require(skipped.RelatedPath != null && skipped.RelatedPath.Contains("a-first.xml", StringComparison.OrdinalIgnoreCase),
-            "The skip names the file it conflicts with, so the user can compare the two.");
+        Require(skipped.Kind == "definition-conflict", "A redefinition is reported as a definition conflict, not " + skipped.Kind);
+        Require(skipped.Detail.Contains("a-first.xml") && skipped.Detail.Contains("b-second.xml"),
+            "The report names both suppliers for comparison.");
 
-        Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_SHARED'") == 1,
-            "The definition that was already there stands.");
-        Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_OTHER'") == 0,
-            "The rest of the skipped file goes with it; a half-imported file would be worse than none.");
+        Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_SHARED'") == 0,
+            "Neither conflicting definition is selected on first installation.");
+        Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_OTHER'") == 1,
+            "Unrelated definitions in the same file remain available.");
     }
 
     internal static void WithoutPermissionTheImportStillRefuses()

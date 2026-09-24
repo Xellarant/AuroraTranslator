@@ -1,5 +1,168 @@
 # AuroraTranslator data and importer handoff
 
+## Automated lifecycle verification — September 24 follow-up
+
+The previously manual first-import, rejected-refresh, and repair/restart checks
+now have a repeatable Lights rehearsal runner:
+`tools/ContentDatabaseRehearsal/run-policy-checks.ps1`.
+It exercised actual app sync/reporting/full-loader services against disposable
+fixtures in **22 separate processes with 222 passing assertions**, covering both
+values of the skip-content setting. First-import reports named the unavailable ID
+and both suppliers; unrelated definitions and their grant remained loaded.
+Rejected new conflicts and invalid protected metadata preserved exact database
+bytes and the live catalog. Repairs cleared conflict reports, restored the
+canonical definition, and preserved correction intent after a process restart.
+
+Separate cold-start probes confirmed that invalid correction metadata still on
+disk prevents a fresh load despite a valid preserved database. The prepared reader
+re-evaluates runtime local XML; the raw XML fallback also rejects invalid marked
+corrections before publishing (source-verified). Repairing metadata and refreshing
+restores successful fresh-process loading. No last-known correction fallback or
+new authority policy was introduced. This limitation is distinct from activation
+protection and requires a separate policy if offline recovery is desired.
+
+Evidence and scope are recorded in Lights
+`docs/content-conflict-policy-2026-09-24.md`; results are in the local artifact
+`buildtmp/content-policy-smoke-20260924-122340-85b9b7/summary.json`.
+These checks did not render MAUI or exercise character-tab navigation, PDFs, or
+installed platform packages. No live content or saves changed. The three
+functional checks no longer require manual repetition.
+
+## Current conflict and correction policy — September 24, 2026
+
+This section supersedes the historical skip-policy discussion and implementation
+status below. The staged implementation targets **Aurora.Content and
+Aurora.Content.Contracts package 0.7.0, database schema 1, data version 13**.
+Package version, schema version, and data version are separate contracts. Data
+version 13 records unavailable identities; a consumer must honor that contract
+rather than load it as an older projection that could resurrect quarantined
+definitions. Lights obtains the current versions from the library. The strict
+reader still requires a successful refresh of an older data-12 database before
+loading it; preserving the file on failure is recovery protection, not an
+older-format compatibility guarantee. Empty/unusable existing database files
+are not automatically deleted to obtain first-install behavior.
+
+### Conflict handling
+
+- **First installation, with no existing database:** inspect all suppliers before
+  choosing any canonical representatives. Identical same-ID declarations may
+  consolidate with provenance retained. Different definitions of one identity
+  make **every conflicting definition unavailable**; no file-order, timestamp,
+  source-priority, or first-insert winner is selected. Import unrelated definitions
+  from the same files normally. Case/whitespace spelling collisions receive the
+  same unavailable treatment; authored IDs are not silently rewritten.
+- **Refresh with an existing database:** a newly encountered conflict blocks
+  activation and preserves the complete existing database. Do not partly publish
+  unrelated updates beside an arbitrarily selected definition.
+- **Already unavailable identities:** their continued conflict does not prevent
+  later refreshes from updating unrelated content. Resolution and a successful
+  refresh can restore availability. However, skipping an unreadable file that
+  previously supplied a quarantined identity does not prove resolution: that
+  refresh blocks and preserves the existing database rather than promoting the
+  remaining supplier. Old declaration provenance identifies these suppliers.
+- Persist unavailable identities in `content_unavailable_elements` and retain all
+  conflicting declarations and supplier evidence in
+  `content_declaration_provenance`. Reports identify the affected IDs and files.
+  This is a definition-level quarantine, not rejection of all content in those
+  files. Appends to unavailable identities remain inspectable and unapplied.
+- The same unavailable mask applies to database projections, raw runtime XML,
+  secondary-root content, and intrinsic/built-in host definitions. Trimmed,
+  case-insensitive availability checks match spelling-conflict detection without
+  changing persisted IDs. A runtime file or built-in definition cannot become a
+  substitute winner. Referencing grants and selections do not acquire an invented
+  replacement definition.
+
+### Protected intent and ordinary local content
+
+Local XML is not automatically an override or a correction. Well-formed unmarked
+local content participates as ordinary content; it replaces another definition
+only under an explicit supported policy. Embedded correction intent continues to
+be evaluated before canonical preparation and mirrored to the database.
+
+Invalid/unsupported correction metadata, missing or ambiguous correction origins,
+overlapping managed corrections, inconsistent linked groups, or failed protected
+correction evaluation **block activation**. Generic unreadable-file skipping must
+not silently release protected intent or activate the upstream definition instead.
+Malformed local XML whose correction intent cannot be determined also blocks;
+absence of intent cannot be established through a substring search of damaged
+XML. An unresolved conflict involving an explicitly corrected identity blocks
+even on the first installation. Local files are neither deleted nor automatically
+accepted as upstream repairs through conflict handling.
+
+### Evidence, deferred work, and verification status
+
+The September 24 read-only installed-content scan found **20,771 non-local
+declarations representing 20,766 IDs: five structurally identical repeated IDs
+and zero differing canonical definitions**. Local correction overlaps are a
+separate category. Historical duplicate installations and repeated rehearsals of
+the same corpus are not independent upstream-update events, so these counts do
+not establish a probability of encountering a conflict on a refresh. There is no
+empirical basis here for asserting the proposed **greater-than-15% per-refresh**
+threshold is exceeded.
+
+Selective preservation of only affected last-known-good definitions while
+publishing the rest of an update is deferred; the existing-database policy remains
+whole-candidate refusal for new conflicts. The advanced diff/resolution UI and
+physical `UNIQUE(aurora_id)` migration also remain deferred. Preparation and
+candidate validation enforce canonical availability without claiming that the
+physical schema migration has been completed.
+
+Verification: **50 distinct Translator scenarios and 76 focused Lights tests
+passed**, including first-install exclusions, existing database/input hash
+preservation, correction failures, spelling variants, runtime/host/generated
+element masks, repairs, and deferred retirement. The staged Translator build had
+zero warnings/errors. Lights tested the vendored 0.7.0 package. Package provenance
+is recorded in Lights `vendor/nuget/manifest.json`, with `dirtySource: true` over
+base commit `1a4a93a`; this is a local development artifact, not a published release.
+Both repositories remain uncommitted. Manual installed-app/UI/PDF checks remain
+pending. No installed content, character saves, or live database was changed.
+
+## Historical shared-library follow-up — September 23, 2026
+
+This section supersedes historical implementation status below. Aurora Lights now
+uses the shared `Aurora.Content` library in process. The copied `Aurora.Importer`
+and bundled executable were retired in Phase 7; source restrictions apply at
+runtime over the full catalog. Local XML is ordinary content unless it explicitly
+carries correction intent. The full implementation history and parity evidence
+are maintained in [the library split plan](../../Aurora-Lights/docs/translator-library-split-plan.md).
+
+The September 23 follow-up addressed the 0.6.0 import/read mismatch for 0.6.1:
+
+- A persisted append whose status is `skipped` must not be applied by the prepared
+  reader. Runtime XML must likewise omit the exact rejected operation from the
+  unchanged input revision, without dropping valid definitions or other appends.
+  An edited/repaired local file is evaluated anew; an old skip is not a permanent
+  blacklist against its path.
+- The library exposes its current schema/data versions, and Lights uses those
+  values instead of maintaining a separate literal version gate.
+- Lights trims padding on grant references at parsing time, preserves the source
+  XML and declaration IDs, and resolves the trimmed reference during progression.
+- PDF identity lookup uses the full database catalog, including parent races,
+  regardless of obsolete `content_packages.is_enabled` flags.
+- Release workflows no longer restore the deleted importer; CI triggers include
+  the shared package pin/feed and DataIntegration changes.
+- Refresh reporting distinguishes rejected files from rejected append operations.
+
+**Historical policy gap, superseded by the September 24 rules above:** skip-enabled
+imports then retained the first conflicting declaration in path order and skipped
+the later file; they could also omit invalid/overlapping correction files and
+proceed without their corrections. Those behaviors were not an authority decision
+or acceptance of an upstream repair. The September 24 policy replaces them with
+first-install definition quarantine and existing-database preservation; selective
+last-known-good preservation remains deferred.
+
+**Not implemented by this follow-up:** verified-download automatic correction
+acceptance, advanced diff/resolution UI, a physical `UNIQUE(aurora_id)` migration,
+or repairs to the separately recorded pre-existing character round-trip issues.
+Canonical uniqueness continues to be checked during preparation and candidate
+validation. No live content, character saves, or installed database is changed.
+
+Validation and package provenance for this uncommitted checkpoint are recorded in
+[the September 23 fix record](../../Aurora-Lights/docs/content-library-fixes-2026-09-23.md).
+Manual installed-app, UI/PDF, and target-device verification remain required.
+
+---
+
 **Latest work, September 14, 2026:** the append/unrestricted-catalog implementation,
 protected alias drafts, successful isolated verification, and remaining rollout work are in
 [the append follow-up](append-preparation-2026-09-14.md) and section 20. Earlier
@@ -1633,3 +1796,62 @@ instrumented sequential run completed and no causal fix is claimed. Fresh E's
 previous six-unset-element finding is separate from the ASI fix. Reproducible
 self-contained Translator packaging remains a release prerequisite, not a
 blocker for a local worktree UI review. No commit or release was made.
+
+## 27. Required source controls in Settings (2026-09-24)
+
+Aurora Lights now exposes infrastructure under **Required builder sources** in
+both Settings default source restrictions and the shared character source editor.
+Every required row is checked, disabled, and labeled **Always enabled**; the group
+itself cannot be disabled. Source items and groups enforce this in the model, so
+old saved restrictions, direct calls, and bulk toggles cannot turn them off.
+Only actual optional, unchecked sources are persisted as default restrictions.
+
+The host policy recognizes the source names Internal, Core, Aurora Essentials,
+and Aurora Legacy Essentials, ignoring case and surrounding whitespace. The
+stable Source ID ID_SOURCE_AURORA_LEGACY_ESSENTIALS also remains protected if its
+name changes. Internal/Core labels present in the loaded catalog are displayed
+even without separate Source declarations. PHB, DMG, Monster Manual and other
+ordinary rulebooks remain selectable, regardless of a Core label/category on
+their Source declaration. The audit of 210 installed Source declarations found
+Aurora Legacy Essentials was the only declaration explicitly requiring builder
+infrastructure protection; no new publisher or rulebook category was locked.
+
+This is host-side source eligibility and UI behavior, not importer filtering:
+the database still contains all eligible content. No database refresh is needed
+for this change, and the shared library should not drop definitions based on
+these character/default restrictions. RequiredContentPolicy for these controls
+now lives in Aurora.Logic/Services/Sources (the earlier Builder.Data location in
+section 25 is historical).
+
+Validation: 38 focused tests passed across required-source policy, rendered
+source controls, default restriction fallback, source-preference migration, and
+category classification. No live content, character files, or app settings were
+modified for this validation. Rebuild/restart the app for the updated controls.
+
+## 28. Import progress presentation (2026-09-24)
+
+The pinned Aurora.Content 0.7.0 library already emits intermediate Writing
+callbacks. An isolated 2,000-element import through ContentDatabaseService.SyncAsync
+now verifies that real write counts and changing percentages reach StateChanged
+while SyncState is still Syncing, before the completion callback.
+
+Lights previously displayed the same changed-file summary throughout comparing
+and writing. Settings now distinguishes scanning, reading, comparing and writing,
+shows completed/total files or elements and the current file, and keeps an animated
+activity indicator alongside measured progress. Resolving and Activating have no
+measurable totals, so the host displays an indeterminate bar and distinct labels
+rather than leaving a static 90-percent bar. Percentage remains a weighted phase
+share, never an elapsed-time estimate. Long synchronous work between library
+callbacks is not reported as completed by a synthetic timer.
+
+Settings no longer performs correction, skipped-content or metadata SQLite reads
+inside its render path. Diagnostics are read off the UI thread on initialization
+and after refresh/state changes, retaining the previous results during import.
+This avoids repeating synchronous database queries for each progress update.
+No importer, database contract, package pin, or activation policy change is needed.
+
+Validation: all 22 focused progress tests passed, including the isolated real
+sync, and the Windows Release app build passed with zero warnings or errors.
+Installed-app animation during a full user-content refresh remains a visual
+check; this change does not claim reduced importer execution time. Live content,
+character saves and the installed database were not modified for validation.
