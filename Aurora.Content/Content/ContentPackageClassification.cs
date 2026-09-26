@@ -44,11 +44,23 @@ internal static class ContentPackageClassification
 
     internal sealed record FileClassification(string Kind, string PackageKey, string LegacyPackageKey);
 
-    internal static IReadOnlyDictionary<string, FileClassification> ForCatalog(AuroraImportCatalog catalog)
+    internal static IReadOnlyDictionary<string, FileClassification> ForCatalog(AuroraImportCatalog catalog,
+        bool skipUnusable = false, Action<string, string>? diagnostic = null)
     {
+        var ambiguousFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string? ClassifySource(AuroraElement source)
+        {
+            try { return FromSource(source); }
+            catch (InvalidDataException ex) when (skipUnusable)
+            {
+                ambiguousFiles.Add(source.source_file_path ?? "");
+                diagnostic?.Invoke(source.source_file_path ?? "", ex.Message + " Imported without a publisher classification; review the metadata.");
+                return null;
+            }
+        }
         var declarations = catalog.Elements.Where(e => e.type.Equals("Source", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(e.name) && !HasExplicitLocalRoot(e.source_file_path ?? ""))
-            .Select(e => (Name: e.name, Path: e.source_file_path ?? "", Kind: FromSource(e)))
+            .Select(e => (Name: e.name, Path: e.source_file_path ?? "", Kind: ClassifySource(e)))
             .Where(e => e.Kind != null).ToArray();
         var namesByFile = catalog.Elements.Select(e => (Path: e.source_file_path ?? "",
                 Name: e.type.Equals("Source", StringComparison.OrdinalIgnoreCase) ? e.name : e.source))
@@ -69,7 +81,19 @@ internal static class ContentPackageClassification
                 // the supplier of a package with an unambiguous own Source declaration.
                 var evidence = packageSources.Where(d => string.Equals(d.Path, path, StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (evidence.Length == 0) evidence = packageSources.Where(d => names?.Contains(d.Name) == true).ToArray();
-                if (evidence.Length == 0) evidence = packageSources;
+                if (evidence.Length == 0)
+                {
+                    // An aggregate index is a container, not a publisher. Inherit only
+                    // from the nearest containing directory that declares Sources.
+                    string normalized = path.Replace('\\', '/');
+                    var nearby = packageSources.Where(d => normalized.StartsWith(
+                        (System.IO.Path.GetDirectoryName(d.Path)?.Replace('\\', '/') ?? "") + "/", StringComparison.OrdinalIgnoreCase)).ToArray();
+                    if (nearby.Length > 0)
+                    {
+                        int depth = nearby.Max(d => d.Path.Count(c => c is '/' or '\\'));
+                        evidence = nearby.Where(d => d.Path.Count(c => c is '/' or '\\') == depth).ToArray();
+                    }
+                }
                 if (evidence.Length == 0) evidence = declarations.Where(d => names?.Contains(d.Name) == true).ToArray();
                 // Older Source files also call published DMs Guild material
                 // "homebrew". In a published supplement bucket that flag means
@@ -77,9 +101,17 @@ internal static class ContentPackageClassification
                 var categories = evidence.Select(d => d.Kind == "core" ? "official" :
                     d.Kind == "homebrew" && HasPublishedSupplementRoot(path) ? "third-party" : d.Kind!).Distinct().ToArray();
                 if (categories.Length > 1)
-                    throw new InvalidDataException($"Conflicting Source classifications in '{path}': {string.Join(", ", categories)}. Supply unambiguous Source metadata or separate the mixed file; no publisher was inferred.");
+                {
+                    string message = $"Conflicting Source classifications in '{path}': {string.Join(", ", categories)}. Supply unambiguous Source metadata or separate the mixed file; no publisher was inferred.";
+                    if (!skipUnusable) throw new InvalidDataException(message);
+                    kind = "local";
+                    diagnostic?.Invoke(path, message + " The content was imported without a publisher classification.");
+                }
                 if (categories.Length == 1) kind = categories[0];
+                if (categories.Length == 0 && !HasPublishedSupplementRoot(path) && !HasExplicitLocalRoot(path))
+                    kind = "local";
             }
+            if (ambiguousFiles.Contains(path)) kind = "local";
             kindsByFile.Add(path, kind);
         }
         // A collection may ship first-party books beside homebrew. Split only

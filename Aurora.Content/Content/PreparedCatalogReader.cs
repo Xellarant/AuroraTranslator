@@ -42,7 +42,7 @@ public static class PreparedCatalogReader
         var files = contentRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.xml", SearchOption.AllDirectories))
             .Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (!files.SetEquals(recorded.Keys)) return false;
-        return files.All(p => string.Equals(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))), recorded[p], StringComparison.Ordinal));
+        return files.All(p => ContentInputFingerprint.Matches(p, recorded[p]));
     }
 
     public static PreparedCatalogProjection Read(SqliteConnection connection,

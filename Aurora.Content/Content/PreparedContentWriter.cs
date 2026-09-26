@@ -90,6 +90,19 @@ internal static class PreparedContentWriter
             CREATE TABLE IF NOT EXISTS content_unavailable_elements (
               aurora_id TEXT PRIMARY KEY, detail TEXT NOT NULL);
             DELETE FROM content_unavailable_elements;
+            CREATE TABLE IF NOT EXISTS content_rejected_declarations (
+              file_path TEXT NOT NULL, input_sha256 TEXT NOT NULL, ordinal INTEGER NOT NULL,
+              aurora_id TEXT NOT NULL, declaration_xml TEXT NOT NULL,
+              PRIMARY KEY(file_path,ordinal));
+            DELETE FROM content_rejected_declarations;
+            CREATE TABLE IF NOT EXISTS content_definition_resolutions (
+              aurora_id TEXT PRIMARY KEY, kind TEXT NOT NULL, selected_file_path TEXT NOT NULL,
+              input_sha256 TEXT NOT NULL, ordinal INTEGER NOT NULL, previous_file_path TEXT, selected_xml TEXT NOT NULL);
+            DELETE FROM content_definition_resolutions;
+            DROP TABLE IF EXISTS content_definition_suppliers;
+            CREATE TABLE content_definition_suppliers (
+              aurora_id TEXT NOT NULL, file_path TEXT NOT NULL, supplier_kind TEXT NOT NULL,
+              PRIMARY KEY(aurora_id,file_path,supplier_kind));
             DROP VIEW IF EXISTS v_content_prepared_sources;
             CREATE VIEW v_content_prepared_sources AS
             SELECT s.*,cp.package_key,cp.package_kind,cp.package_name,cp.is_enabled
@@ -111,7 +124,7 @@ internal static class PreparedContentWriter
             LEFT JOIN content_packages cp ON cp.content_package_id=sf.content_package_id;
             """;
         command.ExecuteNonQuery();
-        foreach (var d in prepared.Declarations.Concat(prepared.UnavailableDeclarations))
+        foreach (var d in prepared.Declarations.Concat(prepared.UnavailableDeclarations).Concat(prepared.RejectedDeclarations).Where(d => !d.Recovered))
         {
             command.CommandText = "INSERT INTO content_declaration_provenance VALUES ($path,$hash,$ordinal,$id,$fingerprint,$xml)";
             command.Parameters.Clear();
@@ -122,6 +135,33 @@ internal static class PreparedContentWriter
             command.Parameters.AddWithValue("$fingerprint", d.Fingerprint);
             command.Parameters.AddWithValue("$xml", d.Xml);
             command.ExecuteNonQuery();
+        }
+        foreach (var d in prepared.RejectedDeclarations)
+        {
+            command.CommandText = "INSERT INTO content_rejected_declarations VALUES ($path,$hash,$ordinal,$id,$xml)";
+            command.Parameters.Clear();
+            command.Parameters.AddWithValue("$path", d.Path); command.Parameters.AddWithValue("$hash", d.Hash);
+            command.Parameters.AddWithValue("$ordinal", d.Ordinal); command.Parameters.AddWithValue("$id", d.Id);
+            command.Parameters.AddWithValue("$xml", d.Xml); command.ExecuteNonQuery();
+        }
+        foreach (var r in prepared.Resolutions)
+        {
+            command.CommandText = "INSERT INTO content_definition_resolutions VALUES ($id,$kind,$path,$hash,$ordinal,$previous,$xml)";
+            command.Parameters.Clear();
+            command.Parameters.AddWithValue("$id", r.Selected.Id); command.Parameters.AddWithValue("$kind", r.Kind);
+            command.Parameters.AddWithValue("$path", r.Selected.Path); command.Parameters.AddWithValue("$hash", r.Selected.Hash);
+            command.Parameters.AddWithValue("$ordinal", r.Selected.Ordinal);
+            command.Parameters.AddWithValue("$previous", (object?)r.PreviousPath ?? DBNull.Value);
+            command.Parameters.AddWithValue("$xml", r.Xml); command.ExecuteNonQuery();
+            foreach (var supplier in r.Suppliers)
+            {
+                command.CommandText = "INSERT OR IGNORE INTO content_definition_suppliers VALUES ($id,$path,$kind)";
+                command.Parameters.Clear();
+                command.Parameters.AddWithValue("$id", r.Selected.Id);
+                command.Parameters.AddWithValue("$path", supplier.Path);
+                command.Parameters.AddWithValue("$kind", supplier.IsAppend ? "append" : "definition");
+                command.ExecuteNonQuery();
+            }
         }
         foreach (var id in prepared.UnavailableIds.OrderBy(id => id, StringComparer.Ordinal))
         {

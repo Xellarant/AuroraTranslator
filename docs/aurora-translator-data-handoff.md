@@ -1,5 +1,55 @@
 # AuroraTranslator data and importer handoff
 
+## Best-effort imports and established successors — September 25, 2026
+
+This policy supersedes the September 24 blanket conflict rejection below. The source declares Aurora.Content / Aurora.Content.Contracts **0.8.1**, schema **1**, and, after the review fixes below, data version **15**. The additional data version prevents older readers from silently ignoring retained/rejected-definition and unreadable-input decisions. Refresh an existing prepared database to migrate; no installed XML is rewritten. The previously vendored 0.8.0/data-14 packages do not contain these follow-up fixes; consuming the fixes requires the new immutable 0.8.1 packages built from a clean committed tree.
+
+### Import resilience review fixes — September 25 follow-up
+
+- Preparation validates declarations with the same typed parser used to construct the catalog. Missing names and invalid Boolean/integer fields now produce original-file/declaration diagnostics before SQLite writing. Ordinary invalid files use the existing file-level skip/retention policy; protected correction inputs still block. Typed append effects are validated before replacing a target, so a bad operation can be skipped while valid operations in that file continue. Arbitrary writer failures still refuse activation.
+- Spell descriptions beginning with `At Higher Levels.` no longer request a negative substring length. Raw description XML remains preserved.
+- An unreadable known supplier cannot authorize AuroraLegacy succession over an unresolved independent competitor. Keep the prior effective definition until repair or deliberate removal resolves that supplier.
+- Retention includes previously applied append dependencies. An unreadable extension preserves its target's previous effective XML through repeated imports; repair/removal releases retention and current appends apply once. Definition suppliers and append suppliers are recorded separately so a broken append cannot resurrect a deliberately removed base definition.
+- **Explicit user decision:** if a file's bytes cannot be read and there is no verified prior copy, best-effort import skips it with an unreadable diagnostic, including unknown files under `user/local`. Previously working ordinary content is recovered when possible. Known correction files and authoritative files referenced by readable corrections remain protected. This exception concerns failure to capture bytes, not readable malformed correction metadata or malformed local XML.
+- An uncaptured input is recorded with the explicit `unreadable` marker in `local_correction_inputs.sha256`, not a fabricated digest. Runtime readers honor that capture failure while access remains unavailable. Once readable, the file is eligible for evaluation and makes the database stale. If it becomes readable between capture and activation, the candidate is refused and the existing database preserved so the next import can include the new input.
+- The standalone CLI exposes `sqlite-import [auroraPath] [sqlitePath] [--skip-unusable]`. Strict mode remains the default; the switch enables the same policy as the in-process API.
+- The separate question about preserving unchanged runtime declaration decisions across unrelated file edits remains pending. Whole-file revision invalidation remains in effect for now; a refresh can be necessary after those edits.
+
+Added regression cases cover typed failures and cached recovery, heading-only spell descriptions, typed append failures, three-way successor collisions, unreadable append dependencies, deliberate base removal, unknown/known locked inputs, correction protection, an input becoming readable during activation, data-14 migration, and the CLI switch.
+
+Verification: the build completed with **0 warnings and 0 errors**. The full 111-test run passed 108 tests and exposed three stale assertions expecting data version 13. Those assertions now check the current library contract; all three passed on focused rerun. The seven new regression cases passed, including repeated import/runtime recovery and migration. All 111 tests are therefore verified across the full run and focused reruns. The protection test also covers a readable correction referencing a locked source before any database exists. Checks used disposable fixtures and repository regression data; no installed XML, production database, or Aurora Lights files changed. Release packaging targets `artifacts/packages/0.8.1` after committing these changes; the local package manifest records the source commit, clean-tree provenance, and SHA-256 hashes. Vendoring into a consumer remains work for that repository.
+
+- Prefer AuroraLegacy over archived aurorabuilder definitions of the same exact ID when their XML update-file URLs identify `AuroraLegacy/elements` and `aurorabuilder/elements` on `raw.githubusercontent.com`. This is the explicitly approved repository succession rule, not a general trust score. It does not decide between unrelated repositories or divergent AuroraLegacy candidates. Distinct archived definitions remain available. New versions from the established successor can replace earlier accepted definitions.
+- With skip enabled, inspect every declaration before selecting. Ambiguous exact-ID collisions keep the previous **effective XML**, including previously applied append effects. Unaffected definitions update normally. Do not apply current append operations to retained definitions: that would silently change the supposedly preserved mechanics.
+- With no previous working definition, select a **provisional** candidate in ordinal order of normalized relative path, then declaration position (absolute path is only a final tie-break for multiple roots). This is deterministic, not a claim that the choice is authoritative. Log and persist the competing declarations as skipped collisions for later review. Identical declarations still consolidate silently with their provenance retained.
+- Retention survives restarts and repeated refreshes, including a supplier becoming unreadable or all known suppliers becoming unreadable. Preserve cached effective definitions when available; no synthetic declaration is claimed to have come from broken current XML. Remember unreadable supplier paths until repair/removal permits convergence. A successfully parsed sole remaining declaration, identical converged declarations, or an established successor releases retention.
+- An unreadable file's cached content can be recovered without importing its malformed current bytes. The current file is still reported unreadable. Never rewrite source files or promote an alternative merely because a competing file failed to parse.
+- Correction protection is unchanged: invalid metadata, ambiguous correction origins, inconsistent review groups and conflicts involving explicitly protected IDs still block activation. A provisional/retained companion prevents retirement of its local correction file until resolved. Local XML is not automatically an override.
+- Case/padding variants are still unavailable rather than silently rewritten into one ID. Unrelated content still imports. With skip disabled, unresolved first-import conflicts remain unavailable and new unresolved refresh conflicts still block. The established AuroraLegacy succession rule applies in both modes.
+- Aggregate index directories are containers, not publishers. Classification uses a file's own Source declaration, referenced publication, or nearest containing Source declaration; never all unrelated Source records under an aggregate root. Ambiguous publisher flags in skip mode retain game content and report a classification issue. Missing/ambiguous classifications use the existing neutral `local` database bucket, without claiming homebrew/official authorship or treating the content as a correction.
+
+Persistence and reader contract:
+
+- `content_declaration_provenance` retains current valid accepted and rejected declarations.
+- `content_rejected_declarations` records supplier path, captured hash, ordinal, ID and XML for runtime exclusion of that exact rejected revision.
+- `content_definition_resolutions` records provisional/retained/successor decisions, the chosen supplier and effective XML. `content_definition_suppliers` keeps paths and `supplier_kind` (`definition` or `append`) needed for retention across unreadable refreshes. Data-13/14 inputs migrate during candidate preparation; old supplier rows are treated as definition suppliers.
+- `content_prepared_elements` contains the actual selected/retained definition. `content_skipped_files.kind` now also reports `definition-collision`, `superseded-definition` and `classification`; these are **not whole-file exclusions**. `unreadable` still excludes the captured broken runtime file. Consumers must not discard an entire file for a declaration-level collision.
+- Runtime XML reads omit the exact rejected revisions and restore retained effective definitions. New/different XML revisions are re-evaluated, not silently dismissed by a stale path-only decision. Appends to retained definitions remain recorded as skipped so they cannot replay at runtime.
+- Settings distinguishes review issues from successful successor replacements and limits the initial issue display to 30 entries, with access to the full report. SQLite remains the performance cache; ordinary ambiguity must not prevent best-effort availability.
+
+Validation: focused library fixtures cover provisional selection, same-file collisions, unaffected content, effective-XML retention, data-13 migration, repeated imports, unreadable suppliers, repair, authority updates, SQL/runtime parity, aggregate classification, correction protection and retirement. An isolated fixture containing the actual public Oathbreaker and original/Legacy DMG Source files imports 12 elements and classifies Oathbreaker as official. This is not a full master-index or Android-device run. Package provenance must remain marked dirty until source changes are committed and a fresh immutable version is vendored for release.
+
+
+
+### Aurora Lights verification
+
+The vendored 0.8.0 packages passed **41 focused Aurora.Tests tests** for import reporting, database trust, prepared projections and correction metadata. The updated `tools/ContentDatabaseRehearsal/run-policy-checks.ps1` passed **225 assertions in 22 separate processes**, exercising the actual sync and full-loader services with skipping both enabled and disabled. First-install choices, retained definitions, unaffected updates, repair, restart persistence and protected-correction rejection all behaved as intended. Results: `buildtmp/content-policy-smoke-20260925-134305-4d3dae/summary.json` in Aurora Lights. The focused shared-library tests and actual upstream Oathbreaker fixture also pass. Live content, settings and character saves were not modified.
+
+The full recursively fetched master index still needs an Android-device refresh with this build. The installed older APK cannot acquire the new policy solely through a content download. Do not clear app data again to address these known library failures.
+
+
+Android ARM64 Debug build also passed: dotnet build Aurora.App/Aurora.App.csproj -f net10.0-android -r android-arm64 -c Debug -m:1 -p:NuGetAudit=false (0 warnings, 0 errors). Device runtime and the full master-index refresh remain unverified.
+
 ## Automated lifecycle verification — September 24 follow-up
 
 The previously manual first-import, rejected-refresh, and repair/restart checks
@@ -28,9 +78,9 @@ These checks did not render MAUI or exercise character-tab navigation, PDFs, or
 installed platform packages. No live content or saves changed. The three
 functional checks no longer require manual repetition.
 
-## Current conflict and correction policy — September 24, 2026
+## Historical conflict and correction policy — September 24, 2026
 
-This section supersedes the historical skip-policy discussion and implementation
+Historical snapshot, superseded by the September 25 policy above. This section superseded the earlier skip-policy discussion and implementation
 status below. The staged implementation targets **Aurora.Content and
 Aurora.Content.Contracts package 0.7.0, database schema 1, data version 13**.
 Package version, schema version, and data version are separate contracts. Data

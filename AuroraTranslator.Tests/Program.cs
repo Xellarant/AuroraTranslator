@@ -1,9 +1,16 @@
-﻿using AuroraTranslator;
+using AuroraTranslator;
 using Aurora.Content.Models;
 using Microsoft.Data.Sqlite;
 
 var tests = new (string Name, Action Body)[]
 {
+    ("forgiving imports validate typed declarations before writing", ForgivingImportTests.TypedFailures),
+    ("forgiving imports preserve heading-only spells and validate appends", ForgivingImportTests.SpellDescriptionAndAppend),
+    ("forgiving imports retain unreadable independent competitors", ForgivingImportTests.UnreadableIndependentSupplier),
+    ("forgiving imports retain unreadable append effects", ForgivingImportTests.UnreadableAppendSupplier),
+    ("forgiving imports skip locked inputs and recover cached content", ForgivingImportTests.LockedInputs),
+    ("forgiving imports protect locked corrections and input races", ForgivingImportTests.LockedCorrectionAndRace),
+    ("forgiving imports expose an explicit CLI skip option", ForgivingImportTests.CliSkipOption),
     ("append effects survive unrestricted catalog imports", AppendPreparationTests.EffectsAndPreferences),
     ("append follows protected corrections exactly once", AppendPreparationTests.CorrectionsBeforeExtensions),
     ("append unresolved references and failed candidates stay protected", AppendPreparationTests.UnresolvedAndFailedCandidate),
@@ -77,13 +84,18 @@ var tests = new (string Name, Action Body)[]
     ("an unreadable root names the file", ContentReferenceHygieneTests.UnreadableRootNamesTheFile),
     ("an unreadable file is skipped and reported", ContentSkipTests.AnUnreadableFileIsSkippedAndReported),
     ("first import conflicts leave other elements available", ContentSkipTests.ConflictingDefinitionsLeaveOtherElementsAvailable),
+    ("resilient conflicts first choice and runtime", ResilientConflictTests.FirstValidAndRuntime),
+    ("resilient conflicts retention and repair", ResilientConflictTests.RetentionAndRepair),
+    ("resilient conflicts upstream authority", ResilientConflictTests.UpstreamAuthority),
+    ("resilient conflicts unreadable supplier", ResilientConflictTests.UnreadableAlternative),
+    ("resilient conflicts aggregate classification", ResilientConflictTests.AggregateClassification),
     ("first import conflicts exclude only affected IDs", FirstImportConflictTests.ConflictsExcludeOnlyAffectedIds),
     ("first import conflicts same file and spelling", FirstImportConflictTests.SameFileAndSpellingConflictsAreUnavailable),
     ("first import conflicts preserve existing database", FirstImportConflictTests.ExistingDatabaseIsPreservedOnNewConflict),
     ("first import conflicts persist until repair", FirstImportConflictTests.UnavailableIdsPersistUntilRepair),
     ("first import conflicts cannot resurrect at runtime", FirstImportConflictTests.RuntimeAndHostDefinitionsCannotResurrectConflicts),
     ("first import conflicts protect corrections", FirstImportConflictTests.ProtectedCorrectionConflictStopsFirstActivation),
-    ("first import conflicts cannot promote unreadable alternatives", FirstImportConflictTests.UnreadableSupplierCannotPromoteAlternative),
+    ("first import conflicts provisionally recover unreadable alternatives", FirstImportConflictTests.UnreadableSupplierWithoutPreviousDefinitionUsesProvisionalFallback),
     ("first import conflicts block case variant resurrection", FirstImportConflictTests.CaseVariantsCannotResurrectConflicts),
     ("skipping is opt-in", ContentSkipTests.WithoutPermissionTheImportStillRefuses),
     ("a fixed file stops being reported", ContentSkipTests.FixingTheFileClearsTheReport),
@@ -102,7 +114,7 @@ var tests = new (string Name, Action Body)[]
     ("correction activation preserves ordinary local content", CorrectionActivationPolicyTests.OrdinaryLocalContentUsesUnreadablePolicy),
     ("correction activation refuses misplaced metadata", CorrectionActivationPolicyTests.MisplacedMetadataStopsActivation),
     ("correction activation cannot quarantine protected identities", CorrectionActivationPolicyTests.CorrectionTargetsCannotBeQuarantined),
-    ("correction activation retains unavailable companions before retirement", CorrectionActivationPolicyTests.UnavailableCompanionPreventsRetirement)
+    ("correction activation retains unresolved companions before retirement", CorrectionActivationPolicyTests.UnresolvedCompanionPreventsRetirement)
 };
 
 if (args.Length > 0)
@@ -169,7 +181,7 @@ internal static class SpellcastingProfileEntryTests
 
         using var connection = Open(workspace.DatabasePath);
 
-        TestAssert.Equal(13L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Equal((long)ContentDatabaseReader.CurrentDataVersion, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
         TestAssert.Sequence(
             new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
             QueryStrings(connection, "SELECT entry_text FROM spellcasting_profile_entries WHERE entry_kind = 'list' ORDER BY ordinal;"));
@@ -200,7 +212,7 @@ internal static class SpellcastingProfileEntryTests
         AuroraSqliteImporter.ListContentPackages(workspace.DatabasePath, TestPaths.SchemaPath);
 
         using var migrated = Open(workspace.DatabasePath);
-        TestAssert.Equal(13L, ExecuteLong(migrated, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Equal((long)ContentDatabaseReader.CurrentDataVersion, ExecuteLong(migrated, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
         TestAssert.Equal(1L, ExecuteLong(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'spellcasting_profile_entries';"));
         TestAssert.Sequence(
             new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
@@ -221,7 +233,7 @@ internal static class SpellcastingProfileEntryTests
 
         using (var connection = Open(workspace.DatabasePath))
         {
-            TestAssert.Equal(13L, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+            TestAssert.Equal((long)ContentDatabaseReader.CurrentDataVersion, ExecuteLong(connection, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
             ExecuteNonQuery(connection, "DELETE FROM spellcasting_profile_entries;");
             TestAssert.Equal(0L, ExecuteLong(connection, "SELECT COUNT(*) FROM spellcasting_profile_entries;"));
         }
@@ -229,7 +241,7 @@ internal static class SpellcastingProfileEntryTests
         AuroraSqliteImporter.ListContentPackages(workspace.DatabasePath, TestPaths.SchemaPath);
 
         using var repaired = Open(workspace.DatabasePath);
-        TestAssert.Equal(13L, ExecuteLong(repaired, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Equal((long)ContentDatabaseReader.CurrentDataVersion, ExecuteLong(repaired, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
         TestAssert.Sequence(
             new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
             QueryStrings(repaired, "SELECT entry_text FROM spellcasting_profile_entries WHERE entry_kind = 'list' ORDER BY ordinal;"));

@@ -42,7 +42,11 @@ public static class RuntimeContentFiles
                 // An overlapping secondary root must not reimport primary content.
                 string rel = Path.GetRelativePath(roots[0], path);
                 if (i > 0 && !rel.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) && !Path.IsPathRooted(rel)) continue;
-                var input = Capture(path, roots[i]);
+                RuntimeInput input;
+                try { input = Capture(path, roots[i]); }
+                catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) &&
+                    skipped.TryGetValue(path, out string? uncaptured) && uncaptured == ContentInputFingerprint.Unreadable)
+                { continue; }
                 // Only the rejected revision is excluded. A local repair must be usable without
                 // waiting for another database refresh.
                 if (skipped.TryGetValue(path, out string? rejectedHash) && rejectedHash == input.Sha256) continue;
@@ -104,7 +108,8 @@ public static class RuntimeContentFiles
         if (corrections.Where(c => c.Group != null).GroupBy(c => c.Group)
             .Any(g => g.Select(c => c.State).Distinct().Count() > 1))
             throw new InvalidDataException("Related corrections across files must be reviewed together.");
-        return result.Values.Select(file => RemoveSkippedAppends(file, revisions, skippedAppends)).ToArray();
+        return result.Values.Select(file => ApplyDefinitionDecisions(connection,
+            RemoveSkippedAppends(file, revisions, skippedAppends), revisions)).ToArray();
     }
 
     private sealed record RuntimeInput(string Root, string Xml, string Sha256);
@@ -127,7 +132,7 @@ public static class RuntimeContentFiles
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='content_skipped_files'";
         if (Convert.ToInt64(command.ExecuteScalar() ?? 0L) == 0) return skipped;
-        command.CommandText = "SELECT s.file_path,i.sha256 FROM content_skipped_files s JOIN local_correction_inputs i ON i.path=s.file_path WHERE s.kind NOT IN ('append','definition-conflict')";
+        command.CommandText = "SELECT s.file_path,i.sha256 FROM content_skipped_files s JOIN local_correction_inputs i ON i.path=s.file_path WHERE s.kind='unreadable'";
         using var reader = command.ExecuteReader();
         while (reader.Read()) skipped[Path.GetFullPath(reader.GetString(0))] = reader.GetString(1);
         return skipped;
@@ -163,6 +168,35 @@ public static class RuntimeContentFiles
             if (operation.Ordinal >= 0 && operation.Ordinal < appends.Length &&
                 XNode.DeepEquals(appends[operation.Ordinal], XElement.Parse(operation.Xml, LoadOptions.PreserveWhitespace)))
                 appends[operation.Ordinal].Remove();
+        return file with { Xml = document.ToString(SaveOptions.DisableFormatting) };
+    }
+
+    private static PreparedCatalogFile ApplyDefinitionDecisions(SqliteConnection connection,
+        PreparedCatalogFile file, IReadOnlyDictionary<string, string> revisions)
+    {
+        string path = Path.GetFullPath(file.Source.FilePath);
+        if (!revisions.TryGetValue(path, out string? revision)) return file;
+        using var query = connection.CreateCommand();
+        query.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='content_rejected_declarations'";
+        if (Convert.ToInt64(query.ExecuteScalar()) == 0) return file;
+        var document = LocalCorrectionDocument.Parse(file.Xml, path);
+        var elements = document.Root!.Elements("element").ToArray();
+        query.CommandText = "SELECT ordinal,aurora_id,declaration_xml FROM content_rejected_declarations WHERE file_path=$path AND input_sha256=$hash";
+        query.Parameters.AddWithValue("$path", path); query.Parameters.AddWithValue("$hash", revision);
+        using (var reader = query.ExecuteReader()) while (reader.Read())
+        {
+            int ordinal = reader.GetInt32(0);
+            if (ordinal < elements.Length && (string?)elements[ordinal].Attribute("id") == reader.GetString(1) &&
+                LocalCorrectionDocument.Fingerprint(elements[ordinal]) == LocalCorrectionDocument.Fingerprint(XElement.Parse(reader.GetString(2))))
+                elements[ordinal].Remove();
+        }
+        query.CommandText = "SELECT ordinal,aurora_id,selected_xml FROM content_definition_resolutions WHERE selected_file_path=$path AND input_sha256=$hash AND kind='retained'";
+        using (var reader = query.ExecuteReader()) while (reader.Read())
+        {
+            int ordinal = reader.GetInt32(0);
+            if (ordinal < elements.Length && elements[ordinal].Parent != null && (string?)elements[ordinal].Attribute("id") == reader.GetString(1))
+                elements[ordinal].ReplaceWith(XElement.Parse(reader.GetString(2)));
+        }
         return file with { Xml = document.ToString(SaveOptions.DisableFormatting) };
     }
 }

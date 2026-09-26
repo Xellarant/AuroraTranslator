@@ -172,7 +172,7 @@ internal static class CorrectionActivationPolicyTests
             }
     }
 
-    internal static void UnavailableCompanionPreventsRetirement()
+    internal static void UnresolvedCompanionPreventsRetirement()
     {
         using var w = new Workspace(existing: false);
         const string companion = "<element id='ID_POLICY_COMPANION' name='Companion' type='Class Feature' source='Test'/>";
@@ -186,16 +186,16 @@ internal static class CorrectionActivationPolicyTests
         string localHash = Hash(local);
 
         var result = w.Import();
-        Require(result.Skipped.Count == 1 && result.Skipped[0].Kind == "definition-conflict" &&
-            ContentDatabaseReader.ReadUnavailableIds(w.Database).SetEquals(["ID_POLICY_COMPANION"]),
-            "A companion conflict may be unavailable on first import without invalidating the clean accepted correction target.");
+        Require(result.Skipped.Count == 1 && result.Skipped[0].Kind == "definition-collision" &&
+            ContentDatabaseReader.ReadUnavailableIds(w.Database).Count == 0,
+            "A companion conflict has a reported provisional definition without invalidating the clean accepted correction target.");
         Require(w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_POLICY_FIX' AND name='Protected'") == 1 &&
-            w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_POLICY_COMPANION'") == 0,
-            "The accepted correction must stay effective while the conflicting companion remains unavailable.");
+            w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_POLICY_COMPANION'") == 1,
+            "The accepted correction must stay effective while the conflicting companion is provisional.");
         Require(File.Exists(local) && Hash(local) == localHash &&
             Directory.GetFiles(Path.GetDirectoryName(local)!, "*.retired-*").Length == 0 &&
             w.Count("SELECT COUNT(*) FROM local_override_files WHERE status='retired'") == 0,
-            "A matching accepted local file must remain recoverable and active until every companion is available.");
+            "A matching accepted local file must remain recoverable and active until every companion collision is resolved.");
 
         w.Write("core/other.xml", "<elements>" + companion + "</elements>");
         w.Import();

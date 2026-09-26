@@ -15,7 +15,7 @@ internal sealed class ContentPreparation : IDisposable
 {
     internal sealed record FileState(string Root, string Relative, string Path, string Hash);
     internal sealed record ManagedFile(FileState File, LocalCorrectionEvaluation Evaluation);
-    internal sealed record Declaration(string Id, string Path, string Hash, int Ordinal, string Fingerprint, string Xml);
+    internal sealed record Declaration(string Id, string Path, string Hash, int Ordinal, string Fingerprint, string Xml, bool Recovered = false);
     internal sealed record AppendOperation(FileState File, int Ordinal, string TargetId, string Xml, string Status, string? Diagnostic);
     internal sealed record FinalizedElement(string Id, string Path, string BaseXml, string EffectiveXml);
     private readonly string work = Path.Combine(Path.GetTempPath(), "translator-preparation-" + Guid.NewGuid().ToString("N"));
@@ -28,6 +28,15 @@ internal sealed class ContentPreparation : IDisposable
     internal List<AppendOperation> Appends { get; } = [];
     internal List<FinalizedElement> Finalized { get; } = [];
     internal List<Declaration> UnavailableDeclarations { get; } = [];
+    internal List<Declaration> RejectedDeclarations { get; } = [];
+    internal sealed record Supplier(string Path, bool IsAppend = false);
+    internal sealed record PreviousDefinition(string Path, string Xml, IReadOnlyList<Supplier> Suppliers);
+    internal sealed record DefinitionResolution(Declaration Selected, string Kind, string? PreviousPath, string Xml, IReadOnlyList<Supplier> Suppliers);
+    internal List<DefinitionResolution> Resolutions { get; } = [];
+    private readonly HashSet<string> retainedIds = new(StringComparer.Ordinal);
+    private Func<string, PreviousDefinition?>? previousDefinition;
+    private Func<IEnumerable<string>, IReadOnlySet<string>>? unreadableSupplierIds;
+    private IReadOnlySet<string> protectedInputPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     internal HashSet<string> UnavailableIds { get; } = new(StringComparer.Ordinal);
     internal Dictionary<string, string> UnavailableReasons { get; } = new(StringComparer.Ordinal);
     /// <summary>Unavailable identities and omitted files/operations, with the reason for each.</summary>
@@ -51,9 +60,15 @@ internal sealed class ContentPreparation : IDisposable
     /// </param>
     internal static ContentPreparation Prepare(IReadOnlyList<string> roots, CancellationToken cancellation = default,
         ImportProgressReporter? progress = null, bool skipUnusable = false,
-        bool quarantineConflicts = false, IReadOnlySet<string>? previouslyUnavailableIds = null)
+        bool quarantineConflicts = false, IReadOnlySet<string>? previouslyUnavailableIds = null,
+        Func<string, PreviousDefinition?>? previousDefinition = null,
+        Func<IEnumerable<string>, IReadOnlySet<string>>? unreadableSupplierIds = null,
+        IReadOnlySet<string>? protectedInputPaths = null)
     {
         var prepared = new ContentPreparation(skipUnusable, quarantineConflicts, previouslyUnavailableIds);
+        prepared.previousDefinition = previousDefinition;
+        prepared.unreadableSupplierIds = unreadableSupplierIds;
+        if (protectedInputPaths != null) prepared.protectedInputPaths = protectedInputPaths;
         try
         {
             prepared.Capture(roots, cancellation, progress);
@@ -117,8 +132,18 @@ internal sealed class ContentPreparation : IDisposable
                         throw new InvalidDataException($"Content input traverses a symbolic link/junction: {path}");
                     if (current.FullName == root) break;
                 }
-                byte[] bytes = File.ReadAllBytes(path);
                 string relative = Path.GetRelativePath(root, path);
+                byte[] bytes;
+                try { bytes = File.ReadAllBytes(path); }
+                catch (Exception ex) when (skipUnusable && (ex is IOException or UnauthorizedAccessException))
+                {
+                    if (protectedInputPaths.Contains(path))
+                        throw new InvalidDataException($"Cannot read protected correction input {path}; repair access before activation. {ex.Message}", ex);
+                    var unavailable = new FileState(root, relative, path, ContentInputFingerprint.Unreadable);
+                    Files.Add(unavailable);
+                    Discard(unavailable, "unreadable", $"Cannot capture {path}: {ex.Message}");
+                    continue;
+                }
                 Files.Add(new(root, relative, path, Convert.ToHexString(SHA256.HashData(bytes))));
                 string destination = Path.Combine(stage, relative);
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
@@ -135,6 +160,7 @@ internal sealed class ContentPreparation : IDisposable
         foreach (var file in Files)
         {
             cancellation.ThrowIfCancellationRequested();
+            if (discarded.Contains(file.Path)) continue;
             if (!file.Relative.Replace('\\', '/').StartsWith("user/local/", StringComparison.OrdinalIgnoreCase)) continue;
             string stagedPath = Path.Combine(Stage(file), file.Relative);
             XDocument local;
@@ -268,6 +294,9 @@ internal sealed class ContentPreparation : IDisposable
                     string id = (string?)element.Attribute("id") ?? "";
                     if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace((string?)element.Attribute("type")))
                         throw Fault("unreadable", $"Missing element id/type in {file.Path}, declaration {ordinal}.");
+                    try { AuroraCatalogBuilder.ValidateDeclaration(element); }
+                    catch (InvalidDataException ex)
+                    { throw Fault("unreadable", $"Invalid declaration '{id}' in {file.Path}, declaration {ordinal}: {ex.Message}"); }
                     var declaration = new Declaration(id, file.Path, file.Hash, ordinal++, LocalCorrectionDocument.Fingerprint(element), element.ToString(SaveOptions.DisableFormatting));
                     fileDeclarations.Add((file, element, declaration));
                 }
@@ -281,16 +310,42 @@ internal sealed class ContentPreparation : IDisposable
             collected.AddRange(fileDeclarations);
         }
 
-        // Inspect every supplier before selecting identical representatives. No path-order
-        // winner is meaningful when definitions differ, even within one input file.
+        // Inspect every supplier before resolving revisions or choosing a reported fallback.
         var protectedIds = Managed.SelectMany(m => m.Evaluation.Corrections)
             .SelectMany(c => new[] { c.TargetId, c.ReplacementId }).Where(id => id != null)
             .Select(id => id!.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unreadableIds = skipUnusable && discarded.Count > 0
+            ? unreadableSupplierIds?.Invoke(discarded) ?? new HashSet<string>() : new HashSet<string>();
+        // A skipped file must not erase the only working copy of its definitions.
+        // Recover from the prepared catalog, not from incomplete current XML.
+        var presentIds = collected.Select(d => d.Declaration.Id.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (string id in unreadableIds.Where(id => !presentIds.Contains(id)))
+        {
+            var previous = previousDefinition?.Invoke(id);
+            if (previous == null) continue;
+            var file = Files.FirstOrDefault(f => discarded.Contains(f.Path) &&
+                previous.Suppliers.Any(s => !s.IsAppend && string.Equals(s.Path, f.Path, StringComparison.OrdinalIgnoreCase)));
+            if (file == null) continue;
+            if (protectedIds.Contains(id))
+                throw new InvalidDataException($"Corrected definition '{id}' has an unreadable supplier; repair it before activation.");
+            if (!documents.TryGetValue(file, out var recovered))
+                documents.Add(file, recovered = new XDocument(new XElement("elements")));
+            var element = XElement.Parse(previous.Xml, LoadOptions.PreserveWhitespace);
+            var declaration = new Declaration(id, file.Path, file.Hash, recovered.Root!.Elements("element").Count(),
+                LocalCorrectionDocument.Fingerprint(element), previous.Xml, Recovered: true);
+            recovered.Root.Add(element);
+            declarations.Add(declaration);
+            seen.Add(id, declaration);
+            targets.Add(id, element);
+            retainedIds.Add(id);
+            Resolutions.Add(new(declaration, "retained", previous.Path, previous.Xml, previous.Suppliers));
+            RecordSkip(file, "definition-collision", $"Kept the last-known working definition '{id}' because its suppliers are unreadable.", previous.Path);
+        }
         foreach (var group in collected.GroupBy(d => d.Declaration.Id.Trim(), StringComparer.OrdinalIgnoreCase))
         {
             var entries = group.ToList();
             var ids = entries.Select(d => d.Declaration.Id).Distinct(StringComparer.Ordinal).ToList();
-            bool conflict = ids.Count > 1 || entries.Select(d => d.Declaration.Fingerprint).Distinct().Skip(1).Any();
+            bool conflict = ids.Count > 1 || entries.Select(d => d.Declaration.Fingerprint).Distinct().Skip(1).Any() || unreadableIds.Contains(group.Key);
             if (!conflict)
             {
                 var first = entries[0];
@@ -305,7 +360,64 @@ internal sealed class ContentPreparation : IDisposable
             string detail = $"duplicate-element-id: {string.Join(", ", ids.Select(id => $"'{id}'"))} has conflicting definitions: {suppliers}.";
             if (protectedIds.Contains(group.Key))
                 throw new InvalidDataException(detail + " An explicit correction targets this identity; resolve the conflict before activation. The existing database was preserved.");
-            if (!quarantineConflicts && ids.Any(id => !previouslyUnavailableIds.Contains(id)))
+
+            // Compare exact authored IDs only. Case/padding aliases still require identity
+            // repair; never manufacture a renamed ID or redirect its references here.
+            if (ids.Count == 1)
+            {
+                var candidates = entries.OrderBy(e => e.File.Relative.Replace('\\', '/'), StringComparer.Ordinal)
+                    .ThenBy(e => e.Declaration.Ordinal).ThenBy(e => e.File.Path, StringComparer.Ordinal).ToList();
+                bool HasOrigin(FileState file, string owner) => HasRepositoryOrigin(documents[file], owner);
+                var older = candidates.Where(e => HasOrigin(e.File, "aurorabuilder")).ToList();
+                bool successor = older.Count > 0 && candidates.Any(e => HasOrigin(e.File, "AuroraLegacy"));
+                if (successor) candidates.RemoveAll(e => older.Contains(e));
+                bool authoritative = successor && !unreadableIds.Contains(group.Key) &&
+                    candidates.Select(e => e.Declaration.Fingerprint).Distinct().Count() == 1;
+                if (authoritative || skipUnusable)
+                {
+                    var previous = authoritative ? null : previousDefinition?.Invoke(ids[0]);
+                    var selected = candidates.FirstOrDefault(e => previous != null && e.File.Path == previous.Path);
+                    if (selected.File == null) selected = candidates[0];
+                    var target = selected.Element;
+                    string xml = selected.Declaration.Xml;
+                    if (previous != null)
+                    {
+                        target = XElement.Parse(previous.Xml, LoadOptions.PreserveWhitespace);
+                        selected.Element.ReplaceWith(target);
+                        xml = previous.Xml;
+                        retainedIds.Add(ids[0]);
+                    }
+                    seen.Add(ids[0], selected.Declaration with { Xml = xml, Fingerprint = LocalCorrectionDocument.Fingerprint(target) });
+                    targets.Add(ids[0], target);
+                    declarations.Add(selected.Declaration);
+                    string kind = authoritative ? "upstream-successor" : previous != null ? "retained" : "provisional";
+                    var suppliersToRemember = entries.Select(e => new Supplier(e.File.Path))
+                        .Concat(previous?.Suppliers.Where(s => discarded.Contains(s.Path)) ?? []).Distinct().ToArray();
+                    Resolutions.Add(new(selected.Declaration, kind, previous?.Path, xml, suppliersToRemember));
+                    string decision = authoritative ? "Used the AuroraLegacy successor definition."
+                        : previous != null ? $"Kept the last-known working definition from {previous.Path}."
+                        : $"Provisionally selected {selected.File.Relative}, declaration {selected.Declaration.Ordinal}, by stable path/declaration order.";
+                    foreach (var rejected in entries.Where(e => e.Declaration != selected.Declaration))
+                    {
+                        if (previous == null && rejected.Declaration.Fingerprint == selected.Declaration.Fingerprint)
+                        {
+                            declarations.Add(rejected.Declaration);
+                            rejected.Element.Remove();
+                            continue; // Harmless identical copies consolidate silently, retaining provenance.
+                        }
+                        RejectedDeclarations.Add(rejected.Declaration);
+                        rejected.Element.Remove();
+                        RecordSkip(rejected.File, authoritative ? "superseded-definition" : "definition-collision",
+                            detail + " " + decision + (authoritative ? "" : " Review the skipped alternatives to resolve this collision."), selected.File.Path);
+                    }
+                    if (previous != null)
+                        RecordSkip(selected.File, "definition-collision", detail + " " + decision + " The current candidate was also held for review.", previous.Path);
+                    else if (entries.Count == 1 && unreadableIds.Contains(group.Key))
+                        RecordSkip(selected.File, "definition-collision", detail + " A former supplier is unreadable. " + decision);
+                    continue;
+                }
+            }
+            if (!skipUnusable && !quarantineConflicts && ids.Any(id => !previouslyUnavailableIds.Contains(id)))
                 throw new InvalidDataException(detail + " Resolve the conflict before refreshing; the existing database was preserved and no winner was selected.");
 
             // Include trimmed aliases because consumers trim declaration IDs. This masks
@@ -329,6 +441,14 @@ internal sealed class ContentPreparation : IDisposable
                 string id = (string?)append.Attribute("id") ?? "";
                 string raw = append.ToString(SaveOptions.DisableFormatting);
                 string? diagnostic = null;
+                if (retainedIds.Contains(id))
+                {
+                    diagnostic = $"append-target-retained: {file.Path}, append {ordinal}, target '{id}' keeps its last-known effective definition, including earlier extensions.";
+                    RecordSkip(file, "append", diagnostic);
+                    Appends.Add(new(file, ordinal++, id, raw, "skipped", diagnostic));
+                    append.Remove();
+                    continue;
+                }
                 if (UnavailableIds.Contains(id) || UnavailableIds.Any(unavailable => string.Equals(unavailable.Trim(), id.Trim(), StringComparison.OrdinalIgnoreCase)))
                 {
                     diagnostic = $"append-target-unavailable: {file.Path}, append {ordinal}, target '{id}' has conflicting definitions. The operation is retained without applying it.";
@@ -344,6 +464,7 @@ internal sealed class ContentPreparation : IDisposable
                         try
                         {
                             var merged = ContentAppendComposer.Apply(target, append);
+                            AuroraCatalogBuilder.ValidateDeclaration(merged);
                             target.ReplaceWith(merged);
                             targets[id] = merged;
                         }
@@ -356,8 +477,10 @@ internal sealed class ContentPreparation : IDisposable
                         // definitions and for authoring review; never infer a replacement ID.
                         try
                         {
-                            ContentAppendComposer.Apply(new XElement("element", new XAttribute("id", id),
-                                new XAttribute("type", (string?)append.Attribute("type") ?? "")), append);
+                            var preview = ContentAppendComposer.Apply(new XElement("element", new XAttribute("id", id),
+                                new XAttribute("name", "Unresolved append target"),
+                                new XAttribute("type", (string?)append.Attribute("type") ?? "Class Feature")), append);
+                            AuroraCatalogBuilder.ValidateDeclaration(preview);
                         }
                         catch (InvalidDataException ex)
                         { throw new InvalidDataException($"append-conflict: {file.Path}, append {ordinal}, target '{id}': {ex.Message}", ex); }
@@ -380,11 +503,24 @@ internal sealed class ContentPreparation : IDisposable
         foreach (var (id, target) in targets)
             Finalized.Add(new(id, seen[id].Path, seen[id].Xml, target.ToString(SaveOptions.DisableFormatting)));
         foreach (var (file, xml) in documents)
-            File.WriteAllText(Path.Combine(Stage(file), file.Relative), xml.ToString(SaveOptions.DisableFormatting));
+        {
+            string destination = Path.Combine(Stage(file), file.Relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.WriteAllText(destination, xml.ToString(SaveOptions.DisableFormatting));
+        }
     }
 
     public void Dispose()
     {
         if (Directory.Exists(work)) Directory.Delete(work, recursive: true);
+    }
+
+    private static bool HasRepositoryOrigin(XDocument document, string owner)
+    {
+        string? url = (string?)document.Root?.Element("info")?.Element("update")?.Element("file")?.Attribute("url");
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Host != "raw.githubusercontent.com") return false;
+        var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 4 && parts[0].Equals(owner, StringComparison.OrdinalIgnoreCase)
+            && parts[1].Equals("elements", StringComparison.OrdinalIgnoreCase);
     }
 }

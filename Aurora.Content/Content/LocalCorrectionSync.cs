@@ -14,7 +14,7 @@ using System.Xml.Linq;
 
 namespace Aurora.Content.Preparation;
 
-internal sealed record CorrectionImportResult(bool Success);
+internal sealed record CorrectionImportResult(bool Success, IReadOnlyList<ContentImportSkip>? Issues = null);
 
 public sealed record LocalCorrectionStatus(string FilePath, string SourcePath, string Status, string ReviewDetails);
 public sealed record LocalCorrectionRuntimeContent(string EffectiveXml, IReadOnlyList<string> SuppressedIds, string SourcePath);
@@ -33,9 +33,12 @@ internal static class LocalCorrectionSync
         bool firstImport = !File.Exists(database);
         var previouslyUnavailable = firstImport ? new HashSet<string>(StringComparer.Ordinal) : ContentDatabaseReader.ReadUnavailableIds(database);
         using var prepared = ContentPreparation.Prepare(roots, cancellationToken, progress, skipUnusable,
-            quarantineConflicts: firstImport, previouslyUnavailableIds: previouslyUnavailable);
+            quarantineConflicts: firstImport, previouslyUnavailableIds: previouslyUnavailable,
+            previousDefinition: firstImport ? null : id => ReadPreviousDefinition(database, id),
+            unreadableSupplierIds: firstImport ? null : paths => ReadSupplierIds(database, paths),
+            protectedInputPaths: firstImport ? null : ReadProtectedInputPaths(database, roots));
         var unreadableFiles = prepared.Skipped.Where(s => s.Kind == "unreadable").ToArray();
-        if (previouslyUnavailable.Count > 0 && unreadableFiles.Length > 0)
+        if (!skipUnusable && previouslyUnavailable.Count > 0 && unreadableFiles.Length > 0)
         {
             // An unreadable former supplier does not prove that its conflicting declaration
             // was repaired. Never promote the remaining supplier merely because this one
@@ -59,7 +62,6 @@ internal static class LocalCorrectionSync
             diagnostic(operation.Diagnostic!);
         foreach (var skip in prepared.Skipped)
             diagnostic($"content-skipped ({skip.Kind}): {skip.Detail}");
-        onSkipped?.Invoke(prepared.Skipped);
         var files = prepared.Files;
         var managed = prepared.Managed;
         string candidate = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(database))!, ".aurora-candidate-" + Guid.NewGuid().ToString("N") + ".sqlite");
@@ -74,6 +76,8 @@ internal static class LocalCorrectionSync
             }
             var result = await import(prepared.StagedRoots, candidate, cancellationToken);
             if (!result.Success) return result;
+            prepared.Skipped.AddRange(result.Issues ?? []);
+            onSkipped?.Invoke(prepared.Skipped);
             cancellationToken.ThrowIfCancellationRequested();
             progress?.Report(ContentImportPhase.Activating, 0, 0);
             using (var connection = Open(candidate))
@@ -100,7 +104,7 @@ internal static class LocalCorrectionSync
             }
             // Refuse to activate a candidate built from files edited during the import.
             var currentPaths = roots.SelectMany(root => Directory.EnumerateFiles(root, "*.xml", SearchOption.AllDirectories)).Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (!currentPaths.SetEquals(files.Select(f => Path.GetFullPath(f.Path))) || files.Any(f => !File.Exists(f.Path) || Hash(f.Path) != f.Hash))
+            if (!currentPaths.SetEquals(files.Select(f => Path.GetFullPath(f.Path))) || files.Any(f => !ContentInputFingerprint.Matches(f.Path, f.Hash)))
                 throw new IOException("Content changed during sync; the working database was preserved. Retry sync.");
             cancellationToken.ThrowIfCancellationRequested();
             // All readers in this module use nonpooled connections; release writer handles too.
@@ -108,7 +112,8 @@ internal static class LocalCorrectionSync
             File.Move(candidate, database, overwrite: true);
             foreach (var entry in managed.Where(m => m.Evaluation.CanRetire &&
                 !LocalCorrectionDocument.Parse(m.Evaluation.EffectiveXml).Root!.Elements("element")
-                    .Any(e => prepared.UnavailableIds.Contains(((string?)e.Attribute("id") ?? "").Trim()))))
+                    .Any(e => prepared.UnavailableIds.Contains(((string?)e.Attribute("id") ?? "").Trim()) ||
+                        prepared.Resolutions.Any(r => r.Kind != "upstream-successor" && r.Selected.Id == (string?)e.Attribute("id")))))
             {
                 // Retain the complete XML as a recoverable, non-scanned artifact. If an
                 // editor holds the file open, retry retirement on the next successful sync.
@@ -134,6 +139,78 @@ internal static class LocalCorrectionSync
         }
     }
 
+    private static PreviousDefinition? ReadPreviousDefinition(string database, string id)
+    {
+        using var connection = ContentDatabase.OpenReadableConnection(database);
+        if (!HasTable(connection, "content_prepared_elements")) return null;
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT file_path,effective_xml FROM content_prepared_elements WHERE aurora_id=$id";
+        command.Parameters.AddWithValue("$id", id);
+        string path, xml;
+        using (var reader = command.ExecuteReader())
+        {
+            if (!reader.Read()) return null;
+            path = reader.GetString(0); xml = reader.GetString(1);
+        }
+        bool supplierKinds = HasTable(connection, "content_definition_suppliers") && HasSupplierKinds(connection);
+        command.CommandText = "SELECT file_path,0 FROM content_declaration_provenance WHERE aurora_id=$id" +
+            (HasTable(connection, "content_append_operations")
+                ? " UNION SELECT file_path,1 FROM content_append_operations WHERE target_aurora_id=$id AND status='applied'" : "") +
+            (HasTable(connection, "content_definition_suppliers")
+                ? " UNION SELECT file_path," + (supplierKinds ? "supplier_kind='append'" : "0") + " FROM content_definition_suppliers WHERE aurora_id=$id" : "");
+        var suppliers = new List<Supplier> { new(path) };
+        using (var reader = command.ExecuteReader()) while (reader.Read()) suppliers.Add(new(reader.GetString(0), reader.GetBoolean(1)));
+        return new(path, xml, suppliers.Distinct().ToArray());
+    }
+
+    private static bool HasSupplierKinds(SqliteConnection connection)
+    {
+        using var query = connection.CreateCommand();
+        query.CommandText = "SELECT COUNT(*) FROM pragma_table_info('content_definition_suppliers') WHERE name='supplier_kind'";
+        return Convert.ToInt64(query.ExecuteScalar()) != 0;
+    }
+
+    private static IReadOnlySet<string> ReadProtectedInputPaths(string database, IReadOnlyList<string> roots)
+    {
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var connection = ContentDatabase.OpenReadableConnection(database);
+        if (!HasTable(connection, "local_override_files")) return paths;
+        using var query = connection.CreateCommand();
+        query.CommandText = "SELECT file_path,source_path FROM local_override_files WHERE status<>'retired'";
+        using var reader = query.ExecuteReader();
+        while (reader.Read())
+        {
+            paths.Add(Path.GetFullPath(reader.GetString(0)));
+            foreach (string root in roots)
+                paths.Add(LocalCorrectionDocument.ResolveSourcePath(root, reader.GetString(1)));
+        }
+        return paths;
+    }
+
+    private static IReadOnlySet<string> ReadSupplierIds(string database, IEnumerable<string> paths)
+    {
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var connection = ContentDatabase.OpenReadableConnection(database);
+        if (!HasTable(connection, "content_declaration_provenance")) return ids;
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT aurora_id FROM content_declaration_provenance WHERE file_path=$path" +
+            (OperatingSystem.IsWindows() ? " COLLATE NOCASE" : "") +
+            (HasTable(connection, "content_append_operations")
+                ? " UNION SELECT target_aurora_id FROM content_append_operations WHERE status='applied' AND file_path=$path" +
+                  (OperatingSystem.IsWindows() ? " COLLATE NOCASE" : "") : "") +
+            (HasTable(connection, "content_definition_suppliers")
+                ? " UNION SELECT aurora_id FROM content_definition_suppliers WHERE file_path=$path" +
+                  (OperatingSystem.IsWindows() ? " COLLATE NOCASE" : "") : "");
+        var parameter = command.Parameters.Add("$path", SqliteType.Text);
+        foreach (string path in paths)
+        {
+            parameter.Value = path;
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) ids.Add(reader.GetString(0).Trim());
+        }
+        return ids;
+    }
+
     public static bool? IsStale(IReadOnlyList<string> roots, string database)
     {
         if (!File.Exists(database)) return null;
@@ -145,7 +222,7 @@ internal static class LocalCorrectionSync
         using (var reader = command.ExecuteReader())
             while (reader.Read()) recorded.Add(reader.GetString(0), reader.GetString(1));
         var paths = roots.SelectMany(r => Directory.EnumerateFiles(r, "*.xml", SearchOption.AllDirectories)).Select(Path.GetFullPath).ToList();
-        return paths.Count != recorded.Count || paths.Any(p => !recorded.TryGetValue(p, out string? hash) || hash != Hash(p));
+        return paths.Count != recorded.Count || paths.Any(p => !recorded.TryGetValue(p, out string? hash) || !ContentInputFingerprint.Matches(p, hash));
     }
 
     public static IReadOnlyList<LocalCorrectionStatus> ReadStatuses(string database)

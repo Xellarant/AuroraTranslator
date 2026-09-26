@@ -83,12 +83,12 @@ internal static class ContentSkipTests
 
         Require(result.Skipped.Count == 1, $"One conflicted ID, not {result.Skipped.Count}.");
         var skipped = result.Skipped[0];
-        Require(skipped.Kind == "definition-conflict", "A redefinition is reported as a definition conflict, not " + skipped.Kind);
+        Require(skipped.Kind == "definition-collision", "A redefinition is reported as a skipped collision, not " + skipped.Kind);
         Require(skipped.Detail.Contains("a-first.xml") && skipped.Detail.Contains("b-second.xml"),
             "The report names both suppliers for comparison.");
 
-        Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_SHARED'") == 0,
-            "Neither conflicting definition is selected on first installation.");
+        Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_SHARED'") == 1,
+            "Skip mode makes a provisional definition available on first installation.");
         Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_OTHER'") == 1,
             "Unrelated definitions in the same file remain available.");
     }

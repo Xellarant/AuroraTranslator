@@ -13,19 +13,20 @@ namespace Aurora.Content
     internal static partial class AuroraSqliteImporter
     {
         internal const int CurrentSchemaVersion = 1;
-        internal const int CurrentDataVersion = 13;
+        internal const int CurrentDataVersion = 15;
 
         // The standalone preparation workflow enters here. Legacy catalog callers
         // remain separate until the canonical identity migration replaces them.
         internal readonly record struct ImportSummary(int ElementsWritten, int FilesChanged, int FilesUnchanged);
 
         internal static ImportSummary ImportFinalized(AuroraImportCatalog catalog, string schemaPath, string sqlitePath, string srdJsonPath = null,
-            ImportProgressReporter progress = null, CancellationToken cancellationToken = default)
+            ImportProgressReporter progress = null, CancellationToken cancellationToken = default,
+            bool skipUnusable = false, Action<string, string> classificationDiagnostic = null)
         {
             var ids = catalog.Elements.Select(e => e.id).Concat(catalog.Spells.Select(s => s.aurora_id)).ToList();
             if (ids.Any(string.IsNullOrWhiteSpace) || ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
                 throw new InvalidDataException("The SQLite writer requires finalized content with one declaration per nonempty Aurora ID. Run content preparation and resolve conflicts first.");
-            return Import(catalog, schemaPath, sqlitePath, srdJsonPath, preservePackageSettings: true, progress, cancellationToken);
+            return Import(catalog, schemaPath, sqlitePath, srdJsonPath, preservePackageSettings: true, progress, cancellationToken, skipUnusable, classificationDiagnostic);
         }
 
         /// <summary>
@@ -43,9 +44,10 @@ namespace Aurora.Content
             string srdJsonPath = null,
             bool preservePackageSettings = false,
             ImportProgressReporter progress = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            bool skipUnusable = false, Action<string, string> classificationDiagnostic = null)
         {
-            var packageKinds = Preparation.ContentPackageClassification.ForCatalog(catalog);
+            var packageKinds = Preparation.ContentPackageClassification.ForCatalog(catalog, skipUnusable, classificationDiagnostic);
             Directory.CreateDirectory(Path.GetDirectoryName(sqlitePath) ?? AppContext.BaseDirectory);
 
             using var connection = new SqliteConnection(

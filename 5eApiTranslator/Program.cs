@@ -84,10 +84,14 @@ namespace AuroraTranslator
             if (args.Length > 0
                 && string.Equals(args[0], "sqlite-import", StringComparison.OrdinalIgnoreCase))
             {
-                string auroraPath = args.Length > 1 ? args[1] : defaultAuroraPath;
-                string sqlitePath = args.Length > 2 ? args[2] : defaultSqlitePath;
+                bool skipUnusable = args.Skip(1).Any(arg => arg.Equals("--skip-unusable", StringComparison.OrdinalIgnoreCase));
+                string[] paths = args.Skip(1).Where(arg => !arg.Equals("--skip-unusable", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (paths.Length > 2 || paths.Any(path => path.StartsWith("--", StringComparison.Ordinal)))
+                    throw new ArgumentException("Usage: sqlite-import [auroraPath] [sqlitePath] [--skip-unusable]");
+                string auroraPath = paths.Length > 0 ? paths[0] : defaultAuroraPath;
+                string sqlitePath = paths.Length > 1 ? paths[1] : defaultSqlitePath;
 
-                ImportAuroraToSqlite(auroraPath, sqlitePath);
+                ImportAuroraToSqlite(auroraPath, sqlitePath, skipUnusable);
                 return;
             }
 
@@ -306,7 +310,7 @@ namespace AuroraTranslator
             }
 
             Console.WriteLine("Commands:");
-            Console.WriteLine("  sqlite-import [auroraPath] [sqlitePath]              Import Aurora XML into the SQLite database.");
+            Console.WriteLine("  sqlite-import [auroraPath] [sqlitePath] [--skip-unusable]  Import Aurora XML; optionally retain/skip unusable content.");
             Console.WriteLine("  srd-creatures [jsonPath] [sqlitePath]                Import SRD monsters and link to Aurora companions.");
             Console.WriteLine("  generate-xellarant-xml [jsonPath] [sqlitePath] [out] Generate The Book of Xellarant creatures XML.");
             Console.WriteLine("  eval-expression [expressionText] [contextJson]       Parse and evaluate an Aurora expression.");
@@ -364,7 +368,7 @@ namespace AuroraTranslator
                 && string.Equals(args[0], "sqlite-import", StringComparison.OrdinalIgnoreCase))
             {
                 Console.Error.WriteLine();
-                Console.Error.WriteLine("Usage: sqlite-import [auroraPath] [sqlitePath]");
+                Console.Error.WriteLine("Usage: sqlite-import [auroraPath] [sqlitePath] [--skip-unusable]");
                 Console.Error.WriteLine($"Default Aurora path: {defaultAuroraPath}");
                 Console.Error.WriteLine($"Default SQLite path: {defaultSqlitePath}");
             }
@@ -568,10 +572,11 @@ namespace AuroraTranslator
             return AppContext.BaseDirectory;
         }
 
-        private static void ImportAuroraToSqlite(string auroraPath, string sqlitePath)
+        private static void ImportAuroraToSqlite(string auroraPath, string sqlitePath, bool skipUnusable = false)
         {
             string srdPath = File.Exists(defaultSrdMonstersPath) ? defaultSrdMonstersPath : null;
-            ContentImport.ImportAsync(auroraPath, sqlitePath, onDiagnostic: Console.Error.WriteLine, srdMonstersJsonPath: srdPath)
+            ContentImport.ImportAsync(auroraPath, sqlitePath, onDiagnostic: Console.Error.WriteLine, srdMonstersJsonPath: srdPath,
+                skipUnusableContent: skipUnusable)
                 .GetAwaiter().GetResult();
             Console.WriteLine($"Imported prepared Aurora content into {sqlitePath}.");
         }

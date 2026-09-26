@@ -53,23 +53,15 @@ namespace Aurora.Content
 
                 foreach (var element in xml.Root?.Elements("element") ?? Enumerable.Empty<XElement>())
                 {
-                    string name = element.Attribute("name")?.Value;
-                    string source = element.Attribute("source")?.Value;
-                    string id = element.Attribute("id")?.Value;
-                    string type = element.Attribute("type")?.Value;
-
-                    if (string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(id))
-                        continue;
-
-                    if (string.Equals(type, "spell", StringComparison.OrdinalIgnoreCase))
+                    var parsed = ReadDeclaration(element);
+                    if (parsed is AuroraSpell spell)
                     {
-                        AuroraSpell spell = FillAuroraSpell(element, name, source, id);
                         spell.source_file_path = relativePath;
                         catalog.Spells.Add(spell);
                     }
                     else
                     {
-                        AuroraElement auroraElement = FillAuroraElement(element, name, source, id, type);
+                        var auroraElement = (AuroraElement)parsed;
                         auroraElement.source_file_path = relativePath;
                         catalog.Elements.Add(auroraElement);
                     }
@@ -77,6 +69,29 @@ namespace Aurora.Content
             }
 
             return catalog;
+        }
+
+        // Preparation and catalog construction use the same typed parser. Validate before
+        // committing a file/append to the finalized catalog, not after writing has begun.
+        internal static void ValidateDeclaration(XElement element) => ReadDeclaration(element);
+
+        private static object ReadDeclaration(XElement element)
+        {
+            string id = (string)element.Attribute("id"), type = (string)element.Attribute("type");
+            string name = (string)element.Attribute("name"), source = (string)element.Attribute("source");
+            if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(type))
+                throw new InvalidDataException("Missing element id/type.");
+            if (name == null) throw new InvalidDataException($"Missing element name for '{id}'.");
+            try
+            {
+                return string.Equals(type, "Spell", StringComparison.OrdinalIgnoreCase)
+                    ? (object)FillAuroraSpell(element, name, source, id)
+                    : FillAuroraElement(element, name, source, id, type);
+            }
+            catch (Exception ex) when (ex is FormatException or OverflowException)
+            {
+                throw new InvalidDataException($"Invalid typed content in '{id}': {ex.Message}", ex);
+            }
         }
 
         private static AuroraSpell FillAuroraSpell(XElement spellElement, string name, string source, string id)
@@ -116,12 +131,13 @@ namespace Aurora.Content
                 {
                     spell.descriptionRawXml = childElement.ToString(SaveOptions.DisableFormatting);
                     spell.desc = new();
-                    if (childElement.Value.Contains("At Higher Levels."))
+                    int higherLevelOffset = childElement.Value.IndexOf("At Higher Levels.", StringComparison.Ordinal);
+                    if (higherLevelOffset >= 0)
                     {
                         spell.higher_level = new();
 
-                        spell.desc.Add(childElement.Value.Substring(0, childElement.Value.IndexOf("At Higher Levels.") - 1));
-                        spell.higher_level.Add(childElement.Value.Substring(childElement.Value.IndexOf("At Higher Levels.")));
+                        spell.desc.Add(childElement.Value.Substring(0, higherLevelOffset).TrimEnd());
+                        spell.higher_level.Add(childElement.Value.Substring(higherLevelOffset));
                     }
                     else
                     {

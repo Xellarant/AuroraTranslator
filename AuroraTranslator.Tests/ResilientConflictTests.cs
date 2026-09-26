@@ -1,0 +1,135 @@
+using Aurora.Content.Preparation;
+using Microsoft.Data.Sqlite;
+using System.Security.Cryptography;
+using System.Xml.Linq;
+
+internal static class ResilientConflictTests
+{
+    private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
+    private static string Element(string id, string name) => $"<element id='{id}' name='{name}' type='Class Feature' source='Test'><description>{name}</description></element>";
+    private static string Origin(string owner) => $"<info><update version='0.0.1'><file name='items.xml' url='https://raw.githubusercontent.com/{owner}/elements/master/core/items.xml'/></update></info>";
+    private sealed class Workspace : IDisposable
+    {
+        private readonly TestWorkspace work = TestWorkspace.Create();
+        internal string Root => Path.Combine(work.DirectoryPath, "content");
+        internal string Database => work.DatabasePath;
+        internal void Write(string path, string xml)
+        {
+            path = Path.Combine(Root, path); Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, "<elements>" + xml + "</elements>");
+        }
+        internal ContentImportResult Import(bool skip = true) => ContentImport.ImportAsync(Root, Database, skipUnusableContent: skip).GetAwaiter().GetResult();
+        internal SqliteConnection Open() { var c = new SqliteConnection($"Data Source={Database};Pooling=False"); c.Open(); return c; }
+        internal string Query(string sql) { using var c = Open(); using var q = c.CreateCommand(); q.CommandText = sql; return Convert.ToString(q.ExecuteScalar()) ?? ""; }
+        internal string Project(string id, bool runtime = false)
+        {
+            using var c = Open();
+            var files = runtime ? RuntimeContentFiles.Read(c, Root, [], includePrimary: true) : [];
+            return PreparedCatalogReader.Read(c, runtimeFiles: files).Elements.Single(e => e.AuroraId == id).Xml;
+        }
+        public void Dispose() { SqliteConnection.ClearAllPools(); work.Dispose(); }
+    }
+
+    internal static void FirstValidAndRuntime()
+    {
+        using var w = new Workspace();
+        w.Write("user/late.xml", Element("ID_COLLISION", "Second") + Element("ID_LOCAL", "Local"));
+        w.Write("core/early.xml", Element("ID_COLLISION", "First") + Element("ID_COLLISION", "SameFileLoser"));
+        var hashes = Directory.GetFiles(w.Root, "*.xml", SearchOption.AllDirectories).ToDictionary(p => p, p => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))));
+        var result = w.Import();
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_COLLISION'") == "First", "Stable relative path and declaration order selects a provisional definition.");
+        Require(result.Skipped.Count(s => s.Kind == "definition-collision") == 2, "Every rejected alternative is reported.");
+        Require(ContentDatabaseReader.ReadUnavailableIds(w.Database).Count == 0, "A usable provisional choice is available.");
+        Require(w.Project("ID_COLLISION", true).Contains("First") && w.Project("ID_LOCAL", true).Contains("Local"), "Runtime keeps the selected choice and unrelated local content, including same-file collisions.");
+        Require(w.Query("SELECT COUNT(*) FROM content_declaration_provenance WHERE aurora_id='ID_COLLISION'") == "3", "All suppliers remain inspectable.");
+        Require(hashes.All(x => x.Value == Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(x.Key)))), "No original XML was rewritten.");
+        w.Import();
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_COLLISION'") == "First", "Repeated imports preserve the first working choice.");
+    }
+
+    internal static void RetentionAndRepair()
+    {
+        using var w = new Workspace();
+        w.Write("core/a.xml", Element("ID_SHARED", "Working"));
+        w.Write("core/append.xml", "<append id='ID_SHARED'><supports>Old extension</supports></append>");
+        w.Import();
+        // Reproduce the earlier prepared database contract, without the new decision tables.
+        w.Query("UPDATE database_metadata SET data_version=13; DROP TABLE content_definition_resolutions; DROP TABLE content_definition_suppliers; DROP TABLE content_rejected_declarations;");
+        string previous = w.Query("SELECT effective_xml FROM content_prepared_elements WHERE aurora_id='ID_SHARED'");
+        w.Write("core/a.xml", Element("ID_SHARED", "Changed"));
+        w.Write("core/b.xml", Element("ID_SHARED", "Other") + Element("ID_NEW", "Unaffected"));
+        w.Write("core/append.xml", "<append id='ID_SHARED'><supports>New extension</supports></append>");
+        w.Import();
+        Require(w.Query("SELECT effective_xml FROM content_prepared_elements WHERE aurora_id='ID_SHARED'") == previous, "Keep the exact previously effective definition, not just its name or base XML.");
+        Require(w.Query("SELECT data_version FROM database_metadata") == ContentDatabaseReader.CurrentDataVersion.ToString(), "Refresh migrates the old prepared database to the current reader contract.");
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_NEW'") == "Unaffected", "Unrelated updates continue.");
+        foreach (bool runtime in new[] { false, true })
+        {
+            string xml = w.Project("ID_SHARED", runtime);
+            Require(xml.Contains("Working") && xml.Contains("Old extension") && !xml.Contains("New extension"), "SQL and runtime projections preserve mechanics without replaying new/doubled appends.");
+        }
+        w.Import();
+        Require(w.Project("ID_SHARED", true).Contains("Working"), "Retention survives repeated import and fresh readers.");
+        w.Write("core/b.xml", Element("ID_SHARED", "Changed") + Element("ID_NEW", "Unaffected"));
+        var repaired = w.Import();
+        Require(w.Project("ID_SHARED", true).Contains("Changed") && w.Project("ID_SHARED", true).Contains("New extension"), "Repair releases retention and reapplies current appends once.");
+        Require(repaired.Skipped.Count == 0 && w.Query("SELECT COUNT(*) FROM content_definition_resolutions") == "0", "Repair clears outstanding decisions.");
+    }
+
+    internal static void UpstreamAuthority()
+    {
+        using var w = new Workspace();
+        w.Write("aggregate/a.xml", Origin("aurorabuilder") + Element("ID_SHARED", "Archived") + Element("ID_ONLY_OLD", "Unique"));
+        w.Import(false);
+        w.Write("aggregate/z.xml", Origin("AuroraLegacy") + Element("ID_SHARED", "Maintained"));
+        var updated = w.Import(false);
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_SHARED'") == "Maintained", "An established successor updates an existing canonical definition even in strict mode.");
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_ONLY_OLD'") == "Unique", "Distinct archived content survives.");
+        Require(updated.Skipped.Single().Kind == "superseded-definition", "Authority decisions are distinguished from unresolved collisions.");
+        Require(w.Project("ID_SHARED", true).Contains("Maintained"), "Raw primary reads cannot resurrect the older definition.");
+        w.Write("aggregate/z.xml", Origin("AuroraLegacy") + Element("ID_SHARED", "UpdatedAgain"));
+        w.Import();
+        Require(w.Project("ID_SHARED").Contains("UpdatedAgain"), "New valid upstream revisions replace earlier accepted revisions.");
+        w.Write("aggregate/other.xml", Element("ID_SHARED", "Independent"));
+        w.Import();
+        Require(w.Project("ID_SHARED").Contains("UpdatedAgain") && w.Query("SELECT kind FROM content_definition_resolutions WHERE aurora_id='ID_SHARED'") == "retained", "Successor authority does not silently settle a collision with an unrelated supplier.");
+    }
+
+    internal static void UnreadableAlternative()
+    {
+        using var w = new Workspace();
+        w.Write("core/a.xml", Element("ID_SHARED", "Working")); w.Import();
+        w.Write("core/b.xml", Element("ID_SHARED", "Alternative")); w.Import();
+        File.WriteAllText(Path.Combine(w.Root, "core/a.xml"), "<elements><broken");
+        w.Write("core/b.xml", Element("ID_SHARED", "AlternativeChanged") + Element("ID_NEW", "New"));
+        var result = w.Import();
+        Require(w.Project("ID_SHARED", true).Contains("Working"), "An unreadable prior supplier does not promote the competing definition.");
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_NEW'") == "New" && result.Skipped.Any(s => s.Kind == "unreadable"), "The rest imports and the broken file is reported.");
+        w.Import();
+        Require(w.Project("ID_SHARED", true).Contains("Working"), "Repeated refresh remembers unreadable suppliers.");
+        File.WriteAllText(Path.Combine(w.Root, "core/b.xml"), "<elements><broken");
+        w.Import(); w.Import();
+        Require(w.Project("ID_SHARED", true).Contains("Working") && w.Project("ID_NEW", true).Contains("New"), "When every supplier is unreadable, cached definitions survive repeated refreshes.");
+    }
+
+    internal static void AggregateClassification()
+    {
+        using var w = new Workspace();
+        string Source(string flag) => $"<element id='ID_DMG_SOURCE' name='DMG' type='Source' source='Core'><setters><set name='official'>true</set><set name='core'>{flag}</set></setters></element>";
+        w.Write("aurora-sources/old/source.xml", Origin("aurorabuilder") + Source("true"));
+        w.Write("aurora-sources/new/source.xml", Origin("AuroraLegacy") + Source("false"));
+        w.Write("aurora-sources/old/oathbreaker.xml", Element("ID_OATH", "Oathbreaker").Replace("source='Test'", "source='DMG'"));
+        w.Write("aurora-sources/third/source.xml", "<element id='ID_THIRD' name='Third' type='Source' source='Core'><setters><set name='third-party'>true</set></setters></element>");
+        w.Write("aurora-sources/home/source.xml", "<element id='ID_HOME' name='Home' type='Source' source='Core'><setters><set name='homebrew'>true</set></setters></element>");
+        w.Write("aurora-sources/missing/source.xml", Element("ID_MISSING_SOURCE", "Missing metadata"));
+        w.Import();
+        string Kind(string id) => w.Query($"SELECT cp.package_kind FROM elements e JOIN source_files f ON f.source_file_id=e.source_file_id JOIN content_packages cp ON cp.content_package_id=f.content_package_id WHERE e.aurora_id='{id}'");
+        Require(Kind("ID_OATH") == "official" && Kind("ID_THIRD") == "third-party" && Kind("ID_HOME") == "homebrew", "Aggregate siblings do not contaminate publisher classifications.");
+        Require(Kind("ID_MISSING_SOURCE") == "local", "Missing evidence does not invent a publisher or abort unaffected content.");
+        w.Write("aurora-sources/bad/source.xml", "<element id='ID_BAD_FLAGS' name='Ambiguous' type='Source' source='Core'><setters><set name='official'>true</set><set name='homebrew'>true</set></setters></element>");
+        var result = w.Import();
+        Require(Kind("ID_BAD_FLAGS") == "local" && result.Skipped.Any(s => s.Kind == "classification"), "Skip mode reports contradictory publisher flags without dropping game content.");
+        bool refused = false; try { w.Import(false); } catch (InvalidDataException) { refused = true; }
+        Require(refused, "Strict mode still rejects explicit contradictory publisher flags.");
+    }
+}

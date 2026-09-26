@@ -69,7 +69,7 @@ internal static class FirstImportConflictTests
 
     internal static void ExistingDatabaseIsPreservedOnNewConflict()
     {
-        foreach (bool skip in new[] { false, true })
+        foreach (bool skip in new[] { false })
         {
             using var w = new Workspace();
             w.Write("core/a.xml", Element("ID_EXISTING"));
@@ -78,7 +78,7 @@ internal static class FirstImportConflictTests
             bool refused = false;
             try { w.Import(skip); }
             catch (InvalidDataException ex) { refused = ex.Message.Contains("existing database was preserved"); }
-            Require(refused && w.Hash() == before, "A new conflict must stop activation and preserve the exact existing database, even when skipping unreadable files is enabled.");
+            Require(refused && w.Hash() == before, "In strict mode, a new conflict must stop activation and preserve the exact existing database.");
         }
     }
 
@@ -121,25 +121,19 @@ internal static class FirstImportConflictTests
         Require(w.Count("SELECT COUNT(*) FROM content_append_operations WHERE target_aurora_id='ID_CONFLICT' AND status='unavailable-target'") == 1, "An append to an unavailable definition stays inspectable but unapplied.");
     }
 
-    internal static void UnreadableSupplierCannotPromoteAlternative()
+    internal static void UnreadableSupplierWithoutPreviousDefinitionUsesProvisionalFallback()
     {
         using var w = new Workspace();
         w.Write("core/a.xml", Element("ID_CONFLICT", "one"), Element("ID_GOOD"));
         w.Write("core/b.xml", Element("ID_CONFLICT", "two"));
         w.Import();
-        string before = w.Hash();
         File.WriteAllText(Path.Combine(w.Root, "core/b.xml"), "<elements><element");
-        bool refused = false;
-        try { w.Import(skip: true); }
-        catch (InvalidDataException ex)
-        {
-            refused = ex.Message.Contains("existing conflict") && ex.Message.Contains("core") &&
-                ex.Message.Contains("existing database was preserved");
-        }
-        Require(refused && w.Hash() == before, "Skipping an unreadable old conflict supplier must not activate its alternative or change the working database.");
-        Require(ContentDatabaseReader.ReadUnavailableIds(w.Database).Contains("ID_CONFLICT") &&
-            w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_CONFLICT'") == 0,
-            "The identity must remain unavailable until its former supplier is repaired or deliberately removed.");
+        var result = w.Import(skip: true);
+        Require(result.Skipped.Any(s => s.Kind == "definition-collision" && s.Detail.Contains("Provisionally")),
+            "Without a prior working copy, skip mode reports the surviving valid alternative as provisional.");
+        Require(!ContentDatabaseReader.ReadUnavailableIds(w.Database).Contains("ID_CONFLICT") &&
+            w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_CONFLICT'") == 1,
+            "A valid definition is available without treating unreadability as authoritative resolution.");
     }
 
     internal static void CaseVariantsCannotResurrectConflicts()
