@@ -32,7 +32,7 @@ internal sealed class ContentPreparation : IDisposable
     /// Content declares these when it renames something, so a character saved against the old id
     /// keeps working. Status records why an alias was rejected rather than dropping it silently.
     /// </summary>
-    internal sealed record ElementAlias(FileState File, string SavedId, string TargetId, string Status, string? Diagnostic);
+    internal sealed record ElementAlias(FileState? File, string SavedId, string TargetId, string Status, string? Diagnostic, string Origin = "content");
     internal List<ElementAlias> Aliases { get; } = [];
     internal List<FinalizedElement> Finalized { get; } = [];
     internal List<Declaration> UnavailableDeclarations { get; } = [];
@@ -557,6 +557,16 @@ internal sealed class ContentPreparation : IDisposable
                 Appends.Add(new(file, ordinal++, id, raw, diagnostic == null ? "applied" : "unresolved-target", diagnostic));
                 append.Remove();
             }
+        }
+        // Library-known forwarding addresses, after content has had its say: an alias the content
+        // declares for the same id is more specific and keeps precedence. A curated entry whose
+        // target is not installed simply does not apply.
+        foreach (var curated in CuratedElementAliases.All)
+        {
+            if (seen.ContainsKey(curated.SavedId)) continue;
+            if (!seen.ContainsKey(curated.TargetId)) continue;
+            if (Aliases.Any(a => a.Status == "applied" && string.Equals(a.SavedId, curated.SavedId, StringComparison.Ordinal))) continue;
+            Aliases.Add(new(null, curated.SavedId, curated.TargetId, "applied", curated.Note, "curated"));
         }
         foreach (var (id, target) in targets)
             Finalized.Add(new(id, seen[id].Path, seen[id].Xml, target.ToString(SaveOptions.DisableFormatting)));

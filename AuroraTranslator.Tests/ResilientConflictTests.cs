@@ -199,6 +199,33 @@ internal static class ResilientConflictTests
             "Every rejected alias is reported rather than dropped silently.");
         Require(w.Query("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_RETIRED'") == "0",
             "An alias is a forwarding address, not a declaration.");
+        Require(w.Query("SELECT COUNT(*) FROM content_element_aliases WHERE origin='curated'") == "0",
+            "A curated entry whose target nothing declares does not apply.");
+    }
+
+    /// <summary>
+    /// Some ids only ever existed in saved characters - a misspelling, or a build of upstream content
+    /// that is gone. Nothing can declare an alias from content that never had the id, so the library
+    /// carries those itself. They are held to the same rule: applicable only when the target is here.
+    /// </summary>
+    internal static void CuratedAliasesApplyWhenTheirTargetExists()
+    {
+        const string laser = "ID_WOTC_DMG_PROFICIENCY_WEAPON_FUTURISTIC_FIREARMS_LASER_PISTOL";
+        const string mistyped = "ID_WOTC_DMG_PROFICIENCY_WEAPON_FUTURISTIC_FIREARMS_LASTER_PISTOL";
+        using (var without = new Workspace())
+        {
+            without.Write("core/a.xml", Element("ID_UNRELATED", "Unrelated"));
+            without.Import();
+            Require(without.Query("SELECT COUNT(*) FROM content_element_aliases") == "0",
+                "Without the proficiency installed the curated entry stays out of the catalog.");
+        }
+        using var w = new Workspace();
+        w.Write("core/a.xml", Element(laser, "Weapon Proficiency (Laser Pistol)"));
+        w.Import();
+        Require(w.Query("SELECT target_aurora_id FROM content_element_aliases WHERE saved_aurora_id='" + mistyped + "'") == laser,
+            "The misspelling forwards to the proficiency the catalog actually spells.");
+        Require(w.Query("SELECT origin FROM content_element_aliases WHERE saved_aurora_id='" + mistyped + "'") == "curated",
+            "Its origin says the library supplied it, not the content.");
     }
 
     internal static void AggregateClassification()

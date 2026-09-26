@@ -162,7 +162,7 @@ internal static class PreparedContentWriter
             command.Parameters.Clear();
             command.Parameters.AddWithValue("$saved", a.SavedId);
             command.Parameters.AddWithValue("$target", a.TargetId);
-            command.Parameters.AddWithValue("$origin", "content");
+            command.Parameters.AddWithValue("$origin", a.Origin);
             command.Parameters.AddWithValue("$note", (object?)a.Diagnostic ?? DBNull.Value);
             command.ExecuteNonQuery();
         }
