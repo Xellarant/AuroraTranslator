@@ -84,6 +84,8 @@ var tests = new (string Name, Action Body)[]
     ("an unreadable root names the file", ContentReferenceHygieneTests.UnreadableRootNamesTheFile),
     ("an unreadable file is skipped and reported", ContentSkipTests.AnUnreadableFileIsSkippedAndReported),
     ("first import conflicts leave other elements available", ContentSkipTests.ConflictingDefinitionsLeaveOtherElementsAvailable),
+    ("legacy load order ladder", LegacyLoadOrderTests.Ladder),
+    ("legacy load order walk and ignores", LegacyLoadOrderTests.WalkOrderAndIgnores),
     ("resilient conflicts first choice and runtime", ResilientConflictTests.FirstValidAndRuntime),
     ("resilient conflicts retention and repair", ResilientConflictTests.RetentionAndRepair),
     ("resilient conflicts upstream authority", ResilientConflictTests.UpstreamAuthority),

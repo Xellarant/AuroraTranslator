@@ -157,10 +157,14 @@ internal static class ContentPreparationTests
         w.Import();
         Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache") == "2", "App preference filtered the catalog");
         Require(w.Query("SELECT COUNT(*) FROM content_declaration_provenance") == "4", "Supplier provenance was lost");
-        Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache WHERE package_kind='core'") == "2", "Preference changed canonical attribution");
+        // supplements loads after core, so the copy there owns both ids whether or not core is
+        // enabled. What matters is that the preference did not move the attribution.
+        Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache WHERE package_kind='third-party'") == "2", "Preference changed canonical attribution");
         w.Query("UPDATE content_packages SET is_enabled=CASE WHEN package_kind='core' THEN 1 ELSE 0 END; SELECT 1");
         w.Import();
-        Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache WHERE package_kind='core'") == "2", "Re-enabled supplier was not selected during preparation");
+        // Attribution follows content precedence, not preference, so it stays with supplements
+        // through both preference states - that is the invariant, not the particular package.
+        Require(w.Query("SELECT COUNT(*) FROM resolved_elements_cache WHERE package_kind='third-party'") == "2", "Enabling a package changed which declaration is canonical");
     }
 
     internal static void Cli()

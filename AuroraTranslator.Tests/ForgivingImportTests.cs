@@ -77,18 +77,20 @@ internal static class ForgivingImportTests
     internal static void UnreadableIndependentSupplier()
     {
         using var w = new Workspace();
-        w.Write("core/a.xml", Element("ID_SHARED", "Independent")); w.Import();
+        // Named to load last within the bucket, so the independent competitor is the one that owns
+        // the id. A competitor that never owned it could not authorize anything either way.
+        w.Write("core/z-independent.xml", Element("ID_SHARED", "Independent")); w.Import();
         w.Write("core/b.xml", Origin("aurorabuilder") + Element("ID_SHARED", "Archived"));
         w.Write("core/c.xml", Origin("AuroraLegacy") + Element("ID_SHARED", "Legacy")); w.Import();
         w.Query("UPDATE database_metadata SET data_version=14; ALTER TABLE content_definition_suppliers RENAME TO old_suppliers; " +
             "CREATE TABLE content_definition_suppliers (aurora_id TEXT NOT NULL,file_path TEXT NOT NULL,PRIMARY KEY(aurora_id,file_path)); " +
             "INSERT INTO content_definition_suppliers SELECT aurora_id,file_path FROM old_suppliers; DROP TABLE old_suppliers;");
-        w.Write("core/a.xml", "<elements><broken", raw: true);
+        w.Write("core/z-independent.xml", "<elements><broken", raw: true);
         w.Write("core/c.xml", Origin("AuroraLegacy") + Element("ID_SHARED", "LegacyUpdated"));
         w.Import(); w.Import();
         Require(w.Project("ID_SHARED", true).Contains("Independent") && w.Query("SELECT kind FROM content_definition_resolutions") == "retained", "An unreadable independent competitor cannot authorize succession.");
         Require(w.Query("SELECT data_version FROM database_metadata") == ContentDatabaseReader.CurrentDataVersion.ToString(), "Migrate data-14 supplier evidence before applying the current policy.");
-        File.Delete(w.PathFor("core/a.xml")); w.Import();
+        File.Delete(w.PathFor("core/z-independent.xml")); w.Import();
         Require(w.Project("ID_SHARED", true).Contains("LegacyUpdated"), "Deliberately removing that competitor permits known succession.");
     }
 

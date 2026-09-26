@@ -67,7 +67,14 @@ public static class PreparedCatalogReader
         using (var reader = q.ExecuteReader()) while (reader.Read())
         {
             var source = new PreparedCatalogSource(reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4));
-            if (!IsUnavailable(reader.GetString(0)) && !Replaced(source) && includeSource(source)) suppliers.TryAdd(reader.GetString(0), source);
+            // Which file is credited with an id has to be the one Legacy ends up loading it from,
+            // because source filtering keys off this attribution: crediting an identical copy to
+            // the wrong book hides the element when that book is switched off. Ordering by path
+            // and keeping the first credits whichever book sorts earliest instead.
+            if (!IsUnavailable(reader.GetString(0)) && !Replaced(source) && includeSource(source)
+                && (!suppliers.TryGetValue(reader.GetString(0), out var credited)
+                    || LegacyLoadOrder.Compare(credited.RelativePath, source.RelativePath) < 0))
+                suppliers[reader.GetString(0)] = source;
         }
         var definitions = new Dictionary<string, XElement>(StringComparer.Ordinal);
         var catalogIds = new HashSet<string>(unavailable, StringComparer.Ordinal);

@@ -343,7 +343,12 @@ internal sealed class ContentPreparation : IDisposable
         }
         foreach (var group in collected.GroupBy(d => d.Declaration.Id.Trim(), StringComparer.OrdinalIgnoreCase))
         {
-            var entries = group.ToList();
+            // Ordered as Legacy leaves the id: the declaration it ends up owning the id with
+            // comes first, because a later file re-declaring an id replaces the earlier element.
+            var entries = group
+                .OrderByDescending(d => d.File.Relative, LegacyLoadOrder.Comparer)
+                .ThenByDescending(d => d.Declaration.Ordinal)
+                .ThenByDescending(d => d.File.Path, StringComparer.Ordinal).ToList();
             var ids = entries.Select(d => d.Declaration.Id).Distinct(StringComparer.Ordinal).ToList();
             bool conflict = ids.Count > 1 || entries.Select(d => d.Declaration.Fingerprint).Distinct().Skip(1).Any() || unreadableIds.Contains(group.Key);
             if (!conflict)
@@ -351,6 +356,9 @@ internal sealed class ContentPreparation : IDisposable
                 var first = entries[0];
                 seen.Add(first.Declaration.Id, first.Declaration);
                 targets.Add(first.Declaration.Id, first.Element);
+                // Winner first, matching the order above: an element is attributed to the file
+                // whose declaration leads this list, and that attribution is what source
+                // filtering keys off, so identical copies still have to name the right book.
                 declarations.AddRange(entries.Select(d => d.Declaration));
                 foreach (var duplicate in entries.Skip(1)) duplicate.Element.Remove();
                 continue;
@@ -365,8 +373,9 @@ internal sealed class ContentPreparation : IDisposable
             // repair; never manufacture a renamed ID or redirect its references here.
             if (ids.Count == 1)
             {
-                var candidates = entries.OrderBy(e => e.File.Relative.Replace('\\', '/'), StringComparer.Ordinal)
-                    .ThenBy(e => e.Declaration.Ordinal).ThenBy(e => e.File.Path, StringComparer.Ordinal).ToList();
+                // Already in Legacy's order, winner first; the successor rule below may drop
+                // candidates from it, so work on a copy.
+                var candidates = entries.ToList();
                 bool HasOrigin(FileState file, string owner) => HasRepositoryOrigin(documents[file], owner);
                 var older = candidates.Where(e => HasOrigin(e.File, "aurorabuilder")).ToList();
                 bool successor = older.Count > 0 && candidates.Any(e => HasOrigin(e.File, "AuroraLegacy"));
@@ -375,7 +384,12 @@ internal sealed class ContentPreparation : IDisposable
                     candidates.Select(e => e.Declaration.Fingerprint).Distinct().Count() == 1;
                 if (authoritative || skipUnusable)
                 {
-                    var previous = authoritative ? null : previousDefinition?.Invoke(ids[0]);
+                    // Retention is here to stop a broken supplier erasing a working definition,
+                    // not to settle a disagreement between readable ones. Consulting it for every
+                    // collision pins whichever definition was imported first, so a book's override
+                    // could never take effect once the database had seen the original.
+                    var previous = authoritative || !unreadableIds.Contains(group.Key)
+                        ? null : previousDefinition?.Invoke(ids[0]);
                     var selected = candidates.FirstOrDefault(e => previous != null && e.File.Path == previous.Path);
                     if (selected.File == null) selected = candidates[0];
                     var target = selected.Element;

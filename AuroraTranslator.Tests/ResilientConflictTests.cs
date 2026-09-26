@@ -33,18 +33,18 @@ internal static class ResilientConflictTests
     internal static void FirstValidAndRuntime()
     {
         using var w = new Workspace();
-        w.Write("user/late.xml", Element("ID_COLLISION", "Second") + Element("ID_LOCAL", "Local"));
-        w.Write("core/early.xml", Element("ID_COLLISION", "First") + Element("ID_COLLISION", "SameFileLoser"));
+        w.Write("user/late.xml", Element("ID_COLLISION", "LoadsLast") + Element("ID_LOCAL", "Local"));
+        w.Write("core/early.xml", Element("ID_COLLISION", "EarlierBucket") + Element("ID_COLLISION", "SameFileEarlier"));
         var hashes = Directory.GetFiles(w.Root, "*.xml", SearchOption.AllDirectories).ToDictionary(p => p, p => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))));
         var result = w.Import();
-        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_COLLISION'") == "First", "Stable relative path and declaration order selects a provisional definition.");
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_COLLISION'") == "LoadsLast", "The declaration Legacy loads last owns the id: files directly under user outrank core.");
         Require(result.Skipped.Count(s => s.Kind == "definition-collision") == 2, "Every rejected alternative is reported.");
         Require(ContentDatabaseReader.ReadUnavailableIds(w.Database).Count == 0, "A usable provisional choice is available.");
-        Require(w.Project("ID_COLLISION", true).Contains("First") && w.Project("ID_LOCAL", true).Contains("Local"), "Runtime keeps the selected choice and unrelated local content, including same-file collisions.");
+        Require(w.Project("ID_COLLISION", true).Contains("LoadsLast") && w.Project("ID_LOCAL", true).Contains("Local"), "Runtime keeps the selected choice and unrelated local content, including same-file collisions.");
         Require(w.Query("SELECT COUNT(*) FROM content_declaration_provenance WHERE aurora_id='ID_COLLISION'") == "3", "All suppliers remain inspectable.");
         Require(hashes.All(x => x.Value == Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(x.Key)))), "No original XML was rewritten.");
         w.Import();
-        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_COLLISION'") == "First", "Repeated imports preserve the first working choice.");
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_COLLISION'") == "LoadsLast", "Repeated imports preserve the same working choice.");
     }
 
     internal static void RetentionAndRepair()
@@ -56,7 +56,10 @@ internal static class ResilientConflictTests
         // Reproduce the earlier prepared database contract, without the new decision tables.
         w.Query("UPDATE database_metadata SET data_version=13; DROP TABLE content_definition_resolutions; DROP TABLE content_definition_suppliers; DROP TABLE content_rejected_declarations;");
         string previous = w.Query("SELECT effective_xml FROM content_prepared_elements WHERE aurora_id='ID_SHARED'");
-        w.Write("core/a.xml", Element("ID_SHARED", "Changed"));
+        // Retention answers only for an unreadable supplier now, so break the owner instead of
+        // editing it: a disagreement between readable declarations is settled by load order, not
+        // by whatever the database happened to import first.
+        File.WriteAllText(Path.Combine(w.Root, "core/a.xml"), "<elements><broken");
         w.Write("core/b.xml", Element("ID_SHARED", "Other") + Element("ID_NEW", "Unaffected"));
         w.Write("core/append.xml", "<append id='ID_SHARED'><supports>New extension</supports></append>");
         w.Import();
@@ -70,7 +73,9 @@ internal static class ResilientConflictTests
         }
         w.Import();
         Require(w.Project("ID_SHARED", true).Contains("Working"), "Retention survives repeated import and fresh readers.");
-        w.Write("core/b.xml", Element("ID_SHARED", "Changed") + Element("ID_NEW", "Unaffected"));
+        // Repairing means the owner is readable again and nothing competes for the id.
+        w.Write("core/a.xml", Element("ID_SHARED", "Changed"));
+        w.Write("core/b.xml", Element("ID_NEW", "Unaffected"));
         var repaired = w.Import();
         Require(w.Project("ID_SHARED", true).Contains("Changed") && w.Project("ID_SHARED", true).Contains("New extension"), "Repair releases retention and reapplies current appends once.");
         Require(repaired.Skipped.Count == 0 && w.Query("SELECT COUNT(*) FROM content_definition_resolutions") == "0", "Repair clears outstanding decisions.");
@@ -92,22 +97,25 @@ internal static class ResilientConflictTests
         Require(w.Project("ID_SHARED").Contains("UpdatedAgain"), "New valid upstream revisions replace earlier accepted revisions.");
         w.Write("aggregate/other.xml", Element("ID_SHARED", "Independent"));
         w.Import();
-        Require(w.Project("ID_SHARED").Contains("UpdatedAgain") && w.Query("SELECT kind FROM content_definition_resolutions WHERE aurora_id='ID_SHARED'") == "retained", "Successor authority does not silently settle a collision with an unrelated supplier.");
+        Require(w.Project("ID_SHARED").Contains("UpdatedAgain") && w.Query("SELECT kind FROM content_definition_resolutions WHERE aurora_id='ID_SHARED'") == "provisional", "Successor authority does not silently settle a collision with an unrelated supplier.");
     }
 
     internal static void UnreadableAlternative()
     {
         using var w = new Workspace();
-        w.Write("core/a.xml", Element("ID_SHARED", "Working")); w.Import();
-        w.Write("core/b.xml", Element("ID_SHARED", "Alternative")); w.Import();
-        File.WriteAllText(Path.Combine(w.Root, "core/a.xml"), "<elements><broken");
-        w.Write("core/b.xml", Element("ID_SHARED", "AlternativeChanged") + Element("ID_NEW", "New"));
+        // z-owner loads after a-rival within the same bucket, so it owns the id; breaking the owner
+        // is what puts retention to the test. Breaking the rival would prove nothing, because the
+        // rival never supplied the effective definition.
+        w.Write("core/z-owner.xml", Element("ID_SHARED", "Working")); w.Import();
+        w.Write("core/a-rival.xml", Element("ID_SHARED", "Alternative")); w.Import();
+        File.WriteAllText(Path.Combine(w.Root, "core/z-owner.xml"), "<elements><broken");
+        w.Write("core/a-rival.xml", Element("ID_SHARED", "AlternativeChanged") + Element("ID_NEW", "New"));
         var result = w.Import();
         Require(w.Project("ID_SHARED", true).Contains("Working"), "An unreadable prior supplier does not promote the competing definition.");
         Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_NEW'") == "New" && result.Skipped.Any(s => s.Kind == "unreadable"), "The rest imports and the broken file is reported.");
         w.Import();
         Require(w.Project("ID_SHARED", true).Contains("Working"), "Repeated refresh remembers unreadable suppliers.");
-        File.WriteAllText(Path.Combine(w.Root, "core/b.xml"), "<elements><broken");
+        File.WriteAllText(Path.Combine(w.Root, "core/a-rival.xml"), "<elements><broken");
         w.Import(); w.Import();
         Require(w.Project("ID_SHARED", true).Contains("Working") && w.Project("ID_NEW", true).Contains("New"), "When every supplier is unreadable, cached definitions survive repeated refreshes.");
     }
