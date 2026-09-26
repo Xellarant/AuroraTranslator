@@ -98,7 +98,7 @@ public static class PreparedCatalogReader
                 if (definitions.TryGetValue(id, out var previous))
                 {
                     if (Aurora.Content.Contracts.LocalCorrectionDocument.Fingerprint(previous) != Aurora.Content.Contracts.LocalCorrectionDocument.Fingerprint(xml))
-                        throw new InvalidDataException($"Conflicting runtime definitions for '{id}' in {file.Source.RelativePath}. Add explicit correction intent or distinct IDs.");
+                        throw new InvalidDataException($"Conflicting runtime definitions for '{id}' in {suppliers[id].RelativePath} and {file.Source.RelativePath}. Refresh the database to reevaluate this ID, then review the conflicting sources. Add explicit correction intent or distinct IDs for different content variants.");
                     continue;
                 }
                 definitions.Add(id, new XElement(xml));

@@ -418,7 +418,7 @@ internal sealed class ContentPreparation : IDisposable
                     Resolutions.Add(new(selected.Declaration, kind, previous?.Path, xml, suppliersToRemember));
                     string decision = authoritative ? "Used the AuroraLegacy successor definition."
                         : previous != null ? $"Kept the last-known working definition from {previous.Path}."
-                        : $"Provisionally selected {selected.File.Relative}, declaration {selected.Declaration.Ordinal}, by stable path/declaration order.";
+                        : $"Provisionally selected {selected.File.Relative}, declaration {selected.Declaration.Ordinal}, by Aurora Legacy load order.";
                     foreach (var rejected in entries.Where(e => e.Declaration != selected.Declaration))
                     {
                         if (previous == null && rejected.Declaration.Fingerprint == selected.Declaration.Fingerprint)
@@ -430,7 +430,7 @@ internal sealed class ContentPreparation : IDisposable
                         RejectedDeclarations.Add(rejected.Declaration);
                         rejected.Element.Remove();
                         RecordSkip(rejected.File, authoritative ? "superseded-definition" : "definition-collision",
-                            detail + " " + decision + (authoritative ? "" : " Review the skipped alternatives to resolve this collision."), selected.File.Path);
+                            detail + " " + decision + (authoritative ? "" : " This conflicting ID still requires review. Compare the listed sources and correct the definition, or assign distinct IDs if these are different content variants."), selected.File.Path);
                     }
                     if (previous != null)
                         RecordSkip(selected.File, "definition-collision", detail + " " + decision + " The current candidate was also held for review.", previous.Path);

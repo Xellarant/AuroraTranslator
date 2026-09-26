@@ -75,9 +75,9 @@ public static class ContentImport
     /// Leaves a file the import cannot use out of this import, listed in
     /// <see cref="ContentImportResult.Skipped"/> and in the database, instead of refusing the whole
     /// import over it. The files themselves are never touched, so the next import reads them again.
-    /// With skipping enabled, unresolved exact-ID collisions retain the previous effective
-    /// definition, or select a provisional candidate by stable path/declaration order when none
-    /// exists. Ambiguous publisher metadata does not discard content. Authored ID spelling is
+    /// With skipping enabled, readable exact-ID collisions use a provisional candidate in Aurora
+    /// Legacy load order and remain flagged for review. Unreadable suppliers can retain the previous
+    /// effective definition. Ambiguous publisher metadata does not discard content. Authored ID spelling is
     /// never changed: case/padding collisions remain unavailable. Invalid protected corrections
     /// always block activation. Off by default: strict first imports quarantine conflicts and
     /// strict refreshes reject new conflicts.

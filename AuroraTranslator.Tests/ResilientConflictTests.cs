@@ -58,6 +58,99 @@ internal static class ResilientConflictTests
         Require(w.Query("SELECT e.name FROM resolved_elements_cache r JOIN elements e ON e.element_id=r.winning_element_id WHERE r.aurora_id='ID_COLLISION'") == "LoadsLast", "Repeated imports preserve the same working choice.");
     }
 
+    internal static void RuntimeUnrelatedEditsPreserveChoices()
+    {
+        using var w = new Workspace();
+        w.Write("user/a.xml", Element("ID_SHARED", "Earlier") + Element("ID_OTHER", "Old"));
+        w.Write("user/z.xml", Element("ID_SHARED", "Winner") + Element("ID_WINNER_OTHER", "Old"));
+        var imported = w.Import();
+        var issue = imported.Skipped.Single(s => s.Kind == "definition-collision");
+        Require(issue.Detail.Contains("ID_SHARED") && issue.Detail.Contains("user/a.xml".Replace('/', Path.DirectorySeparatorChar))
+            && issue.Detail.Contains("user/z.xml".Replace('/', Path.DirectorySeparatorChar))
+            && issue.Detail.Contains("requires review") && issue.Detail.Contains("distinct IDs"),
+            "A provisional choice names the conflicting ID and both files, and explains how to intervene.");
+        string before = w.Query("SELECT selected_xml FROM content_definition_resolutions WHERE aurora_id='ID_SHARED'");
+
+        // Insert and move unrelated entries in both files. Absolute declaration ordinals change,
+        // but the competing definitions and their within-ID order are untouched.
+        w.Write("user/a.xml", Element("ID_INSERTED", "Added") + Element("ID_OTHER", "Edited") + Element("ID_SHARED", "Earlier"));
+        w.Write("user/z.xml", Element("ID_WINNER_OTHER", "AlsoEdited") + Element("ID_SHARED", "Winner"));
+        Require(w.Project("ID_SHARED", true).Contains("Winner"), "An unrelated edit preserves the existing duplicate choice.");
+        Require(w.Project("ID_OTHER", true).Contains("Edited") && w.Project("ID_WINNER_OTHER", true).Contains("AlsoEdited")
+            && w.Project("ID_INSERTED", true).Contains("Added"), "New and edited unrelated definitions are still read.");
+        using (var c = w.Open())
+        {
+            var files = RuntimeContentFiles.Read(c, w.Root, []);
+            Require(PreparedCatalogReader.Read(c, runtimeFiles: files).Elements.Single(e => e.AuroraId == "ID_SHARED").Xml.Contains("Winner"),
+                "The default user-overlay read also preserves the decision.");
+            Require(!PreparedCatalogReader.InputsMatch(c, [w.Root]), "Declaration matching must not claim the database itself is fresh.");
+        }
+        Require(w.Query("SELECT selected_xml FROM content_definition_resolutions WHERE aurora_id='ID_SHARED'") == before
+            && w.Query("SELECT COUNT(*) FROM content_skipped_files WHERE kind='definition-collision'") == "1",
+            "Runtime reads neither rewrite the saved decision nor dismiss the review issue.");
+        var refreshed = w.Import();
+        Require(refreshed.Skipped.Any(s => s.Kind == "definition-collision")
+            && w.Query("SELECT kind FROM content_definition_resolutions WHERE aurora_id='ID_SHARED'") == "provisional",
+            "Repeated import keeps the unresolved disagreement flagged even when one version works.");
+    }
+
+    internal static void RuntimeChangedCandidatesRequireReview()
+    {
+        foreach (string change in new[] { "winner", "rejected", "new supplier" })
+        {
+            using var w = new Workspace();
+            w.Write("user/a.xml", Element("ID_SHARED", "Earlier") + Element("ID_UNRELATED_CONFLICT", "EarlierOther"));
+            w.Write("user/z.xml", Element("ID_SHARED", "Winner") + Element("ID_UNRELATED_CONFLICT", "WinnerOther"));
+            w.Import();
+            if (change == "winner")
+                w.Write("user/z.xml", Element("ID_SHARED", "WinnerEdited") + Element("ID_UNRELATED_CONFLICT", "WinnerOther"));
+            else if (change == "rejected")
+                w.Write("user/a.xml", Element("ID_SHARED", "EarlierEdited") + Element("ID_UNRELATED_CONFLICT", "EarlierOther"));
+            else
+                w.Write("user/zz.xml", Element("ID_SHARED", "NewCompetitor"));
+            using (var c = w.Open())
+            {
+                var files = RuntimeContentFiles.Read(c, w.Root, []);
+                var candidates = files.SelectMany(f => XElement.Parse(f.Xml).Elements("element")).ToArray();
+                Require(candidates.Count(e => (string?)e.Attribute("id") == "ID_SHARED") >= 2,
+                    "A changed " + change + " invalidates all stale exclusions for that ID.");
+                Require(candidates.Count(e => (string?)e.Attribute("id") == "ID_UNRELATED_CONFLICT") == 1,
+                    "Another ID's unchanged resolution survives in those same files.");
+                try { PreparedCatalogReader.Read(c, runtimeFiles: files); throw new Exception("Changed conflicting definitions were silently accepted."); }
+                catch (InvalidDataException ex)
+                {
+                    Require(ex.Message.Contains("ID_SHARED") && ex.Message.Contains("a.xml") && ex.Message.Contains("z.xml")
+                        && ex.Message.Contains("Refresh the database"), "The runtime conflict names its suppliers and the next action.");
+                }
+            }
+            var refreshed = w.Import();
+            Require(w.Project("ID_SHARED", true).Contains(change == "new supplier" ? "NewCompetitor" : change == "winner" ? "WinnerEdited" : "Winner"),
+                "A successful import reevaluates the changed ID with current load order.");
+            Require(refreshed.Skipped.Any(s => s.Kind == "definition-collision"), "The usable choice still requires conflict review.");
+        }
+    }
+
+    internal static void RuntimeSameIdOrderAndCountsMatter()
+    {
+        using var w = new Workspace();
+        w.Write("user/a.xml", Element("ID_SHARED", "First") + Element("ID_SHARED", "Second"));
+        w.Import();
+        w.Write("user/a.xml", Element("ID_UNRELATED", "New") + Element("ID_SHARED", "First") + Element("ID_SHARED", "Second"));
+        Require(w.Project("ID_SHARED", true).Contains("Second"), "Inserting a different ID does not change a within-file duplicate decision.");
+        foreach (string competing in new[] {
+            Element("ID_SHARED", "Second") + Element("ID_SHARED", "First"),
+            Element("ID_SHARED", "First") + Element("ID_SHARED", "Second") + Element("ID_SHARED", "First") })
+        {
+            w.Write("user/a.xml", competing);
+            try { w.Project("ID_SHARED", true); throw new Exception("A changed within-ID order or count reused a stale decision."); }
+            catch (InvalidDataException ex) { Require(ex.Message.Contains("Conflicting runtime definitions"), "Expected a duplicate-review diagnostic."); }
+        }
+        w.Write("user/a.xml", Element("ID_SHARED", "First"));
+        Require(w.Project("ID_SHARED", true).Contains("First"), "Removing the winner releases an unchanged rejected copy instead of hiding the remaining definition.");
+        w.Write("user/a.xml", Element("ID_SHARED", "Second") + Element("ID_SHARED", "Second"));
+        Require(w.Project("ID_SHARED", true).Contains("Second"), "Definitions repaired to agree can consolidate immediately.");
+    }
+
     internal static void RetentionAndRepair()
     {
         using var w = new Workspace();
@@ -147,7 +240,7 @@ internal static class ResilientConflictTests
     internal static void IncidentalCopiesDoNotOutrankPacks()
     {
         using var w = new Workspace();
-        string baseline = "<elements>" + Element("ID_MARKED", "Old") + Element("ID_COPIED", "Upstream") + "</elements>";
+        string baseline = "<elements>" + Element("ID_MARKED", "Old") + Element("ID_COPIED", "Upstream") + Element("ID_UNRELATED", "Unchanged") + "</elements>";
         string corrected = baseline.Replace("'Old'", "'Fixed'");
         w.WriteRaw("core/features.xml", baseline);
         w.WriteRaw("user/local/fix.xml", LocalCorrectionDocument.Create(corrected, baseline, "core/features.xml",
@@ -170,6 +263,10 @@ internal static class ResilientConflictTests
         Require(credited.Contains("xellarant") && credited.EndsWith("revised.xml"),
             "The book that won must be credited with the id, not the correction file: " + credited);
         Require(w.Project("ID_COPIED", true).Contains("Revised"), "The runtime read agrees.");
+        w.WriteRaw("core/features.xml", baseline.Replace("Unchanged", "Updated companion"));
+        Require(w.Project("ID_COPIED", true).Contains("Revised") && w.Project("ID_MARKED", true).Contains("Fixed")
+            && w.Project("ID_UNRELATED", true).Contains("Updated companion"),
+            "An unrelated upstream edit follows the correction contract without resurrecting the overridden incidental copy.");
     }
 
     /// <summary>

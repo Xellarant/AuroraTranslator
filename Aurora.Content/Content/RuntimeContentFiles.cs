@@ -108,8 +108,10 @@ public static class RuntimeContentFiles
         if (corrections.Where(c => c.Group != null).GroupBy(c => c.Group)
             .Any(g => g.Select(c => c.State).Distinct().Count() > 1))
             throw new InvalidDataException("Related corrections across files must be reviewed together.");
-        return result.Values.Select(file => ApplyDefinitionDecisions(connection,
-            RemoveSkippedAppends(file, revisions, skippedAppends), revisions)).ToArray();
+        var runtimeFiles = result.Values.ToArray();
+        var decisions = RuntimeDefinitionDecisions.Read(connection, runtimeFiles, comparer);
+        return runtimeFiles.Select(file => ApplyDefinitionDecisions(connection,
+            RemoveSkippedAppends(file, revisions, skippedAppends), revisions, decisions)).ToArray();
     }
 
     private sealed record RuntimeInput(string Root, string Xml, string Sha256);
@@ -172,7 +174,7 @@ public static class RuntimeContentFiles
     }
 
     private static PreparedCatalogFile ApplyDefinitionDecisions(SqliteConnection connection,
-        PreparedCatalogFile file, IReadOnlyDictionary<string, string> revisions)
+        PreparedCatalogFile file, IReadOnlyDictionary<string, string> revisions, RuntimeDefinitionDecisions decisions)
     {
         string path = Path.GetFullPath(file.Source.FilePath);
         if (!revisions.TryGetValue(path, out string? revision)) return file;
@@ -181,11 +183,21 @@ public static class RuntimeContentFiles
         if (Convert.ToInt64(query.ExecuteScalar()) == 0) return file;
         var document = LocalCorrectionDocument.Parse(file.Xml, path);
         var elements = document.Root!.Elements("element").ToArray();
-        query.CommandText = "SELECT ordinal,aurora_id,declaration_xml FROM content_rejected_declarations WHERE file_path=$path AND input_sha256=$hash";
+        query.CommandText = """
+            SELECT d.ordinal,d.aurora_id,d.declaration_xml,d.input_sha256,r.kind
+            FROM content_rejected_declarations d
+            JOIN content_definition_resolutions r ON r.aurora_id=d.aurora_id
+            WHERE d.file_path=$path
+            """;
         query.Parameters.AddWithValue("$path", path); query.Parameters.AddWithValue("$hash", revision);
         using (var reader = query.ExecuteReader()) while (reader.Read())
         {
             int ordinal = reader.GetInt32(0);
+            if (reader.GetString(4) == "retained")
+            {
+                if (reader.GetString(3) != revision) continue;
+            }
+            else if (!decisions.TryMatch(path, reader.GetString(1), ordinal, out ordinal)) continue;
             if (ordinal < elements.Length && (string?)elements[ordinal].Attribute("id") == reader.GetString(1) &&
                 LocalCorrectionDocument.Fingerprint(elements[ordinal]) == LocalCorrectionDocument.Fingerprint(XElement.Parse(reader.GetString(2))))
                 elements[ordinal].Remove();
