@@ -1,4 +1,5 @@
 using Aurora.Content.Preparation;
+using Aurora.Content.Contracts;
 using Microsoft.Data.Sqlite;
 using System.Security.Cryptography;
 using System.Xml.Linq;
@@ -13,6 +14,11 @@ internal static class ResilientConflictTests
         private readonly TestWorkspace work = TestWorkspace.Create();
         internal string Root => Path.Combine(work.DirectoryPath, "content");
         internal string Database => work.DatabasePath;
+        internal void WriteRaw(string path, string xml)
+        {
+            path = Path.Combine(Root, path); Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, xml);
+        }
         internal void Write(string path, string xml)
         {
             path = Path.Combine(Root, path); Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -123,6 +129,47 @@ internal static class ResilientConflictTests
         File.WriteAllText(Path.Combine(w.Root, "core/a-rival.xml"), "<elements><broken");
         w.Import(); w.Import();
         Require(w.Project("ID_SHARED", true).Contains("Working") && w.Project("ID_NEW", true).Contains("New"), "When every supplier is unreadable, cached definitions survive repeated refreshes.");
+    }
+
+    /// <summary>
+    /// A correction is staged as the file it corrects, not as the user/local file it lives in, so it
+    /// competes for an id where that upstream file sits in the load order rather than after every
+    /// content pack. Only ids the correction adds, which have no upstream to stand in for, keep local
+    /// precedence.
+    ///
+    /// That is what stops a correction from reaching past its own file: a correction file is a whole
+    /// copy of its upstream, so most of what it holds is an incidental copy rather than an authored
+    /// change - measured on real content, 42 marked corrections against 259 incidental copies. If
+    /// those copies were attributed to the correction file they would sit above every pack and revert
+    /// a book's deliberate override of an id the correction never touched. Here a correction to core
+    /// marks only ID_MARKED while a book revises ID_COPIED, which the correction merely carries along.
+    /// </summary>
+    internal static void IncidentalCopiesDoNotOutrankPacks()
+    {
+        using var w = new Workspace();
+        string baseline = "<elements>" + Element("ID_MARKED", "Old") + Element("ID_COPIED", "Upstream") + "</elements>";
+        string corrected = baseline.Replace("'Old'", "'Fixed'");
+        w.WriteRaw("core/features.xml", baseline);
+        w.WriteRaw("user/local/fix.xml", LocalCorrectionDocument.Create(corrected, baseline, "core/features.xml",
+            [new LocalCorrection("fix", "replace", "ID_MARKED", null, null, "review-pending")]));
+        w.Write("the-book-of-xellarant/revised.xml", Element("ID_COPIED", "Revised"));
+        w.Import();
+
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_COPIED'"
+            + " AND declaration_status='effective'") == "Revised",
+            "A book's override must survive an unmarked copy of the same id inside a correction file.");
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_MARKED'"
+            + " AND declaration_status='effective'") == "Fixed",
+            "The id the correction does mark still takes effect.");
+
+        // Attribution has to follow the same rule, because source filtering keys off it.
+        string credited = w.Query("SELECT f.relative_path FROM resolved_elements_cache r"
+            + " JOIN elements e ON e.element_id=r.winning_element_id"
+            + " JOIN source_files f ON f.source_file_id=e.source_file_id"
+            + " WHERE r.aurora_id='ID_COPIED'");
+        Require(credited.Contains("xellarant") && credited.EndsWith("revised.xml"),
+            "The book that won must be credited with the id, not the correction file: " + credited);
+        Require(w.Project("ID_COPIED", true).Contains("Revised"), "The runtime read agrees.");
     }
 
     internal static void AggregateClassification()

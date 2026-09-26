@@ -42,6 +42,7 @@ var tests = new (string Name, Action Body)[]
     ("parent/source publisher classification preserves preferences", ParentAndSourceTests.SourceClassification),
     ("correction fixtures preserve Staff and repaired grants", ContentPreparationTests.Fixtures),
     ("correction protection follows companions and mirrors intent", ContentPreparationTests.Lifecycle),
+    ("correction incidental copies do not outrank packs", ResilientConflictTests.IncidentalCopiesDoNotOutrankPacks),
     ("correction accepts explicitly and retires only redundant files", ContentPreparationTests.Retirement),
     ("correction conflicts preserve working database", ContentPreparationTests.Conflicts),
     ("correction candidate failure and input race preserve database", ContentPreparationTests.Failures),
