@@ -523,6 +523,17 @@ CREATE TABLE IF NOT EXISTS features
 CREATE INDEX IF NOT EXISTS ix_features_parent ON features(parent_element_id, min_level);
 CREATE INDEX IF NOT EXISTS ix_features_kind ON features(feature_kind, min_level);
 
+-- An id a saved character may still name, and the element that now carries its meaning.
+-- Consulted only when the saved id resolves to nothing: an id that still exists is never
+-- redirected, because a live identity outranks a forwarding address.
+CREATE TABLE IF NOT EXISTS content_element_aliases
+(
+    saved_aurora_id  TEXT NOT NULL PRIMARY KEY,
+    target_aurora_id TEXT NOT NULL,
+    origin           TEXT NOT NULL,
+    note             TEXT
+);
+
 CREATE TABLE IF NOT EXISTS parent_family_aliases
 (
     alias_text TEXT NOT NULL,

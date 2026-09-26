@@ -95,6 +95,10 @@ internal static class PreparedContentWriter
             CREATE TABLE IF NOT EXISTS content_prepared_elements (
               aurora_id TEXT PRIMARY KEY, file_path TEXT NOT NULL, base_xml TEXT NOT NULL, effective_xml TEXT NOT NULL);
             DELETE FROM content_prepared_elements;
+            CREATE TABLE IF NOT EXISTS content_element_aliases (
+              saved_aurora_id TEXT NOT NULL PRIMARY KEY, target_aurora_id TEXT NOT NULL,
+              origin TEXT NOT NULL, note TEXT);
+            DELETE FROM content_element_aliases;
             CREATE TABLE IF NOT EXISTS content_prepared_sources (
               aurora_id TEXT NOT NULL, file_path TEXT NOT NULL, relative_path TEXT NOT NULL,
               PRIMARY KEY(aurora_id,file_path));
@@ -151,6 +155,17 @@ internal static class PreparedContentWriter
         }
         var relativeByPath = prepared.Files.GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().Relative, StringComparer.OrdinalIgnoreCase);
+        // Only the ones that survived validation forward anything; the rest stay as skips.
+        foreach (var a in prepared.Aliases.Where(a => a.Status == "applied"))
+        {
+            command.CommandText = "INSERT OR IGNORE INTO content_element_aliases VALUES ($saved,$target,$origin,$note)";
+            command.Parameters.Clear();
+            command.Parameters.AddWithValue("$saved", a.SavedId);
+            command.Parameters.AddWithValue("$target", a.TargetId);
+            command.Parameters.AddWithValue("$origin", "content");
+            command.Parameters.AddWithValue("$note", (object?)a.Diagnostic ?? DBNull.Value);
+            command.ExecuteNonQuery();
+        }
         foreach (var d in prepared.RejectedDeclarations)
         {
             command.CommandText = "INSERT INTO content_rejected_declarations VALUES ($path,$relative,$hash,$ordinal,$id,$xml)";

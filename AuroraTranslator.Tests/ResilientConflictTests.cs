@@ -172,6 +172,35 @@ internal static class ResilientConflictTests
         Require(w.Project("ID_COPIED", true).Contains("Revised"), "The runtime read agrees.");
     }
 
+    /// <summary>
+    /// Content that renames an element can leave a forwarding address so characters saved against
+    /// the old id keep working. An alias is only honoured when it forwards a dead id to a live one:
+    /// forwarding an id something still declares would let a book capture an identity it does not
+    /// own, and forwarding to nothing would record a promise the catalog cannot keep.
+    /// </summary>
+    internal static void AliasesForwardOnlyDeadIds()
+    {
+        using var w = new Workspace();
+        w.Write("core/a.xml", Element("ID_LIVE", "Live") + Element("ID_TARGET", "Target"));
+        w.WriteRaw("core/aliases.xml", "<elements>"
+            + "<alias id='ID_RETIRED' target='ID_TARGET' />"          // the one good case
+            + "<alias id='ID_LIVE' target='ID_TARGET' />"             // still declared
+            + "<alias id='ID_GONE' target='ID_MISSING' />"            // target declared nowhere
+            + "<alias id='ID_SELF' target='ID_SELF' />"               // points at itself
+            + "<alias id='ID_BLANK' />"                               // no target
+            + "</elements>");
+        var result = w.Import();
+
+        Require(w.Query("SELECT target_aurora_id FROM content_element_aliases WHERE saved_aurora_id='ID_RETIRED'") == "ID_TARGET",
+            "A dead id forwarding to a live one is kept.");
+        Require(w.Query("SELECT COUNT(*) FROM content_element_aliases") == "1",
+            "Only that one is kept: " + w.Query("SELECT group_concat(saved_aurora_id) FROM content_element_aliases"));
+        Require(result.Skipped.Count(s => s.Kind == "alias") == 4,
+            "Every rejected alias is reported rather than dropped silently.");
+        Require(w.Query("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_RETIRED'") == "0",
+            "An alias is a forwarding address, not a declaration.");
+    }
+
     internal static void AggregateClassification()
     {
         using var w = new Workspace();

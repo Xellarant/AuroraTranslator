@@ -14,7 +14,7 @@ namespace Aurora.Content
     internal static partial class AuroraSqliteImporter
     {
         internal const int CurrentSchemaVersion = 1;
-        internal const int CurrentDataVersion = 16;
+        internal const int CurrentDataVersion = 17;
 
         // The standalone preparation workflow enters here. Legacy catalog callers
         // remain separate until the canonical identity migration replaces them.

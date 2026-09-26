@@ -26,6 +26,14 @@ internal sealed class ContentPreparation : IDisposable
     private readonly List<Declaration> declarations = [];
     internal IReadOnlyList<Declaration> Declarations => declarations;
     internal List<AppendOperation> Appends { get; } = [];
+
+    /// <summary>
+    /// An id a saved character may still refer to, and the element that now carries its meaning.
+    /// Content declares these when it renames something, so a character saved against the old id
+    /// keeps working. Status records why an alias was rejected rather than dropping it silently.
+    /// </summary>
+    internal sealed record ElementAlias(FileState File, string SavedId, string TargetId, string Status, string? Diagnostic);
+    internal List<ElementAlias> Aliases { get; } = [];
     internal List<FinalizedElement> Finalized { get; } = [];
     internal List<Declaration> UnavailableDeclarations { get; } = [];
     internal List<Declaration> RejectedDeclarations { get; } = [];
@@ -449,6 +457,42 @@ internal sealed class ContentPreparation : IDisposable
         // All base/corrected declarations exist before extensions are interpreted.
         foreach (var (file, xml) in documents)
         {
+            foreach (var alias in xml.Root!.Elements("alias").ToArray())
+            {
+                string savedId = ((string?)alias.Attribute("id") ?? "").Trim();
+                string targetId = ((string?)alias.Attribute("target") ?? "").Trim();
+                alias.Remove();
+                string status; string? diagnostic = null;
+                if (savedId.Length == 0 || targetId.Length == 0)
+                {
+                    status = "malformed";
+                    diagnostic = $"alias in {file.Path} needs both id and target.";
+                }
+                else if (string.Equals(savedId, targetId, StringComparison.Ordinal))
+                {
+                    status = "malformed";
+                    diagnostic = $"alias '{savedId}' in {file.Path} points at itself.";
+                }
+                // An id something still declares is a live identity, not a forwarding address.
+                else if (seen.ContainsKey(savedId))
+                {
+                    status = "shadows-declaration";
+                    diagnostic = $"alias '{savedId}' in {file.Path} is also declared as an element, so it resolves on its own.";
+                }
+                else if (!seen.ContainsKey(targetId))
+                {
+                    status = "unresolved-target";
+                    diagnostic = $"alias '{savedId}' in {file.Path} points at '{targetId}', which nothing declares.";
+                }
+                else if (Aliases.Any(a => a.Status == "applied" && string.Equals(a.SavedId, savedId, StringComparison.Ordinal)))
+                {
+                    status = "duplicate";
+                    diagnostic = $"alias '{savedId}' in {file.Path} was already forwarded elsewhere.";
+                }
+                else status = "applied";
+                if (diagnostic != null) RecordSkip(file, "alias", diagnostic);
+                Aliases.Add(new(file, savedId, targetId, status, diagnostic));
+            }
             int ordinal = 0;
             foreach (var append in xml.Root!.Elements("append").ToArray())
             {

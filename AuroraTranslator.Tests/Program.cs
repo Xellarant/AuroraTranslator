@@ -91,6 +91,7 @@ var tests = new (string Name, Action Body)[]
     ("resilient conflicts retention and repair", ResilientConflictTests.RetentionAndRepair),
     ("resilient conflicts upstream authority", ResilientConflictTests.UpstreamAuthority),
     ("resilient conflicts unreadable supplier", ResilientConflictTests.UnreadableAlternative),
+    ("aliases forward only dead ids", ResilientConflictTests.AliasesForwardOnlyDeadIds),
     ("resilient conflicts aggregate classification", ResilientConflictTests.AggregateClassification),
     ("first import conflicts exclude only affected IDs", FirstImportConflictTests.ConflictsExcludeOnlyAffectedIds),
     ("first import conflicts same file and spelling", FirstImportConflictTests.SameFileAndSpellingConflictsAreUnavailable),
