@@ -136,6 +136,11 @@ CREATE TABLE IF NOT EXISTS elements
     slug TEXT NOT NULL,
     compendium_display INTEGER NOT NULL DEFAULT 1 CHECK (compendium_display IN (0, 1)),
     loader_priority INTEGER NOT NULL DEFAULT 100,
+    -- Every declaration of an id is kept, not just the one that won. A 'superseded' row records
+    -- that another file also declared this id and what it looked like; it carries no rules and
+    -- nothing links to it, because only the effective declaration's mechanics apply.
+    declaration_status TEXT NOT NULL DEFAULT 'effective'
+        CHECK (declaration_status IN ('effective', 'superseded')),
     created_utc TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -143,6 +148,9 @@ CREATE INDEX IF NOT EXISTS ix_elements_type_name ON elements(element_type_id, na
 CREATE INDEX IF NOT EXISTS ix_elements_source_name ON elements(source_book_id, name);
 CREATE INDEX IF NOT EXISTS ix_elements_slug ON elements(slug);
 CREATE INDEX IF NOT EXISTS ix_elements_aurora_id ON elements(aurora_id);
+-- An id together with the file that declared it. Not unique: one file may declare an id more
+-- than once, and Legacy lets the last of those win.
+CREATE INDEX IF NOT EXISTS ix_elements_aurora_source ON elements(aurora_id, source_file_id);
 
 CREATE TABLE IF NOT EXISTS element_texts
 (

@@ -132,7 +132,7 @@ internal static class CorrectionActivationPolicyTests
                 "Unmarked invalid Aurora content must use the unreadable policy, not be labeled a correction.");
             Require(w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_LOCAL_CONTENT'") == 1,
                 "Valid ordinary local content must remain available.");
-            Require(w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_POLICY_FIX' AND name='Protected'") == 1 &&
+            Require(w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_POLICY_FIX' AND name='Protected' AND declaration_status='effective'") == 1 &&
                 w.Count("SELECT COUNT(*) FROM local_corrections WHERE state='review-pending'") == 1,
                 "Skipping ordinary malformed content must retain the separate valid protected correction.");
         }
@@ -189,8 +189,8 @@ internal static class CorrectionActivationPolicyTests
         Require(result.Skipped.Count == 1 && result.Skipped[0].Kind == "definition-collision" &&
             ContentDatabaseReader.ReadUnavailableIds(w.Database).Count == 0,
             "A companion conflict has a reported provisional definition without invalidating the clean accepted correction target.");
-        Require(w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_POLICY_FIX' AND name='Protected'") == 1 &&
-            w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_POLICY_COMPANION'") == 1,
+        Require(w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_POLICY_FIX' AND name='Protected' AND declaration_status='effective'") == 1 &&
+            w.Count("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_POLICY_COMPANION' AND declaration_status='effective'") == 1,
             "The accepted correction must stay effective while the conflicting companion is provisional.");
         Require(File.Exists(local) && Hash(local) == localHash &&
             Directory.GetFiles(Path.GetDirectoryName(local)!, "*.retired-*").Length == 0 &&

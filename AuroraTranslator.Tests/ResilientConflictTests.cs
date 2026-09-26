@@ -37,14 +37,19 @@ internal static class ResilientConflictTests
         w.Write("core/early.xml", Element("ID_COLLISION", "EarlierBucket") + Element("ID_COLLISION", "SameFileEarlier"));
         var hashes = Directory.GetFiles(w.Root, "*.xml", SearchOption.AllDirectories).ToDictionary(p => p, p => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))));
         var result = w.Import();
-        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_COLLISION'") == "LoadsLast", "The declaration Legacy loads last owns the id: files directly under user outrank core.");
+        Require(w.Query("SELECT e.name FROM resolved_elements_cache r JOIN elements e ON e.element_id=r.winning_element_id WHERE r.aurora_id='ID_COLLISION'") == "LoadsLast", "The declaration Legacy loads last owns the id: files directly under user outrank core.");
         Require(result.Skipped.Count(s => s.Kind == "definition-collision") == 2, "Every rejected alternative is reported.");
         Require(ContentDatabaseReader.ReadUnavailableIds(w.Database).Count == 0, "A usable provisional choice is available.");
         Require(w.Project("ID_COLLISION", true).Contains("LoadsLast") && w.Project("ID_LOCAL", true).Contains("Local"), "Runtime keeps the selected choice and unrelated local content, including same-file collisions.");
         Require(w.Query("SELECT COUNT(*) FROM content_declaration_provenance WHERE aurora_id='ID_COLLISION'") == "3", "All suppliers remain inspectable.");
+        Require(w.Query("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_COLLISION'") == "3"
+            && w.Query("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_COLLISION' AND declaration_status='superseded'") == "2",
+            "Every declaration keeps a row of its own, with the two that lost marked superseded.");
+        Require(w.Query("SELECT COUNT(*) FROM v_duplicate_aurora_ids WHERE aurora_id='ID_COLLISION' AND is_winner=1") == "1",
+            "The disagreement is inspectable and names exactly one winner.");
         Require(hashes.All(x => x.Value == Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(x.Key)))), "No original XML was rewritten.");
         w.Import();
-        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_COLLISION'") == "LoadsLast", "Repeated imports preserve the same working choice.");
+        Require(w.Query("SELECT e.name FROM resolved_elements_cache r JOIN elements e ON e.element_id=r.winning_element_id WHERE r.aurora_id='ID_COLLISION'") == "LoadsLast", "Repeated imports preserve the same working choice.");
     }
 
     internal static void RetentionAndRepair()
@@ -88,7 +93,7 @@ internal static class ResilientConflictTests
         w.Import(false);
         w.Write("aggregate/z.xml", Origin("AuroraLegacy") + Element("ID_SHARED", "Maintained"));
         var updated = w.Import(false);
-        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_SHARED'") == "Maintained", "An established successor updates an existing canonical definition even in strict mode.");
+        Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_SHARED' AND declaration_status='effective'") == "Maintained", "An established successor updates an existing canonical definition even in strict mode.");
         Require(w.Query("SELECT name FROM elements WHERE aurora_id='ID_ONLY_OLD'") == "Unique", "Distinct archived content survives.");
         Require(updated.Skipped.Single().Kind == "superseded-definition", "Authority decisions are distinguished from unresolved collisions.");
         Require(w.Project("ID_SHARED", true).Contains("Maintained"), "Raw primary reads cannot resurrect the older definition.");

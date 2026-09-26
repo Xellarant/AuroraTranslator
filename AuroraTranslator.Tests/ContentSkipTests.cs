@@ -87,7 +87,7 @@ internal static class ContentSkipTests
         Require(skipped.Detail.Contains("a-first.xml") && skipped.Detail.Contains("b-second.xml"),
             "The report names both suppliers for comparison.");
 
-        Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_SHARED'") == 1,
+        Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_SHARED' AND declaration_status='effective'") == 1,
             "Skip mode makes a provisional definition available on first installation.");
         Require(w.Scalar("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_OTHER'") == 1,
             "Unrelated definitions in the same file remain available.");

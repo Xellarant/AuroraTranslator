@@ -665,7 +665,7 @@ namespace Aurora.Content
                 .Replace(" ", "_");
         }
 
-        private static string BuildSlug(string value)
+        internal static string BuildSlug(string value)
         {
             return value?.Trim().ToLower().Replace(" ", "-");
         }

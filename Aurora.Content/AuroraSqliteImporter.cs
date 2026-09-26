@@ -7,13 +7,14 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
+using System.Xml.Linq;
 
 namespace Aurora.Content
 {
     internal static partial class AuroraSqliteImporter
     {
         internal const int CurrentSchemaVersion = 1;
-        internal const int CurrentDataVersion = 15;
+        internal const int CurrentDataVersion = 16;
 
         // The standalone preparation workflow enters here. Legacy catalog callers
         // remain separate until the canonical identity migration replaces them.
@@ -1132,6 +1133,8 @@ LIMIT $sample_count;";
             bool addedGrantSpellcastingName = EnsureColumnExists(connection, "grants", "spellcasting_name", "TEXT");
             bool addedGrantIsPrepared = EnsureColumnExists(connection, "grants", "is_prepared", "INTEGER CHECK (is_prepared IN (0, 1))");
             EnsureColumnExists(connection, "grants", "raw_xml", "TEXT");
+            EnsureColumnExists(connection, "elements", "declaration_status",
+                "TEXT NOT NULL DEFAULT 'effective'");
             EnsureColumnExists(connection, "selects", "raw_xml", "TEXT");
             EnsureColumnExists(connection, "stats", "raw_xml", "TEXT");
 
@@ -3243,6 +3246,94 @@ GROUP BY
             views.ExecuteNonQuery();
         }
 
+        /// <summary>
+        /// Gives every declaration of an id a row of its own, not just the one that won.
+        ///
+        /// A losing declaration is recorded, never replayed: it carries no texts, grants or
+        /// selects, and nothing links to it, because only one definition's mechanics may apply to
+        /// an id. What it buys is the ability to see that two books disagree - which files declared
+        /// an id, what each called it, and which one is in force - through v_duplicate_aurora_ids,
+        /// instead of that information existing only as a skip message.
+        ///
+        /// Rebuilt wholesale on every import. These rows are cheap and derived, and rebuilding
+        /// avoids leaving a stale disagreement behind when a file stops declaring an id.
+        /// </summary>
+        internal static void RecordSupersededDeclarations(
+            SqliteConnection connection, SqliteTransaction transaction)
+        {
+            if (InsertSupersededDeclarationRows(connection, transaction))
+                RebuildResolvedElementCache(connection, transaction);
+        }
+
+        private static bool InsertSupersededDeclarationRows(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            using (var exists = connection.CreateCommand())
+            {
+                exists.Transaction = transaction;
+                exists.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table'" +
+                    " AND name='content_rejected_declarations'";
+                if ((long)(exists.ExecuteScalar() ?? 0L) == 0) return false;
+            }
+            ExecuteSql(connection, transaction, "DELETE FROM elements WHERE declaration_status = 'superseded';");
+
+            var rejected = new List<(string Relative, string AuroraId, string Xml)>();
+            using (var read = connection.CreateCommand())
+            {
+                read.Transaction = transaction;
+                read.CommandText = "SELECT relative_path, aurora_id, declaration_xml" +
+                    " FROM content_rejected_declarations ORDER BY relative_path, ordinal";
+                using var reader = read.ExecuteReader();
+                while (reader.Read())
+                    rejected.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2)));
+            }
+            if (rejected.Count == 0) return false;
+
+            var typeIds = ReadLookup(connection, transaction, "SELECT type_name, element_type_id FROM element_types");
+            var fileIds = ReadLookup(connection, transaction, "SELECT relative_path, source_file_id FROM source_files");
+
+            using var insert = connection.CreateCommand();
+            insert.Transaction = transaction;
+            insert.CommandText = @"
+INSERT INTO elements
+    (aurora_id, element_type_id, source_file_id, name, slug, compendium_display,
+     loader_priority, declaration_status)
+VALUES
+    ($aurora_id, $element_type_id, $source_file_id, $name, $slug, 0, $loader_priority, 'superseded');";
+            foreach (var (relative, auroraId, xml) in rejected)
+            {
+                XElement declaration;
+                try { declaration = XElement.Parse(xml); }
+                catch (System.Xml.XmlException) { continue; }
+                string typeName = (string?)declaration.Attribute("type") ?? "";
+                string name = (string?)declaration.Attribute("name") ?? auroraId;
+                // A declaration whose file or type is no longer in the database has nothing to
+                // hang off; its XML is still in content_rejected_declarations either way.
+                if (!typeIds.TryGetValue(typeName, out long typeId)) continue;
+                if (!fileIds.TryGetValue(relative, out long fileId)) continue;
+                insert.Parameters.Clear();
+                insert.Parameters.AddWithValue("$aurora_id", auroraId);
+                insert.Parameters.AddWithValue("$element_type_id", typeId);
+                insert.Parameters.AddWithValue("$source_file_id", fileId);
+                insert.Parameters.AddWithValue("$name", name);
+                insert.Parameters.AddWithValue("$slug", AuroraCatalogBuilder.BuildSlug(name));
+                insert.Parameters.AddWithValue("$loader_priority", DetermineLoaderPriority(typeName));
+                insert.ExecuteNonQuery();
+            }
+            return true;
+        }
+
+        private static Dictionary<string, long> ReadLookup(
+            SqliteConnection connection, SqliteTransaction transaction, string sql)
+        {
+            var map = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sql;
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) map[reader.GetString(0)] = reader.GetInt64(1);
+            return map;
+        }
+
         private static void RefreshPrecedenceResolution(SqliteConnection connection, SqliteTransaction transaction)
         {
             RebuildResolvedElementCache(connection, transaction);
@@ -3332,6 +3423,7 @@ WITH ranked AS
         (
             PARTITION BY e.aurora_id
             ORDER BY
+                CASE e.declaration_status WHEN 'superseded' THEN 1 ELSE 0 END ASC,
                 COALESCE(cp.precedence_rank, 500) DESC,
                 CASE COALESCE(cp.package_kind, 'local')
                     WHEN 'local' THEN 5
@@ -3506,6 +3598,7 @@ WITH ranked AS
         (
             PARTITION BY e.aurora_id
             ORDER BY
+                CASE e.declaration_status WHEN 'superseded' THEN 1 ELSE 0 END ASC,
                 COALESCE(cp.precedence_rank, 500) DESC,
                 CASE COALESCE(cp.package_kind, 'local')
                     WHEN 'local' THEN 5

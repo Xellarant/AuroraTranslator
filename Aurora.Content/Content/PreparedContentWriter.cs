@@ -15,7 +15,9 @@ internal static class PreparedContentWriter
     {
         var expected = prepared.Declarations.Select(d => d.Id).ToHashSet(StringComparer.Ordinal);
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT aurora_id FROM elements";
+        // These invariants are about the definitions in force. Superseded rows are deliberate
+        // duplicates kept for provenance, so they are excluded here and checked separately below.
+        command.CommandText = "SELECT aurora_id FROM elements WHERE declaration_status = 'effective'";
         var actual = new HashSet<string>(StringComparer.Ordinal);
         using (var reader = command.ExecuteReader())
             while (reader.Read())
@@ -25,10 +27,20 @@ internal static class PreparedContentWriter
         command.CommandText = """
             SELECT COUNT(*) FROM elements e
             LEFT JOIN resolved_elements_cache r ON r.aurora_id=e.aurora_id
-            WHERE r.aurora_id IS NULL OR r.winning_element_id<>e.element_id
+            WHERE e.declaration_status = 'effective' AND (r.aurora_id IS NULL OR r.winning_element_id<>e.element_id)
             """;
         if (Convert.ToInt64(command.ExecuteScalar()) != 0)
             throw new InvalidDataException("Finalized elements do not match the unrestricted catalog resolution cache.");
+
+        // The other half of that guarantee: a declaration that lost must never be what the
+        // catalog resolves an id to, because it carries no rules for anything to use.
+        command.CommandText = """
+            SELECT COUNT(*) FROM elements e
+            JOIN resolved_elements_cache r ON r.winning_element_id=e.element_id
+            WHERE e.declaration_status <> 'effective'
+            """;
+        if (Convert.ToInt64(command.ExecuteScalar()) != 0)
+            throw new InvalidDataException("A superseded declaration was resolved as the winning element.");
         ValidateAppendEffects(connection, prepared);
     }
 
@@ -90,9 +102,10 @@ internal static class PreparedContentWriter
             CREATE TABLE IF NOT EXISTS content_unavailable_elements (
               aurora_id TEXT PRIMARY KEY, detail TEXT NOT NULL);
             DELETE FROM content_unavailable_elements;
-            CREATE TABLE IF NOT EXISTS content_rejected_declarations (
-              file_path TEXT NOT NULL, input_sha256 TEXT NOT NULL, ordinal INTEGER NOT NULL,
-              aurora_id TEXT NOT NULL, declaration_xml TEXT NOT NULL,
+            DROP TABLE IF EXISTS content_rejected_declarations;
+            CREATE TABLE content_rejected_declarations (
+              file_path TEXT NOT NULL, relative_path TEXT NOT NULL, input_sha256 TEXT NOT NULL,
+              ordinal INTEGER NOT NULL, aurora_id TEXT NOT NULL, declaration_xml TEXT NOT NULL,
               PRIMARY KEY(file_path,ordinal));
             DELETE FROM content_rejected_declarations;
             CREATE TABLE IF NOT EXISTS content_definition_resolutions (
@@ -136,14 +149,20 @@ internal static class PreparedContentWriter
             command.Parameters.AddWithValue("$xml", d.Xml);
             command.ExecuteNonQuery();
         }
+        var relativeByPath = prepared.Files.GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Relative, StringComparer.OrdinalIgnoreCase);
         foreach (var d in prepared.RejectedDeclarations)
         {
-            command.CommandText = "INSERT INTO content_rejected_declarations VALUES ($path,$hash,$ordinal,$id,$xml)";
+            command.CommandText = "INSERT INTO content_rejected_declarations VALUES ($path,$relative,$hash,$ordinal,$id,$xml)";
             command.Parameters.Clear();
             command.Parameters.AddWithValue("$path", d.Path); command.Parameters.AddWithValue("$hash", d.Hash);
+            command.Parameters.AddWithValue("$relative", relativeByPath.TryGetValue(d.Path, out var rel) ? rel : d.Path);
             command.Parameters.AddWithValue("$ordinal", d.Ordinal); command.Parameters.AddWithValue("$id", d.Id);
             command.Parameters.AddWithValue("$xml", d.Xml); command.ExecuteNonQuery();
         }
+        // Now that the losing declarations are recorded, give each one an element row so the
+        // disagreement is inspectable rather than only described in a skip message.
+        AuroraSqliteImporter.RecordSupersededDeclarations(connection, transaction);
         foreach (var r in prepared.Resolutions)
         {
             command.CommandText = "INSERT INTO content_definition_resolutions VALUES ($id,$kind,$path,$hash,$ordinal,$previous,$xml)";
