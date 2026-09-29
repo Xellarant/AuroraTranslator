@@ -23,7 +23,15 @@ The project is well past proof-of-concept. It currently provides:
 - XML-backed spellcasting definitions, extension ownership candidates, and explicit spell-reference diagnostics
 - read-only SQLite integrity checks and optional comparison against the source XML
 - builder-facing catalog views
+- a typed catalog summary/detail reader with effective IDs, aliases, explicit links, and source provenance
 - a first-pass character-state evaluator
+
+Shared-library consumers can use `Aurora.Content.ContentCatalogReader.ReadSummaries`
+and `ReadDetail` for a prepared database snapshot. See the
+[catalog reader contract](docs/catalog-reader-contract.md) for examples, fixtures,
+and the boundary between imported content and app filtering/runtime overlays.
+This API targets shared package version 0.10.0, with database schema/data 1/17.
+The immutable 0.9.0 packages predate it; consumer adoption remains a separate step.
 
 Notable runtime capabilities already in place:
 

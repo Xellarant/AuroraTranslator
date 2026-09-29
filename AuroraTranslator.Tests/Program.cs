@@ -4,6 +4,11 @@ using Microsoft.Data.Sqlite;
 
 var tests = new (string Name, Action Body)[]
 {
+    ("catalog reader effective summaries", ContentCatalogReaderTests.EffectiveSummaries),
+    ("catalog reader details and explicit links", ContentCatalogReaderTests.DetailsAndExplicitLinks),
+    ("catalog reader preferences and snapshot boundary", ContentCatalogReaderTests.PreferencesAndSnapshotBoundary),
+    ("catalog reader refresh parity", ContentCatalogReaderTests.RefreshParity),
+    ("catalog reader database errors", ContentCatalogReaderTests.DatabaseErrors),
     ("forgiving imports validate typed declarations before writing", ForgivingImportTests.TypedFailures),
     ("forgiving imports preserve heading-only spells and validate appends", ForgivingImportTests.SpellDescriptionAndAppend),
     ("forgiving imports retain unreadable independent competitors", ForgivingImportTests.UnreadableIndependentSupplier),

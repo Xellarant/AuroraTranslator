@@ -1,0 +1,8 @@
+<elements>
+  <element id="ID_CATALOG_XGE_STAFF" name="Staff of Flowers" type="Magic Item" source="Xanathar's Guide to Everything">
+    <description><p>A distinct staff.</p></description>
+  </element>
+  <element id="ID_CATALOG_COPIED" name="Identical copy" type="Information" source="Core Book">
+    <description>Both suppliers should be credited.</description>
+  </element>
+</elements>

@@ -185,6 +185,7 @@ internal static class ContentPreparationTests
     internal static void Fixtures()
     {
         using var w = new Workspace(); File.Delete(w.Origin);
+        var repairedParents = new List<string>();
         foreach (string fixture in new[] { "staff", "devout", "tatsumi", "musketball" })
         {
             string fixedXml = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "CorrectionMetadata", fixture + ".xml"));
@@ -209,6 +210,7 @@ internal static class ContentPreparationTests
             }
             else
             {
+                repairedParents.Add((string)elements[0].Attribute("id")!);
                 foreach (var e in elements.Skip(fixture == "devout" ? 1 : 2))
                 {
                     string replacement = (string)e.Attribute("id")!;
@@ -235,5 +237,18 @@ internal static class ContentPreparationTests
         Require(w.Query("SELECT COUNT(*) FROM grants g JOIN elements e ON e.element_id=g.target_element_id WHERE e.aurora_id IN ('ID_JONOMAN3000_ARCHETYPE_FEATURE_DEVOUT_ZEALOTS_DEVOTION_DEFENDER_OF_KIN','ID_JONOMAN3000_ARCHETYPE_FEATURE_DEVOUT_ZEALOTS_DEVOTION_SLAYER_OF_FOES','ID_RGTTYR_RACIAL_TRAIT_TATSUMI_RYUJIN_HEARTENING_BREATH') AND g.target_aurora_id=e.aurora_id") == "3", "Repaired grants do not resolve");
         Require(w.Query("SELECT COUNT(*) FROM local_corrections WHERE state='review-pending'") == "7", "Fixture correction intent not mirrored");
         Require(w.Query("SELECT COUNT(*) FROM elements WHERE aurora_id='ID_RDDT_AA_MUSKETBALL'") == "1", "Removal deleted the retained musketball");
+        var catalog = ContentCatalogReader.ReadSummaries(w.Database);
+        Require(catalog.Entries.Count(e => e.Name == "Staff of Flowers") == 2,
+            "The public catalog must preserve both Staff identities after the protected DMG rename.");
+        var repairedTargets = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ID_JONOMAN3000_ARCHETYPE_FEATURE_DEVOUT_ZEALOTS_DEVOTION_DEFENDER_OF_KIN",
+            "ID_JONOMAN3000_ARCHETYPE_FEATURE_DEVOUT_ZEALOTS_DEVOTION_SLAYER_OF_FOES",
+            "ID_RGTTYR_RACIAL_TRAIT_TATSUMI_RYUJIN_HEARTENING_BREATH"
+        };
+        var links = repairedParents.SelectMany(id => ContentCatalogReader.ReadDetail(w.Database, id)!.Links)
+            .Where(link => repairedTargets.Contains(link.RequestedId)).ToArray();
+        Require(links.Length == 3 && links.All(link => link.Status == ContentCatalogLinkStatus.Resolved
+            && link.Target!.AuroraId == link.RequestedId), "Public detail links must resolve the corrected Devout and Tatsumi grant IDs.");
     }
 }

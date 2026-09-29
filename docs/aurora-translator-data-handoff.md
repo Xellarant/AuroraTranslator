@@ -1,10 +1,20 @@
 # AuroraTranslator data and importer handoff
 
+## Catalog summary/detail reader — September 29, 2026
+
+`Aurora.Content.ContentCatalogReader` now exposes typed `ReadSummaries` and `ReadDetail` APIs over the existing prepared database. The [reader contract](catalog-reader-contract.md) documents fields, examples, identity/alias rules, provenance and boundaries. Summary queries join the effective winner rather than all declarations sharing an ID. Distinct IDs remain separate even when names match; provisional conflicts retain their resolution kind and superseded count. Saved source preferences do not filter results. UA remains first party, local/homebrew content remains homebrew, and published non-Wizards supplements remain third party according to the existing import classification.
+
+Detail exposes imported description markup, finalized XML, surviving base suppliers, applied append provenance, and explicit grant/Companion links. Missing and wrong-type targets remain visible; grant conditions are preserved. No name-based Information/parent matching or character eligibility evaluator is introduced. Each read uses one SQLite snapshot, requires current prepared schema/data **1/17**, and reports incompatible databases with refresh guidance. Live XML overlays and cache invalidation remain host responsibilities. No writer or correction-acceptance policy changed.
+
+Verification: the Release solution build succeeded and the **full Release suite passed 124 tests, 0 failures, exit code 0**, including the five new catalog tests and expanded Staff/Devout/Tatsumi correction fixture. Coverage includes effective versus superseded definitions, aliases, unavailable targets, distinct same-name IDs, conditional/appended grants, source classification, co-suppliers, preference independence, unchanged disk/database reads, freshness boundaries, and fresh versus incremental import equivalence. The build reported the two existing nullable-context warnings at `AuroraSqliteImporter.cs:3307-3308` and NU1900 because the NuGet vulnerability feed was unavailable. No production-database or Lights integration run was performed.
+
+Release target: **0.10.0**, with schema/data **1/17** unchanged. The existing **0.9.0** build from clean commit `d35837845ff663c3612d9e1b8678ea58cc0cefd2` is recorded in Lights' vendor manifest and predates this API. Package 0.10.0 from clean committed source and verify the actual NuGet artifacts before consumer adoption. Installed XML, production databases and Lights files were not changed. Full Compendium facets, consumer integration, multi-root imports and broader review APIs remain follow-ups.
+
 ## Runtime definition decisions and conflict review — September 26, 2026
 
 **Accepted policy:** when different sources define the same exact Aurora ID differently, best-effort import keeps one version usable and flags the disagreement for intervention. The usable choice is provisional, not approval of the duplicate. Diagnostics identify the ID, competing files and selected supplier, and ask for corrected XML or distinct IDs for genuinely different content variants. Repeated imports keep that review issue until the disagreement is resolved. Distinct IDs remain independently usable. The previously accepted AuroraLegacy repository succession rule remains separate from an unresolved conflict between independent sources.
 
-The five commits through `21af7e9` changed the September 25 implementation: readable collisions follow Aurora Legacy load order; retention of previous effective XML applies to unreadable suppliers; superseded declarations have inspectable database rows while only the selected definition supplies active mechanics; content-authored and curated forwarding aliases can map absent old IDs to live IDs. Current database schema is **1**, data version **17**. The package version property remains **0.8.1**, but the immutable 0.8.1 artifacts built from `ce61268` predate these changes. Any new consumed package needs a fresh version and clean committed source.
+The five commits through `21af7e9` changed the September 25 implementation: readable collisions follow Aurora Legacy load order; retention of previous effective XML applies to unreadable suppliers; superseded declarations have inspectable database rows while only the selected definition supplies active mechanics; content-authored and curated forwarding aliases can map absent old IDs to live IDs. Current database schema is **1**, data version **17**. The subsequent `ab3e211` release bump moved the package property to **0.9.0**; the clean `d358378` build includes these changes and the runtime decisions below. Immutable 0.8.1 artifacts built from `ce61268` predate them.
 
 This follow-up implements the user's declaration-level runtime decision policy:
 
@@ -14,7 +24,7 @@ This follow-up implements the user's declaration-level runtime decision policy:
 - Database freshness still uses whole-file fingerprints. Reading changed local XML without reviving an unchanged duplicate does not make the stored database current. Ordinary primary files outside the runtime overlay continue to come from the database until refreshed; this is not an incremental database-write optimization.
 - Recovery of retained effective XML from unreadable suppliers, whole-file skips, and rejected append operations keeps its existing revision checks. This slice does not broaden those recovery decisions to declaration-level matching. Protected correction validation and grouped acceptance remain unchanged.
 
-The runtime change needs no schema migration: it reads the declaration provenance already persisted by the current contract. Work remains local and unpackaged; no installed content, production database, or consumer repository is modified.
+The runtime change needed no schema migration: it reads the declaration provenance already persisted by the current contract. It was subsequently committed as `d358378` and included in the consumed 0.9.0 packages; the implementation itself did not modify installed content or production databases.
 
 Verification: `dotnet build --no-restore -m:1 -p:UseSharedCompilation=false` succeeded with **0 errors** and the two pre-existing nullable-context warnings at `AuroraSqliteImporter.cs:3307-3308`. **22 focused tests passed**: three new `runtime decisions` cases, five `resilient conflicts` cases, the expanded correction-incidental-copy case, seven `forgiving imports` cases and six `skip projection` cases. Coverage includes unrelated edits and insertions in both winning/rejected files, shifted declaration positions, changed winners/rejected copies/new suppliers, within-ID order/count changes, removal and convergence, persistent review diagnostics, corrected upstream companions, default user overlays, and unchanged database freshness checks. Verification used disposable test content; the full suite was not rerun for this bounded change.
 
@@ -752,6 +762,8 @@ the existing suite:
    incomplete linked groups, changed local inputs, and failed imports stay protected.
 
 ## 9. Recommended implementation order and remaining boundaries
+
+**September 29 status note:** this sequence records earlier planning. Shared-library extraction and publication through 0.9.0 are complete, and the summary/detail reader above is now implemented in source. Data 17 deliberately retains superseded declaration rows: any future canonical uniqueness migration must distinguish effective identity from declaration history. Do not add an unconditional unique index on `elements.aurora_id`. Availability/source restrictions remain app-layer filtering over the unrestricted prepared catalog.
 
 1. **Carry this contract and fixtures into Translator first.** The bounded
    standalone source port in section 11 now implements this initial step. Share the XML

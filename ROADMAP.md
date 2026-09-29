@@ -128,6 +128,7 @@ The character-state evaluator is supporting tooling for inspection, regression c
 
 ## Core Completion Milestones
 
+- September 29: the first [typed catalog summary/detail API](docs/catalog-reader-contract.md) reads effective definitions, aliases, explicit links and supplier/append provenance. Fixtures cover identity, classification, correction results and fresh/refresh equivalence. Consumer adoption, full item/companion facets, multi-root imports and broader relationship/review APIs remain separate follow-ups.
 - Version 11 adds source hashes, ordered spellcasting entries, extension recipient candidates, and explicit spell-reference resolution to the fidelity baseline. Read-only integrity checks cover SQLite structure, foreign keys, metadata, and spellcasting projections; source comparison verifies imported file hashes and spellcasting XML.
 - Spellcasting definitions, all list/extension children, `known`/`all` flags, source owners, and potential recipients are queryable. Focused fixtures cover named/all-profile extensions, source fidelity, legacy reimport, partial repair, and package switching. Complex support expressions and character activation remain consumer concerns.
 - Audit replacement/suppression, append/overlay, optional feature, and parent/variant relationships for both preservation and queryability.

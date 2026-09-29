@@ -1,0 +1,17 @@
+<elements>
+  <element id="ID_CATALOG_SHARED" name="Effective local definition" type="Class Feature" source="Local Book">
+    <description><p>Effective <b>local</b> text.</p></description>
+    <rules>
+      <grant id="ID_CATALOG_TARGET" type="Proficiency" level="3" requirements="[level:3]" />
+      <grant id="ID_CATALOG_RETIRED_ACTION" type="Companion Action" />
+      <grant id="ID_CATALOG_MISSING" type="Proficiency" />
+    </rules>
+  </element>
+  <append id="ID_CATALOG_SHARED">
+    <supports>Appended support</supports>
+    <rules><grant id="ID_CATALOG_TRAIT" type="Companion Trait" level="4" /></rules>
+  </append>
+  <append id="ID_CATALOG_COMPANION">
+    <setters><set name="reactions">ID_CATALOG_ACTION</set></setters>
+  </append>
+</elements>

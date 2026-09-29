@@ -1,0 +1,12 @@
+<elements>
+  <element id="ID_CATALOG_SPELL" name="Fixture Ritual" type="Spell" source="Unearthed Arcana">
+    <supports>Wizard, Artificer</supports>
+    <description><p>A ritual with <em>markup</em>.</p></description>
+    <setters>
+      <set name="level">2</set>
+      <set name="school">Divination</set>
+      <set name="isRitual">true</set>
+      <set name="isConcentration">true</set>
+    </setters>
+  </element>
+</elements>
