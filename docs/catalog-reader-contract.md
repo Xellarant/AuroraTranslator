@@ -131,8 +131,10 @@ dotnet build AuroraTranslator.sln -c Release -m:1 -p:UseSharedCompilation=false
 ./AuroraTranslator.Tests/bin/Release/net10.0/AuroraTranslator.Tests.exe
 ```
 
-The release target is **0.10.0**, with schema/data **1/17** unchanged. The existing
-immutable **0.9.0** packages predate this API. Package from clean committed source
-and verify the actual NuGet artifacts before consumer adoption. Full item/companion facets,
+The local **0.10.0** packages were built from clean commit
+`61a0654086e3884793ca156377bf8068a4efc27a` and passed nine external package-consumer
+smoke checks. [Release verification](package-release-0.10.0.md) records the artifact hashes,
+provenance, results and warnings. Schema/data **1/17** are unchanged; immutable
+**0.9.0** packages predate this API. Lights/Web adoption remains separate. Full item/companion facets,
 consumer UI integration, multi-root imports, and declaration-review APIs remain
 separate follow-ups.

@@ -30,8 +30,9 @@ Shared-library consumers can use `Aurora.Content.ContentCatalogReader.ReadSummar
 and `ReadDetail` for a prepared database snapshot. See the
 [catalog reader contract](docs/catalog-reader-contract.md) for examples, fixtures,
 and the boundary between imported content and app filtering/runtime overlays.
-This API targets shared package version 0.10.0, with database schema/data 1/17.
-The immutable 0.9.0 packages predate it; consumer adoption remains a separate step.
+The local 0.10.0 packages passed [release verification](docs/package-release-0.10.0.md),
+with database schema/data 1/17. The immutable 0.9.0 packages predate this API;
+consumer adoption remains a separate step.
 
 Notable runtime capabilities already in place:
 
