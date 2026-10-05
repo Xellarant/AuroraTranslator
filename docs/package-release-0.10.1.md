@@ -1,6 +1,6 @@
 # Shared content 0.10.1 release verification
 
-Release work dated October 5, 2026. `Aurora.Content` and
+Verified October 5, 2026. `Aurora.Content` and
 `Aurora.Content.Contracts` advance together from 0.10.0 to **0.10.1**.
 This fixes two append differences reported against Lights' pinned 0.9.0 and
 confirmed still present in Translator's 0.10.0 implementation.
@@ -47,12 +47,35 @@ dotnet build AuroraTranslator.Tests/AuroraTranslator.Tests.csproj -c Release --n
 ./AuroraTranslator.Tests/bin/Release/net10.0/AuroraTranslator.Tests.exe 'reimports legacy spellcasting'
 ```
 
-Clean-source packaging and package-consumer verification follow the source commit.
+Both packages were built in Release from clean source commit
+`e6dfacdb12162c37cd9e9d5387b5d8832173e389`. Both assemblies report
+`0.10.1+e6dfacdb12162c37cd9e9d5387b5d8832173e389`, and their NuGet repository
+metadata identifies the same commit. The later documentation-only commit records
+these results; it is not the packages' source revision. Content depends on Contracts
+0.10.1 and Microsoft.Data.Sqlite 10.0.12.
+
+| Local artifact | SHA-256 |
+| --- | --- |
+| `Aurora.Content.Contracts.0.10.1.nupkg` | `75eff3e8d46da4c4851a541f6b61c36f9ac629bf203e9e94a4c7f96abad60109` |
+| `Aurora.Content.0.10.1.nupkg` | `ecb57369e0d45c54a0bcb72336e3a1722f4622e135c7b1aecf31d32dce9cc160` |
+
+The packages and machine-readable provenance manifest are under
+`artifacts/packages/0.10.1/` as ignored local build outputs. No existing immutable
+package was overwritten. No remote push, tag, or NuGet-feed publication was made.
+
+A disposable external consumer restored the actual packages into an isolated
+cache with no project references or friend-assembly access. Its Release build
+reported zero warnings/errors and **9 smoke checks passed, exit 0**. These verify
+assembly/source revisions, Contracts API access, the embedded schema, import,
+catalog identities/classification/details/aliases and non-mutating reads.
 
 A disposable oracle compiled copies of Lights'
 `tools/ContentDatabaseRehearsal/LegacyAppendAudit.cs` against the updated shared
 library and the existing Legacy binaries. Only its mock preparation contract was
-updated to 2; a second case removed the base description. Both cases passed:
+updated to 2; a second case removed the base description. Both cases passed against
+the source project and again against the actual 0.10.1 NuGet package restored into
+a separate isolated cache. The package-only oracle build reported zero
+warnings/errors and both cases exited 0:
 
 | Case | Legacy | Updated shared library |
 | --- | --- | --- |
@@ -72,6 +95,8 @@ integrity, old retained append history, repair, and database preservation on fai
 Build warnings are the existing two CS8632 nullable-context annotations in
 `AuroraSqliteImporter` and NU1900 because the vulnerability feed was unavailable.
 Vulnerability-feed verification is not claimed.
+Offline consumer restore disabled the audit for those invocations. Pack also
+reported the existing absence of package readmes; package creation succeeded.
 
 ## Consumer handoff
 

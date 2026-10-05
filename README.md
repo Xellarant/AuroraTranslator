@@ -30,7 +30,7 @@ Shared-library consumers can use `Aurora.Content.ContentCatalogReader.ReadSummar
 and `ReadDetail` for a prepared database snapshot. See the
 [catalog reader contract](docs/catalog-reader-contract.md) for examples, fixtures,
 and the boundary between imported content and app filtering/runtime overlays.
-The current release work targets **0.10.1**, database schema/data **1/18** and
+The verified local release is **0.10.1**, database schema/data **1/18** and
 preparation contract **2**, to match Legacy's append order and description behavior.
 Existing prepared databases need a refresh from XML before using the new readers.
 See the [0.10.1 release record](docs/package-release-0.10.1.md) for verification and
