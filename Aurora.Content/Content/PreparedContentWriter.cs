@@ -82,7 +82,7 @@ internal static class PreparedContentWriter
         using var transaction = connection.BeginTransaction();
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = """
+        command.CommandText = $"""
             CREATE TABLE IF NOT EXISTS content_declaration_provenance (
               file_path TEXT NOT NULL, input_sha256 TEXT NOT NULL, effective_ordinal INTEGER NOT NULL,
               aurora_id TEXT NOT NULL, declaration_fingerprint TEXT NOT NULL, effective_declaration_xml TEXT NOT NULL,
@@ -91,7 +91,7 @@ internal static class PreparedContentWriter
             CREATE TABLE IF NOT EXISTS content_preparation_metadata (
               singleton_id INTEGER PRIMARY KEY CHECK(singleton_id=1), contract_version INTEGER NOT NULL,
               catalog_policy TEXT NOT NULL, append_policy TEXT NOT NULL);
-            INSERT OR REPLACE INTO content_preparation_metadata VALUES (1,1,'unrestricted','materialized');
+            INSERT OR REPLACE INTO content_preparation_metadata VALUES (1,{PreparedCatalogReader.CurrentContractVersion},'unrestricted','materialized');
             CREATE TABLE IF NOT EXISTS content_prepared_elements (
               aurora_id TEXT PRIMARY KEY, file_path TEXT NOT NULL, base_xml TEXT NOT NULL, effective_xml TEXT NOT NULL);
             DELETE FROM content_prepared_elements;

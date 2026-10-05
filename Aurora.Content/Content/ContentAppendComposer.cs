@@ -22,6 +22,9 @@ public static class ContentAppendComposer
         var result = new XElement(definition);
         foreach (var child in append.Elements())
         {
+            // Legacy's AppendElements never transfers Description, even when the base
+            // has none. Keep the authored fragment in operation provenance only.
+            if (child.Name == "description") continue;
             if ((child.Name == "supports" && (child.HasAttributes || child.HasElements)) ||
                 (child.Name == "rules" && (child.HasAttributes || child.Elements().Any(e => e.Name != "grant" && e.Name != "select" && e.Name != "stat"))) ||
                 (child.Name == "setters" && (child.HasAttributes || child.Elements().Any(e => e.Name != "set" || string.IsNullOrWhiteSpace((string?)e.Attribute("name"))))))
@@ -57,8 +60,7 @@ public static class ContentAppendComposer
             {
                 if (child.Attributes().Any(a => (string?)container.Attribute(a.Name) != a.Value))
                     throw new InvalidDataException($"Append {child.Name} attributes conflict with the target container.");
-                // Rules retain authored multiplicity and order. Description fragments
-                // are combined in one container rather than hidden behind a second one.
+                // Rules retain authored multiplicity and order.
                 container.Add(child.Nodes().Select(Clone));
             }
         }

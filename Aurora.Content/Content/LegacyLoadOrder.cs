@@ -19,6 +19,9 @@ namespace Aurora.Content.Preparation;
 /// is not enough: within one bucket Legacy walks a directory's own files before descending into its
 /// subdirectories, so "core/zebra.xml" loads before "core/players-handbook/aboleth.xml" even though
 /// it sorts after it. <see cref="Compare"/> reproduces that walk.
+/// Legacy does not explicitly sort Directory.GetFiles/GetDirectories results. This helper keeps
+/// an ordinal tie order for files/sibling directories; that deterministic tie order is not a
+/// guarantee of identical filesystem enumeration on every platform.
 /// </summary>
 internal static class LegacyLoadOrder
 {

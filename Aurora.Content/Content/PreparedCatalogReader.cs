@@ -18,11 +18,16 @@ public sealed record PreparedCatalogFile(PreparedCatalogSource Source, string Xm
 /// <summary>Optional app-side projections. Never mutates the complete catalog or consults saved enable flags.</summary>
 public static class PreparedCatalogReader
 {
+    // v2 changes materialized append order and ignores appended descriptions.
+    // v1 snapshots must be refreshed before any projection reader can trust them.
+    internal const int CurrentContractVersion = 2;
+
     public static bool IsPrepared(SqliteConnection connection)
     {
         if (!HasPreparationMetadata(connection)) return false;
         using var q = connection.CreateCommand();
-        q.CommandText = "SELECT COUNT(*) FROM content_preparation_metadata WHERE singleton_id=1 AND contract_version=1 AND catalog_policy='unrestricted' AND append_policy='materialized'";
+        q.CommandText = "SELECT COUNT(*) FROM content_preparation_metadata WHERE singleton_id=1 AND contract_version=$version AND catalog_policy='unrestricted' AND append_policy='materialized'";
+        q.Parameters.AddWithValue("$version", CurrentContractVersion);
         return Convert.ToInt64(q.ExecuteScalar()) == 1;
     }
 
@@ -50,7 +55,7 @@ public static class PreparedCatalogReader
         IEnumerable<PreparedCatalogElement>? hostDefinitions = null,
         IReadOnlyList<PreparedCatalogFile>? runtimeFiles = null)
     {
-        if (!IsPrepared(connection)) throw new InvalidDataException("A materialized, unrestricted content preparation snapshot is required.");
+        if (!IsPrepared(connection)) throw new InvalidDataException("A current materialized, unrestricted content preparation snapshot is required. Refresh with ContentImport.ImportAsync before reading prepared content.");
         includeSource ??= _ => true;
         runtimeFiles ??= [];
         var unavailable = ContentDatabaseReader.ReadUnavailableIds(connection);
@@ -139,7 +144,8 @@ public static class PreparedCatalogReader
                 ordinal++;
             }
         }
-        foreach (var operation in operations.OrderBy(o => o.Source.FilePath, StringComparer.Ordinal).ThenBy(o => o.Ordinal))
+        foreach (var operation in operations.OrderBy(o => o.Source.RelativePath, LegacyLoadOrder.Comparer)
+            .ThenBy(o => o.Source.FilePath, StringComparer.Ordinal).ThenBy(o => o.Ordinal))
         {
             if (IsUnavailable(operation.TargetId)) continue;
             if (definitions.TryGetValue(operation.TargetId, out var definition))

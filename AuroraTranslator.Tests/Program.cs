@@ -4,6 +4,13 @@ using Microsoft.Data.Sqlite;
 
 var tests = new (string Name, Action Body)[]
 {
+    ("append policy refreshes old materialized databases", AppendPolicyMigrationTests.RefreshOldMaterialization),
+    ("append policy blocks unsafe old retention until repair", AppendPolicyMigrationTests.OldAppendRetentionRequiresRepair),
+    ("append policy preserves old unextended retention", AppendPolicyMigrationTests.OldUnextendedDefinitionCanBeRetained),
+    ("legacy append descriptions are never transferred", LegacyAppendCompatibilityTests.DescriptionsAreNeverTransferred),
+    ("legacy append import preserves order and provenance", LegacyAppendCompatibilityTests.ImportedRowsMatchLegacy),
+    ("legacy append stored and runtime replay agree", LegacyAppendCompatibilityTests.StoredAndRuntimeReplayMatchLegacy),
+    ("legacy append host projection uses relative paths", LegacyAppendCompatibilityTests.HostAndRuntimeOrderUsesRelativePaths),
     ("catalog reader effective summaries", ContentCatalogReaderTests.EffectiveSummaries),
     ("catalog reader details and explicit links", ContentCatalogReaderTests.DetailsAndExplicitLinks),
     ("catalog reader preferences and snapshot boundary", ContentCatalogReaderTests.PreferencesAndSnapshotBoundary),
@@ -225,7 +232,7 @@ internal static class SpellcastingProfileEntryTests
         AuroraSqliteImporter.ListContentPackages(workspace.DatabasePath, TestPaths.SchemaPath);
 
         using var migrated = Open(workspace.DatabasePath);
-        TestAssert.Equal((long)ContentDatabaseReader.CurrentDataVersion, ExecuteLong(migrated, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
+        TestAssert.Equal(9L, ExecuteLong(migrated, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
         TestAssert.Equal(1L, ExecuteLong(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'spellcasting_profile_entries';"));
         TestAssert.Sequence(
             new[] { "wizard", "spell (fire, cold)", "spell [earth, air]", "spell {light, dark}" },
@@ -233,6 +240,11 @@ internal static class SpellcastingProfileEntryTests
         TestAssert.Equal(
             6L,
             ExecuteLong(migrated, "SELECT COUNT(*) FROM v_spellcasting_profile_entries WHERE owner_aurora_id = 'ID_TEST_SPELLCASTING_CLASS';"));
+        migrated.Close();
+        AuroraSqliteImporter.Import(CreateCatalog(workspace), TestPaths.SchemaPath, workspace.DatabasePath);
+        using var refreshed = Open(workspace.DatabasePath);
+        TestAssert.Equal((long)ContentDatabaseReader.CurrentDataVersion,
+            ExecuteLong(refreshed, "SELECT data_version FROM database_metadata WHERE singleton_id = 1;"));
     }
 
     public static void CurrentVersionMaintenanceRebuildsMissingEntries()

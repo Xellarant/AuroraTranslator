@@ -83,7 +83,8 @@ internal static class AppendPreparationTests
         f.Write("user/append.xml", "<elements><append id='ID_BASE'><description><p>additional</p></description><supports>Local</supports></append></elements>");
         f.Import();
         string effective = f.Query("SELECT effective_xml FROM content_prepared_elements");
-        TestAssert.Equal(true, effective.Contains("corrected") && effective.Contains("additional"));
+        TestAssert.Equal(true, effective.Contains("corrected") && !effective.Contains("additional"));
+        TestAssert.Equal(true, f.Query("SELECT operation_xml FROM content_append_operations").Contains("additional"));
         Equal("1", f.Query("SELECT COUNT(*) FROM element_supports WHERE support_text='Local'"));
         Equal("review-pending", f.Query("SELECT state FROM local_corrections"));
         Equal("homebrew", f.Query("SELECT package_kind FROM v_content_append_operations"));

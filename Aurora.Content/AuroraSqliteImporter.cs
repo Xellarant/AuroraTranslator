@@ -14,7 +14,7 @@ namespace Aurora.Content
     internal static partial class AuroraSqliteImporter
     {
         internal const int CurrentSchemaVersion = 1;
-        internal const int CurrentDataVersion = 17;
+        internal const int CurrentDataVersion = 18;
 
         // The standalone preparation workflow enters here. Legacy catalog callers
         // remain separate until the canonical identity migration replaces them.
@@ -1255,7 +1255,8 @@ WHERE source_file_id IN
     (SELECT e.source_file_id FROM elements e JOIN spellcasting_profiles sp
      ON sp.owner_element_id = e.element_id WHERE sp.raw_xml IS NULL);");
 
-            EnsureDatabaseMetadataDataVersion(connection, CurrentDataVersion);
+            // Schema/admin maintenance does not recompose XML. Only a successful
+            // import may advertise the current semantic data version.
 
             if (refreshViews)
             {
@@ -1419,21 +1420,6 @@ WHERE type = 'view'
             check.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $table_name;";
             check.Parameters.AddWithValue("$table_name", tableName);
             return (long)(check.ExecuteScalar() ?? 0L) != 0;
-        }
-
-        private static void EnsureDatabaseMetadataDataVersion(SqliteConnection connection, int dataVersion)
-        {
-            if (!TableExists(connection, "database_metadata"))
-                return;
-
-            using var command = connection.CreateCommand();
-            command.CommandText = @"
-UPDATE database_metadata
-SET data_version = $data_version
-WHERE singleton_id = 1
-  AND COALESCE(data_version, 0) < $data_version;";
-            command.Parameters.AddWithValue("$data_version", dataVersion);
-            command.ExecuteNonQuery();
         }
 
         private static void EnsureSpellcastingProfileEntriesSchema(SqliteConnection connection)

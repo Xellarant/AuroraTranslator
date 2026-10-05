@@ -54,17 +54,20 @@ public static class ContentCatalogReader
             using (var reader = command.ExecuteReader())
                 while (reader.Read()) suppliers.Add(ReadSource(reader, 0));
 
-            var appends = new List<ContentCatalogAppend>();
+            var appends = new List<(string FilePath, ContentCatalogAppend Append)>();
             using (var command = session.Command("""
-                SELECT relative_path,package_key,package_name,package_kind,ordinal,operation_xml
+                SELECT relative_path,package_key,package_name,package_kind,ordinal,operation_xml,file_path
                 FROM v_content_append_operations WHERE target_aurora_id=$id AND status='applied'
                 ORDER BY file_path COLLATE BINARY,ordinal
                 """, summary.AuroraId))
             using (var reader = command.ExecuteReader())
-                while (reader.Read()) appends.Add(new(ReadSource(reader, 0), reader.GetInt32(4), reader.GetString(5)));
+                while (reader.Read()) appends.Add((reader.GetString(6), new(ReadSource(reader, 0), reader.GetInt32(4), reader.GetString(5))));
+
+            var orderedAppends = appends.OrderBy(a => a.Append.Source.RelativePath, LegacyLoadOrder.Comparer)
+                .ThenBy(a => a.FilePath, StringComparer.Ordinal).ThenBy(a => a.Append.Ordinal).Select(a => a.Append).ToList();
 
             return new ContentCatalogDetail(session.Metadata, auroraId, alias, summary, description, markup, xml,
-                suppliers.AsReadOnly(), appends.AsReadOnly(), ReadLinks(session, summary.Type, xml));
+                suppliers.AsReadOnly(), orderedAppends.AsReadOnly(), ReadLinks(session, summary.Type, xml));
         });
     }
 
@@ -171,7 +174,7 @@ public static class ContentCatalogReader
             using var reader = command.ExecuteReader();
             if (!reader.Read() || reader.GetInt32(0) != ContentDatabaseReader.CurrentSchemaVersion
                 || reader.GetInt32(1) != ContentDatabaseReader.CurrentDataVersion || reader.IsDBNull(7)
-                || reader.GetInt32(7) != 1 || Text(reader, 8) != "unrestricted" || Text(reader, 9) != "materialized")
+                || reader.GetInt32(7) != PreparedCatalogReader.CurrentContractVersion || Text(reader, 8) != "unrestricted" || Text(reader, 9) != "materialized")
                 throw new InvalidDataException($"Catalog reads require a prepared database with schema {ContentDatabaseReader.CurrentSchemaVersion}, data {ContentDatabaseReader.CurrentDataVersion}. Refresh with ContentImport.ImportAsync.");
             Metadata = new(reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), reader.GetInt32(5), Text(reader, 6));
         }

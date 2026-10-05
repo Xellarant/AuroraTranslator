@@ -74,8 +74,10 @@ internal static class SpellcastingFidelityTests
         {
             TestAssert.Equal(7L, Scalar(connection, "SELECT COUNT(*) FROM v_spellcasting_definitions WHERE requires_xml_reimport = 1;"));
             TestAssert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM v_spellcasting_extension_targets WHERE recipient_profile_id IS NOT NULL;"));
+            TestAssert.Equal(10L, Scalar(connection, "SELECT data_version FROM database_metadata;"));
         }
-        TestAssert.Equal(true, AuroraDataIntegrity.Check(workspace.DatabasePath).Any(message => message.Contains("requires XML reimport")));
+        TestAssert.Sequence(new[] { $"Data version 10 requires refresh to {AuroraSqliteImporter.CurrentDataVersion}." },
+            AuroraDataIntegrity.Check(workspace.DatabasePath));
         Import(source, workspace.DatabasePath);
         string fresh = Path.Combine(workspace.DirectoryPath, "fresh.sqlite");
         Import(source, fresh);

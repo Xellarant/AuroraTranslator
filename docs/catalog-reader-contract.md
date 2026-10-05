@@ -63,9 +63,26 @@ read. Markup must pass the consuming application's rendering policy before displ
 
 `Suppliers` credits all surviving base-definition suppliers. `AppliedAppends`
 separately lists materialized append XML, its supplier classification and stored
-zero-based ordinal, ordered by file path and ordinal. Rejected/skipped appends are
+zero-based ordinal, ordered by application order: the source-relative Legacy
+directory ladder, a directory's own files before its descendants, then append
+node order within each file. Rejected/skipped appends are
 not represented as applied content. Correction review states and rejected
 declarations remain available through the existing review/database surfaces.
+
+Both import preparation and prepared runtime projection apply `supplements`
+before `homebrew`, even when absolute file paths would sort in the reverse order.
+Rules preserve authored order and multiplicity. Legacy does not transfer an
+appended `<description>` to the target, including when the target has no
+description. Such prose remains in the original append XML exposed by
+`AppliedAppends`, without entering the target's description or effective XML.
+An applied operation can therefore contain a description that has no display
+effect, alongside supported mechanics that do apply.
+
+Within a directory, and between sibling directories, the shared library uses
+deterministic ordinal ordering. Legacy itself uses unsorted filesystem
+enumeration, so those ties are an approximation rather than a guaranteed Legacy
+ordering contract. Configured priority between multiple content roots is also
+outside this slice; source-relative ordering does not establish multi-root parity.
 
 `Links` covers direct `<rules><grant id="..." /></rules>` references and Companion
 `traits`, `actions`, and `reactions` setter IDs. It resolves the explicit target ID
@@ -92,8 +109,8 @@ hosts must invalidate their own catalog/detail caches on successful refresh and
 protect asynchronous UI results from an older request. Returned metadata describes
 that call's database; it is not a new cache-token protocol.
 
-The reader requires the current schema/data versions (currently **1/17**) and the
-unrestricted/materialized preparation contract. Older/newer or unprepared databases
+The reader requires the current schema/data versions (**1/18**) and the
+unrestricted/materialized preparation contract **2**. Older/newer or unprepared databases
 fail with `InvalidDataException` and refresh guidance; SQLite access/query failures
 retain the original exception as the inner exception. A missing file throws
 `FileNotFoundException` without creating a database. An unknown ID in a compatible
@@ -104,7 +121,18 @@ recover an interrupted SQLite transaction when a rollback journal is present. Th
 API does not import, activate, repair content, or accept/retire corrections.
 Freshness checks remain `ContentDatabaseReader.IsStale`; live XML overlays and
 additional roots remain the responsibility of `PreparedCatalogReader` and the host.
-No schema or data-version bump is needed for these read-only APIs.
+The catalog API introduced in 0.10.0 needed no database version bump. The 0.10.1
+append policy changes stored effective XML, grant order and descriptions, so
+existing prepared databases must be refreshed from XML with `ContentImport.ImportAsync`.
+Schema or package-administration operations do not mark old content as data 18.
+
+Best-effort retention cannot safely upgrade previously composed append effects
+when their suppliers are unreadable. That case blocks the upgrade with a repair
+diagnostic and preserves the working database; repair the suppliers and refresh
+so the target can be composed from XML. The guard also covers append dependencies
+remembered by earlier retention, even when their current operation rows are
+skipped. Retention of an unextended old definition, or a definition already
+composed under the current policy, remains permitted under existing safeguards.
 
 ## Fixtures and verification
 
@@ -116,11 +144,21 @@ preferences, non-mutating reads, snapshot freshness boundaries, unchanged and ch
 reimports versus fresh imports, and incompatible databases. Compatibility rejection
 fixtures are not a migration rehearsal from an actual historical database.
 
+`LegacyAppendCompatibilityTests` adds golden expectations from the Legacy loader
+and the Lights append audit, rather than using shared XML/database agreement as
+its oracle. It covers the directory ladder and traversal, append/rule order and
+multiplicity, present/absent descriptions, normalized database rows, original
+operation provenance, public append ordering, stored/runtime replay and host
+targets. `AppendPolicyMigrationTests` covers version rejection, refresh behavior,
+administrative version integrity and retention across the policy boundary.
+Current verification and packaging results belong in the
+[0.10.1 release record](package-release-0.10.1.md).
+
 The existing correction fixtures additionally verify both Staff of Flowers
 definitions after the DMG rename and the corrected Devout/Tatsumi grant targets
 through the public API.
 
-Verified September 29, 2026: the Release solution build succeeded and the full
+Historical 0.10.0 verification, September 29, 2026: the Release solution build succeeded and the full
 Release test executable passed **124 tests, 0 failures, exit code 0**, including
 the five new catalog tests and expanded correction fixture. The build reported
 the two existing CS8632 nullable-context warnings in `AuroraSqliteImporter` and
@@ -131,10 +169,10 @@ dotnet build AuroraTranslator.sln -c Release -m:1 -p:UseSharedCompilation=false
 ./AuroraTranslator.Tests/bin/Release/net10.0/AuroraTranslator.Tests.exe
 ```
 
-The local **0.10.0** packages were built from clean commit
+The historical local **0.10.0** packages were built from clean commit
 `61a0654086e3884793ca156377bf8068a4efc27a` and passed nine external package-consumer
 smoke checks. [Release verification](package-release-0.10.0.md) records the artifact hashes,
-provenance, results and warnings. Schema/data **1/17** are unchanged; immutable
+provenance, results and warnings. Schema/data remained **1/17** for that release; immutable
 **0.9.0** packages predate this API. Lights/Web adoption remains separate. Full item/companion facets,
 consumer UI integration, multi-root imports, and declaration-review APIs remain
 separate follow-ups.

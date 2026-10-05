@@ -1,6 +1,22 @@
 # AuroraTranslator data and importer handoff
 
-## Catalog summary/detail reader — September 29, 2026
+## Legacy append compatibility — October 5, 2026
+
+This release work targets **Aurora.Content / Aurora.Content.Contracts 0.10.1**, database schema **1**, data **18**, and preparation contract **2**. The October 5 Lights trust pass identified two shared composition mismatches in its pinned 0.9.0 package: `homebrew/a.xml` was applied before `supplements/b.xml`, and appended descriptions were combined with base descriptions. XML/database parity alone could not catch them because both paths used the shared preparation logic. The fixture establishes a rule-order difference and a displayed-description difference; it does not establish changed character statistics.
+
+Implemented behavior:
+
+- Import preparation and prepared runtime projection order appends by the source-relative Legacy directory ladder (`supplements` before `homebrew`), with a directory's own files before its descendants and append nodes in authored order within each file. Rule multiplicity and order are preserved. Alias precedence is unchanged.
+- Appended `<description>` nodes never transfer to the target, including when the base has no description. Supported mechanics in the same operation still apply. The original operation XML, including ignored prose, remains in provenance.
+- Catalog detail `AppliedAppends` lists operations in application order, with their original zero-based file ordinals and source classification.
+- Older prepared databases must be refreshed from XML with `ContentImport.ImportAsync`. Current readers reject the old preparation contract; package/schema administration cannot mark old composition as data 18 without import.
+- An unreadable supplier cannot cause already-composed effects from the old append policy to be copied into a new-policy database. Upgrade blocks with repair guidance and preserves the working database when old append effects must otherwise be retained. The check includes remembered append dependencies and prior retention that changed operation rows to skipped. Unextended old definitions and definitions already composed under the current policy retain the existing best-effort recovery behavior.
+
+Limits: the shared library uses deterministic ordinal ties for files in one directory and sibling directories. Legacy uses unsorted filesystem enumeration there, so this is an approximation rather than a universal Legacy ordering guarantee. Configured priority between multiple roots is not represented by this slice. No further setter/spellcasting append policy, duplicate-ID policy, correction acceptance rule or app filtering preference is changed.
+
+Verification: the Release build succeeded and all **131 test cases are verified**: the full run passed 130 and exposed one historical assertion that package administration advances the data version; after updating it to require the version-refresh diagnostic while retaining the spellcasting fidelity checks, its focused rerun passed (exit 0). Both direct Legacy oracle cases passed against the updated library: present and absent base descriptions remain unchanged, and supplement grants precede homebrew grants. The original pinned-package reproduction failed as reported. Package verification follows the clean source commit; see the [0.10.1 release record](package-release-0.10.1.md) for commands, results and artifact provenance. Fixtures are disposable; installed XML, production databases and Lights source files were not changed. Consumer adoption belongs in the Lights context.
+
+## Historical catalog summary/detail reader release — September 29, 2026
 
 `Aurora.Content.ContentCatalogReader` now exposes typed `ReadSummaries` and `ReadDetail` APIs over the existing prepared database. The [reader contract](catalog-reader-contract.md) documents fields, examples, identity/alias rules, provenance and boundaries. Summary queries join the effective winner rather than all declarations sharing an ID. Distinct IDs remain separate even when names match; provisional conflicts retain their resolution kind and superseded count. Saved source preferences do not filter results. UA remains first party, local/homebrew content remains homebrew, and published non-Wizards supplements remain third party according to the existing import classification.
 

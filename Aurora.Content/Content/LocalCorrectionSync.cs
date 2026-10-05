@@ -160,7 +160,40 @@ internal static class LocalCorrectionSync
                 ? " UNION SELECT file_path," + (supplierKinds ? "supplier_kind='append'" : "0") + " FROM content_definition_suppliers WHERE aurora_id=$id" : "");
         var suppliers = new List<Supplier> { new(path) };
         using (var reader = command.ExecuteReader()) while (reader.Read()) suppliers.Add(new(reader.GetString(0), reader.GetBoolean(1)));
-        return new(path, xml, suppliers.Distinct().ToArray());
+        string? retentionFailure = null;
+        if (!PreparedCatalogReader.IsPrepared(connection))
+        {
+            // A retained definition is already composed. It cannot acquire a newer append
+            // policy merely by being copied into a new snapshot. Retention can also have
+            // flattened base_xml and changed the original operations to "skipped", so inspect
+            // remembered supplier kinds and retained-operation diagnostics, not only applied rows.
+            var unsafeSuppliers = suppliers.Where(s => s.IsAppend).Select(s => s.Path).ToList();
+            if (HasTable(connection, "content_append_operations"))
+            {
+                command.CommandText = "SELECT file_path FROM content_append_operations WHERE target_aurora_id=$id AND status='skipped' AND diagnostic LIKE 'append-target-retained:%'";
+                using var reader = command.ExecuteReader();
+                while (reader.Read()) unsafeSuppliers.Add(reader.GetString(0));
+            }
+            if (!supplierKinds && HasTable(connection, "content_definition_suppliers"))
+            {
+                // Early snapshots remembered dependencies without their kind. An unclassified
+                // dependency might be an earlier append whose operation row was later discarded.
+                // Declaration provenance can establish an ordinary supplier; otherwise require
+                // its XML to be readable before replacing the working database.
+                command.CommandText = """
+                    SELECT s.file_path FROM content_definition_suppliers s WHERE s.aurora_id=$id
+                    AND NOT EXISTS (SELECT 1 FROM content_declaration_provenance d
+                                    WHERE d.aurora_id=s.aurora_id AND d.file_path=s.file_path)
+                    """;
+                using var reader = command.ExecuteReader();
+                while (reader.Read()) unsafeSuppliers.Add(reader.GetString(0));
+            }
+            if (unsafeSuppliers.Count > 0)
+                retentionFailure = $"Cannot upgrade retained definition '{id}' from an older append policy. Its previous effective XML may include append effects from {string.Join(", ", unsafeSuppliers.Distinct(StringComparer.OrdinalIgnoreCase))}. Repair the unreadable suppliers and refresh so this definition can be composed from source XML. The existing database was preserved.";
+        }
+        // The caller may deliberately remove a base definition instead of retaining it.
+        // Report incompatibility only when the previous effective XML would actually be reused.
+        return new(path, xml, suppliers.Distinct().ToArray(), retentionFailure);
     }
 
     private static bool HasSupplierKinds(SqliteConnection connection)

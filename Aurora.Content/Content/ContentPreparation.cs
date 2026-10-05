@@ -38,7 +38,7 @@ internal sealed class ContentPreparation : IDisposable
     internal List<Declaration> UnavailableDeclarations { get; } = [];
     internal List<Declaration> RejectedDeclarations { get; } = [];
     internal sealed record Supplier(string Path, bool IsAppend = false);
-    internal sealed record PreviousDefinition(string Path, string Xml, IReadOnlyList<Supplier> Suppliers);
+    internal sealed record PreviousDefinition(string Path, string Xml, IReadOnlyList<Supplier> Suppliers, string? RetentionFailure = null);
     internal sealed record DefinitionResolution(Declaration Selected, string Kind, string? PreviousPath, string Xml, IReadOnlyList<Supplier> Suppliers);
     internal List<DefinitionResolution> Resolutions { get; } = [];
     private readonly HashSet<string> retainedIds = new(StringComparer.Ordinal);
@@ -334,6 +334,7 @@ internal sealed class ContentPreparation : IDisposable
             var file = Files.FirstOrDefault(f => discarded.Contains(f.Path) &&
                 previous.Suppliers.Any(s => !s.IsAppend && string.Equals(s.Path, f.Path, StringComparison.OrdinalIgnoreCase)));
             if (file == null) continue;
+            if (previous.RetentionFailure != null) throw new InvalidDataException(previous.RetentionFailure);
             if (protectedIds.Contains(id))
                 throw new InvalidDataException($"Corrected definition '{id}' has an unreadable supplier; repair it before activation.");
             if (!documents.TryGetValue(file, out var recovered))
@@ -404,6 +405,7 @@ internal sealed class ContentPreparation : IDisposable
                     string xml = selected.Declaration.Xml;
                     if (previous != null)
                     {
+                        if (previous.RetentionFailure != null) throw new InvalidDataException(previous.RetentionFailure);
                         target = XElement.Parse(previous.Xml, LoadOptions.PreserveWhitespace);
                         selected.Element.ReplaceWith(target);
                         xml = previous.Xml;
@@ -493,6 +495,12 @@ internal sealed class ContentPreparation : IDisposable
                 if (diagnostic != null) RecordSkip(file, "alias", diagnostic);
                 Aliases.Add(new(file, savedId, targetId, status, diagnostic));
             }
+        }
+        // Alias precedence is independent. Append application follows the same
+        // content-relative directory ladder/walk used by Legacy declaration loading.
+        foreach (var (file, xml) in documents.OrderBy(p => p.Key.Relative, LegacyLoadOrder.Comparer)
+            .ThenBy(p => p.Key.Path, StringComparer.Ordinal))
+        {
             int ordinal = 0;
             foreach (var append in xml.Root!.Elements("append").ToArray())
             {
