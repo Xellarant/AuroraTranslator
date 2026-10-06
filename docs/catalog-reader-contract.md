@@ -155,7 +155,8 @@ operation provenance, public append ordering, stored/runtime replay and host
 targets. `AppendPolicyMigrationTests` covers version rejection, refresh behavior,
 administrative version integrity and retention across the policy boundary.
 Current verification and packaging results belong in the
-[0.10.1 release record](package-release-0.10.1.md).
+[0.11.0 release record](package-release-0.11.0.md); the
+[0.10.1 release record](package-release-0.10.1.md) includes the independent Legacy oracle.
 
 The existing correction fixtures additionally verify both Staff of Flowers
 definitions after the DMG rename and the corrected Devout/Tatsumi grant targets

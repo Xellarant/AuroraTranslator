@@ -2,7 +2,7 @@
 
 ## Correction editing and review — October 6, 2026
 
-The 0.11.0 release source adds `ContentCorrectionEditor` for read/preview/save
+The verified local 0.11.0 release adds `ContentCorrectionEditor` for read/preview/save
 replacement, durable local approval, and complete same-file group acceptance.
 See the [API contract](correction-editor-contract.md) for consumer examples and
 [release verification](package-release-0.11.0.md) for actual test/package results.
@@ -40,6 +40,11 @@ See the [API contract](correction-editor-contract.md) for consumer examples and
 
 The library supplies the evaluator and safe file actions; the app owns presentation
 and explicit user choices. The Release build and all **159 tests** passed, 0 failures, exit 0.
+Both immutable packages were built from clean source commit
+`1796636803dd21e5548393070e84e6ecf9ee8695` and passed **18 package-consumer
+smoke checks**, exit 0. The release record contains hashes and provenance.
+This release is local; it has not been pushed, tagged, published to a feed or
+adopted by Lights.
 No consumer UI, installed XML or production database was changed. Replacement supports existing replace/rename/add definitions; it does
 not create new metadata, alter Aurora IDs, or rebase correction baselines.
 
