@@ -224,7 +224,7 @@ internal sealed class ContentPreparation : IDisposable
                 local.Root!.Elements().Where(e => e.Name != "info").Remove();
                 // Additions belong to the local supplier. Replacements/renames retain
                 // the corrected source's attribution. The v1 evaluator remains intact.
-                var additions = entry.Evaluation.Corrections.Where(c => c.Operation == "add" && c.State == "review-pending")
+                var additions = entry.Evaluation.Corrections.Where(c => c.Operation == "add" && c.IsActive)
                     .Select(c => c.TargetId).ToHashSet(StringComparer.Ordinal);
                 var upstreamIds = LocalCorrectionDocument.Parse(entry.Evaluation.UpstreamXml).Root!.Elements("element")
                     .Select(e => (string?)e.Attribute("id")).ToHashSet(StringComparer.Ordinal);

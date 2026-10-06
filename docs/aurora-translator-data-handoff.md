@@ -1,8 +1,51 @@
 # AuroraTranslator data and importer handoff
 
+## Correction editing and review — October 6, 2026
+
+The 0.11.0 release source adds `ContentCorrectionEditor` for read/preview/save
+replacement, durable local approval, and complete same-file group acceptance.
+See the [API contract](correction-editor-contract.md) for consumer examples and
+[release verification](package-release-0.11.0.md) for actual test/package results.
+
+- Replacement preserves the embedded baseline, declaration fingerprints, source,
+  keys, IDs, operations and grouping. Changed corrections and same-file peers
+  reopen for review and lose any approval stamp. Unchanged companions follow
+  upstream through the existing evaluator.
+- `approved-local` acknowledges a reviewed correction while keeping it active and
+  protected. A versioned `approval-fingerprint` binds its relevant baseline/local/
+  upstream declarations and correction intent. Relevant changes reopen the entire
+  same-file group in evaluation and SQLite without silently rewriting XML;
+  unrelated IDs or file-version changes do not invalidate approval.
+- Typed review details expose group keys, incorporation, eligibility and blocking
+  reasons. Both new approval and acceptance actions require all group members in
+  the same file and refuse peers in another file in the current root. Hosts
+  combining roots must check external groups themselves. Coordinated multi-file
+  editing and Reflections integration remain separate follow-ups.
+- Explicit high-level upstream acceptance requires every selected correction to
+  be incorporated. A changed old-ID definition does not count as an incorporated
+  removal/rename, while unchanged baseline companions remain allowed. Conflicting
+  additional declarations do not count as an incorporated replacement/addition.
+  Matching installed XML alone still never authorizes automatic acceptance.
+  Verified-download evidence is outside this API. Existing lower-level explicit
+  acceptance remains available for deliberate host-controlled relinquishment.
+- Approval saves only local XML and never retires it. Acceptance saves metadata;
+  normal successful import must still validate and activate the candidate before
+  redundant accepted files may retire. Stale reviews, invalid typed definitions,
+  disabled review actions and unsupported cross-file actions refuse without writes.
+- SQLite mirrors normalized review state and file status; full local XML preserves
+  stamp evidence. Approved additions retain local/homebrew provenance in stored
+  and runtime content. Schema stays **1**, preparation contract **2**, and data
+  advances **18 -> 19** for the changed review semantics. Refresh old databases
+  with import rather than editing version metadata.
+
+The library supplies the evaluator and safe file actions; the app owns presentation
+and explicit user choices. The Release build and all **159 tests** passed, 0 failures, exit 0.
+No consumer UI, installed XML or production database was changed. Replacement supports existing replace/rename/add definitions; it does
+not create new metadata, alter Aurora IDs, or rebase correction baselines.
+
 ## Legacy append compatibility — October 5, 2026
 
-The verified local release is **Aurora.Content / Aurora.Content.Contracts 0.10.1**, database schema **1**, data **18**, and preparation contract **2**. The October 5 Lights trust pass identified two shared composition mismatches in its pinned 0.9.0 package: `homebrew/a.xml` was applied before `supplements/b.xml`, and appended descriptions were combined with base descriptions. XML/database parity alone could not catch them because both paths used the shared preparation logic. The fixture establishes a rule-order difference and a displayed-description difference; it does not establish changed character statistics.
+The October 5 release was **Aurora.Content / Aurora.Content.Contracts 0.10.1**, database schema **1**, data **18**, and preparation contract **2**. The October 5 Lights trust pass identified two shared composition mismatches in its pinned 0.9.0 package: `homebrew/a.xml` was applied before `supplements/b.xml`, and appended descriptions were combined with base descriptions. XML/database parity alone could not catch them because both paths used the shared preparation logic. The fixture establishes a rule-order difference and a displayed-description difference; it does not establish changed character statistics.
 
 Implemented behavior:
 

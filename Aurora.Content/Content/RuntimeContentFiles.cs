@@ -88,7 +88,7 @@ public static class RuntimeContentFiles
                 var effective = LocalCorrectionDocument.Parse(evaluation.EffectiveXml);
                 var local = LocalCorrectionDocument.Parse(evaluation.LocalXml);
                 local.Root!.Elements().Where(e => e.Name != "info").Remove();
-                var additions = evaluation.Corrections.Where(c => c.Operation == "add" && c.State == "review-pending")
+                var additions = evaluation.Corrections.Where(c => c.Operation == "add" && c.IsActive)
                     .Select(c => c.TargetId).ToHashSet(StringComparer.Ordinal);
                 var upstreamIds = LocalCorrectionDocument.Parse(evaluation.UpstreamXml).Root!.Elements("element")
                     .Select(e => (string?)e.Attribute("id")).ToHashSet(StringComparer.Ordinal);

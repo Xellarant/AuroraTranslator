@@ -24,19 +24,24 @@ The project is well past proof-of-concept. It currently provides:
 - read-only SQLite integrity checks and optional comparison against the source XML
 - builder-facing catalog views
 - a typed catalog summary/detail reader with effective IDs, aliases, explicit links, and source provenance
+- a public correction replacement API with preview, stale-review checks, and preserved original provenance (unreleased)
 - a first-pass character-state evaluator
 
 Shared-library consumers can use `Aurora.Content.ContentCatalogReader.ReadSummaries`
 and `ReadDetail` for a prepared database snapshot. See the
 [catalog reader contract](docs/catalog-reader-contract.md) for examples, fixtures,
 and the boundary between imported content and app filtering/runtime overlays.
-The verified local release is **0.10.1**, database schema/data **1/18** and
-preparation contract **2**, to match Legacy's append order and description behavior.
-Existing prepared databases need a refresh from XML before using the new readers.
-See the [0.10.1 release record](docs/package-release-0.10.1.md) for verification and
-publication status. The [0.10.0 release verification](docs/package-release-0.10.0.md)
-is historical and covers schema/data 1/17; immutable 0.9.0 packages predate the
-catalog API. Consumer adoption remains a separate step.
+The current release source is **0.11.0**, database schema/data **1/19** and
+preparation contract **2**. Existing prepared databases need a refresh from XML
+for the new correction-review semantics. See the
+[0.11.0 release record](docs/package-release-0.11.0.md) for verification and package
+status. The [0.10.1 release record](docs/package-release-0.10.1.md) covers the
+previous Legacy append compatibility work. Consumer adoption remains separate.
+
+The [correction editor API](docs/correction-editor-contract.md) previews and
+replaces existing correction definitions, approves keeping local corrections,
+and explicitly accepts incorporated upstream corrections in complete same-file
+groups. Saving XML and refreshing SQLite are separate operations.
 
 Notable runtime capabilities already in place:
 

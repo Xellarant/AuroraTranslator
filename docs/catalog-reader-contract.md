@@ -109,7 +109,7 @@ hosts must invalidate their own catalog/detail caches on successful refresh and
 protect asynchronous UI results from an older request. Returned metadata describes
 that call's database; it is not a new cache-token protocol.
 
-The reader requires the current schema/data versions (**1/18**) and the
+The reader requires the current schema/data versions (**1/19**) and the
 unrestricted/materialized preparation contract **2**. Older/newer or unprepared databases
 fail with `InvalidDataException` and refresh guidance; SQLite access/query failures
 retain the original exception as the inner exception. A missing file throws
@@ -121,6 +121,9 @@ recover an interrupted SQLite transaction when a rollback journal is present. Th
 API does not import, activate, repair content, or accept/retire corrections.
 Freshness checks remain `ContentDatabaseReader.IsStale`; live XML overlays and
 additional roots remain the responsibility of `PreparedCatalogReader` and the host.
+The 0.11.0 correction review release requires data 19 for the new approval semantics;
+refresh existing prepared databases through import.
+
 The catalog API introduced in 0.10.0 needed no database version bump. The 0.10.1
 append policy changes stored effective XML, grant order and descriptions, so
 existing prepared databases must be refreshed from XML with `ContentImport.ImportAsync`.

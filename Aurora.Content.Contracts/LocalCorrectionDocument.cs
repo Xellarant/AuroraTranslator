@@ -13,18 +13,27 @@ namespace Aurora.Content.Contracts;
 
 public sealed record LocalCorrection(string Key, string Operation, string TargetId,
     string? ReplacementId, string? OriginalFingerprint, string State = "review-pending",
-    string? Group = null, string? Reason = null);
+    string? Group = null, string? Reason = null)
+{
+    public string? ApprovalFingerprint { get; init; }
+    public bool IsActive => State is "review-pending" or "approved-local";
+}
 
 public sealed record LocalCorrectionEvaluation(string SourcePath, string BaselineXml,
     string LocalXml, string UpstreamXml, string EffectiveXml,
     IReadOnlyList<LocalCorrection> Corrections, IReadOnlyList<string> ReviewReasons,
-    bool CanRetire, IReadOnlyList<string> SuppressedIds);
+    bool CanRetire, IReadOnlyList<string> SuppressedIds)
+{
+    /// <summary>Corrections incorporated in the current upstream XML, independently of their review state.</summary>
+    public IReadOnlyList<string> IncorporatedKeys { get; init; } = Array.Empty<string>();
+}
 
 /// <summary>File-level correction intent. XML is durable; database rows are a mirror.</summary>
 public static class LocalCorrectionDocument
 {
     public const string Namespace = "urn:aurora-lights:corrections:1";
     private static readonly XNamespace Ns = Namespace;
+    private const string ApprovalAlgorithm = "aurora-local-approval-v1";
 
     /// <param name="origin">The file the content came from, named in errors so a bad file can be found.</param>
     public static XDocument Parse(string xml, string? origin = null)
@@ -73,10 +82,260 @@ public static class LocalCorrectionDocument
                 new XAttribute("state", correction.State),
                 correction.ReplacementId == null ? null : new XAttribute("replacement-id", correction.ReplacementId),
                 correction.OriginalFingerprint == null ? null : new XAttribute("original-fingerprint", correction.OriginalFingerprint),
+                correction.ApprovalFingerprint == null ? null : new XAttribute("approval-fingerprint", correction.ApprovalFingerprint),
                 correction.Group == null ? null : new XAttribute("group", correction.Group),
                 correction.Reason == null ? null : new XElement(Ns + "reason", correction.Reason)));
         document.Root!.Add(section);
         return document.ToString(SaveOptions.DisableFormatting);
+    }
+
+    /// <summary>
+    /// Replaces definitions owned by existing corrections without changing their origins or identities.
+    /// Selected corrections and their linked peers in this document return to review-pending.
+    /// This pure operation does not inspect group members in other files or write/import content.
+    /// </summary>
+    /// <param name="replacementsByCorrectionKey">Existing, case-sensitive correction keys mapped to a single element XML document.</param>
+    public static LocalCorrectionEvaluation ReplaceDefinitions(string localXml, string upstreamXml,
+        IReadOnlyDictionary<string, string> replacementsByCorrectionKey)
+    {
+        ArgumentNullException.ThrowIfNull(replacementsByCorrectionKey);
+        if (replacementsByCorrectionKey.Count == 0)
+            throw new InvalidDataException("Select at least one existing correction to amend.");
+        var local = Parse(localXml);
+        var (section, source, baselineXml) = ReadMetadata(local);
+        // Approval can become stale through a manual edit or a newly added group member.
+        // Normalize that review state without requiring the old effective content to compose.
+        var corrections = ValidateApprovals(local, Parse(baselineXml), Parse(upstreamXml), section, source,
+            ReadCorrections(section, validateGroups: false), new List<string>());
+        ValidateGroupStates(corrections);
+        var selectedKeys = new HashSet<string>(StringComparer.Ordinal);
+        var groups = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var replacement in replacementsByCorrectionKey)
+        {
+            var correction = corrections.SingleOrDefault(c => string.Equals(c.Key, replacement.Key, StringComparison.Ordinal))
+                ?? throw new InvalidDataException($"Unknown correction key '{replacement.Key}'. Select an existing correction to amend.");
+            if (!selectedKeys.Add(correction.Key))
+                throw new InvalidDataException($"Correction '{correction.Key}' was selected more than once.");
+            if (correction.Operation == "remove")
+                throw new InvalidDataException($"Correction '{correction.Key}' removes a definition and has no local definition to replace.");
+            string localId = correction.Operation == "rename"
+                ? correction.ReplacementId ?? throw new InvalidDataException("Rename requires replacement-id.")
+                : correction.TargetId;
+            var matches = local.Root!.Elements("element").Where(e => (string?)e.Attribute("id") == localId).ToList();
+            if (matches.Count != 1)
+                throw new InvalidDataException($"Correction {correction.Key} needs exactly one local definition of {localId}.");
+            using var reader = XmlReader.Create(new StringReader(replacement.Value), new XmlReaderSettings
+            { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
+            var document = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
+            var element = document.Root;
+            if (element == null || element.Name != "element" || new[] { "id", "name", "type" }
+                .Any(attribute => string.IsNullOrWhiteSpace((string?)element.Attribute(attribute))))
+                throw new InvalidDataException($"Replacement for '{correction.Key}' must be one unnamespaced element with a nonempty id, name, and type.");
+            if (element.DescendantsAndSelf().Any(e => e.Name.LocalName == "corrections" ||
+                e.Name.NamespaceName.StartsWith("urn:aurora-lights:corrections:", StringComparison.Ordinal) ||
+                e.Attributes().Any(a => a.Name.NamespaceName.StartsWith("urn:aurora-lights:corrections:", StringComparison.Ordinal))))
+                throw new InvalidDataException($"Replacement for '{correction.Key}' cannot contain correction metadata.");
+            if ((string?)element.Attribute("id") != localId)
+                throw new InvalidDataException($"Replacement for '{correction.Key}' must keep its existing local ID '{localId}'.");
+            matches[0].ReplaceWith(new XElement(element));
+            if (correction.Group != null) groups.Add(correction.Group);
+        }
+        foreach (var correction in section.Elements(Ns + "correction"))
+            if (selectedKeys.Contains((string)correction.Attribute("key")!) ||
+                ((string?)correction.Attribute("group") is { } group && groups.Contains(group)))
+            {
+                correction.SetAttributeValue("state", "review-pending");
+                correction.Attribute("approval-fingerprint")?.Remove();
+            }
+        // Validate the amended state, so an upstream collision can be repaired by this operation.
+        return Evaluate(local.ToString(SaveOptions.DisableFormatting), upstreamXml);
+    }
+
+    /// <summary>
+    /// Approves the selected local corrections while keeping them active and protected. Every member
+    /// of a selected group in this document must be selected. Hosts must coordinate other files.
+    /// Approval is bound to the relevant declarations and intent, not unrelated edits in their files.
+    /// </summary>
+    public static LocalCorrectionEvaluation ApproveLocal(string localXml, string upstreamXml,
+        IReadOnlyCollection<string> correctionKeys)
+    {
+        var evaluation = Evaluate(localXml, upstreamXml);
+        var selected = SelectCompleteGroups(evaluation.Corrections, correctionKeys);
+        var local = Parse(localXml);
+        var (section, source, baselineXml) = ReadMetadata(local);
+        foreach (var node in section.Elements(Ns + "correction").Where(e => selected.Contains(Required(e, "key"))))
+        {
+            node.SetAttributeValue("state", "approved-local");
+            node.Attribute("approval-fingerprint")?.Remove();
+        }
+        var baseline = Parse(baselineXml);
+        var upstream = Parse(upstreamXml);
+        foreach (var unit in ApprovalUnits(ReadCorrections(section, validateGroups: false)).Where(g => selected.Contains(g[0].Key)))
+        {
+            string fingerprint = ApprovalFingerprint(local, baseline, upstream, section, source, unit);
+            foreach (var node in section.Elements(Ns + "correction").Where(e => unit.Any(c => c.Key == Required(e, "key"))))
+                node.SetAttributeValue("approval-fingerprint", fingerprint);
+        }
+        return Evaluate(local.ToString(SaveOptions.DisableFormatting), upstreamXml);
+    }
+
+    /// <summary>
+    /// Records explicit acceptance of upstream for complete same-document groups. This does not
+    /// authorize automatic acceptance; hosts decide eligibility and coordinate any other files.
+    /// </summary>
+    public static LocalCorrectionEvaluation AcceptUpstream(string localXml, string upstreamXml,
+        IReadOnlyCollection<string> correctionKeys)
+    {
+        var evaluation = Evaluate(localXml, upstreamXml);
+        var selected = SelectCompleteGroups(evaluation.Corrections, correctionKeys);
+        var local = Parse(localXml);
+        var (section, _, _) = ReadMetadata(local);
+        foreach (var node in section.Elements(Ns + "correction").Where(e => selected.Contains(Required(e, "key"))))
+        {
+            node.SetAttributeValue("state", "accepted-upstream");
+            node.Attribute("approval-fingerprint")?.Remove();
+        }
+        return Evaluate(local.ToString(SaveOptions.DisableFormatting), upstreamXml);
+    }
+
+    private static HashSet<string> SelectCompleteGroups(IReadOnlyList<LocalCorrection> corrections,
+        IReadOnlyCollection<string> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        var selected = keys.ToHashSet(StringComparer.Ordinal);
+        if (selected.Count == 0 || selected.Count != keys.Count ||
+            selected.Any(key => !corrections.Any(c => c.Key == key)))
+            throw new InvalidDataException("Select unique existing correction keys to review.");
+        foreach (var group in corrections.Where(c => c.Group != null).GroupBy(c => c.Group, StringComparer.Ordinal))
+            if (group.Any(c => selected.Contains(c.Key)) && group.Any(c => !selected.Contains(c.Key)))
+                throw new InvalidDataException($"Related corrections in group '{group.Key}' must be reviewed together. Select every member in this file.");
+        return selected;
+    }
+
+    private static string Required(XElement element, string key) => (string?)element.Attribute(key) is { Length: > 0 } value
+        ? value : throw new InvalidDataException($"Correction metadata is missing {key}.");
+
+    private static (XElement Section, string SourcePath, string BaselineXml) ReadMetadata(XDocument local)
+    {
+        var sections = local.Root!.Elements().Where(e => e.Name.LocalName == "corrections").ToList();
+        if (sections.Count != 1 || sections[0].Name != Ns + "corrections" || (string?)sections[0].Attribute("version") != "1")
+            throw new InvalidDataException("Unknown or ambiguous correction metadata; preserve the file for review.");
+        var section = sections[0];
+        string source = Required(section, "source-path");
+        if (section.Elements().Any(e => e.Name != Ns + "baseline" && e.Name != Ns + "correction"))
+            throw new InvalidDataException("Unknown correction section content.");
+        var baselines = section.Elements(Ns + "baseline").ToList();
+        if (baselines.Count != 1 || (string?)baselines[0].Attribute("encoding") != "escaped-xml" || baselines[0].HasElements)
+            throw new InvalidDataException("Correction baseline must be one escaped-xml text payload.");
+        return (section, source, baselines[0].Value);
+    }
+
+    private static List<LocalCorrection> ReadCorrections(XElement section, bool validateGroups = true)
+    {
+        var corrections = section.Elements(Ns + "correction").Select(e => new LocalCorrection(
+            Required(e, "key"), Required(e, "operation"), Required(e, "target-id"),
+            (string?)e.Attribute("replacement-id"), (string?)e.Attribute("original-fingerprint"),
+            Required(e, "state"), (string?)e.Attribute("group"), (string?)e.Element(Ns + "reason"))
+            { ApprovalFingerprint = (string?)e.Attribute("approval-fingerprint") }).ToList();
+        if (corrections.Select(c => c.Key).Distinct(StringComparer.Ordinal).Count() != corrections.Count ||
+            corrections.Any(c => c.Operation is not ("replace" or "rename" or "remove" or "add") ||
+                                 c.State is not ("review-pending" or "approved-local" or "accepted-upstream")))
+            throw new InvalidDataException("Duplicate correction key or unsupported correction operation/state.");
+        if (validateGroups) ValidateGroupStates(corrections);
+        return corrections;
+    }
+
+    private static void ValidateGroupStates(IReadOnlyList<LocalCorrection> corrections)
+    {
+        if (corrections.Where(c => c.Group != null).GroupBy(c => c.Group).Any(g => g.Select(c => c.State).Distinct().Count() != 1))
+            throw new InvalidDataException("Related corrections must be reviewed together.");
+    }
+
+    private static IEnumerable<LocalCorrection[]> ApprovalUnits(IEnumerable<LocalCorrection> corrections) =>
+        corrections.GroupBy(c => (IsGroup: c.Group != null, Key: c.Group ?? c.Key)).Select(g => g.ToArray());
+
+    private static string Id(XElement element) => (string?)element.Attribute("id") ?? "";
+    private static List<XElement> Matches(XDocument document, string id) =>
+        document.Root!.Elements("element").Where(e => Id(e) == id).ToList();
+    private static string? UpdateUrl(XDocument document) =>
+        (string?)document.Root?.Element("info")?.Element("update")?.Element("file")?.Attribute("url");
+
+    private static string ApprovalFingerprint(XDocument local, XDocument baseline, XDocument upstream,
+        XElement section, string source, IReadOnlyList<LocalCorrection> unit)
+    {
+        object?[] RootContext(XDocument document) => new object?[]
+        {
+            Fingerprint(new XElement("root", document.Root!.Attributes().Where(a => !a.IsNamespaceDeclaration)
+                .Select(a => new XAttribute(a)))), UpdateUrl(document)
+        };
+        string[] Definitions(XDocument document, string id) => Matches(document, id).Select(Fingerprint).ToArray();
+        object[] Member(LocalCorrection correction)
+        {
+            var intent = new XElement(section.Elements(Ns + "correction").Single(e => Required(e, "key") == correction.Key));
+            intent.Attribute("state")?.Remove();
+            intent.Attribute("approval-fingerprint")?.Remove();
+            string localId = correction.Operation == "rename" ? correction.ReplacementId ?? "" : correction.TargetId;
+            return new object[]
+            {
+                Fingerprint(intent),
+                correction.Operation == "add" ? Array.Empty<string>() : Matches(baseline, correction.TargetId)
+                    .Where(e => correction.OriginalFingerprint == null || Fingerprint(e) == correction.OriginalFingerprint)
+                    .Select(Fingerprint).ToArray(),
+                Definitions(local, localId), Definitions(upstream, correction.TargetId),
+                correction.Operation == "rename" ? Definitions(upstream, localId) : Array.Empty<string>()
+            };
+        }
+        // Group membership and member order are part of the approved intent. Empty arrays bind
+        // absence explicitly, including remove operations and a previously unclaimed add/rename ID.
+        object?[] payload = { ApprovalAlgorithm, source, RootContext(baseline), RootContext(local), RootContext(upstream),
+            unit.Select(Member).ToArray() };
+        return ApprovalAlgorithm + ":" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload))));
+    }
+
+    private static List<LocalCorrection> ValidateApprovals(XDocument local, XDocument baseline, XDocument upstream,
+        XElement section, string source, List<LocalCorrection> corrections, List<string> reviews)
+    {
+        var reopened = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var unit in ApprovalUnits(corrections).Where(g => g.Any(c => c.State == "approved-local")))
+        {
+            string expected = ApprovalFingerprint(local, baseline, upstream, section, source, unit);
+            if (unit.All(c => c.State == "approved-local" && c.ApprovalFingerprint == expected)) continue;
+            foreach (var correction in unit) reopened.Add(correction.Key);
+            string subject = unit[0].Group == null ? $"Correction '{unit[0].Key}'" : $"Correction group '{unit[0].Group}'";
+            reviews.Add(subject + ": local approval is missing or its relevant content, intent, or group membership changed. Review and approve the local correction again; protection remains active.");
+        }
+        return corrections.Select(c => reopened.Contains(c.Key) ? c with { State = "review-pending" } : c).ToList();
+    }
+
+    private static bool IsIncorporated(LocalCorrection correction, XDocument local, XDocument baseline, XDocument upstream)
+    {
+        var previous = Matches(baseline, correction.TargetId);
+        var originals = previous
+            .Where(e => correction.OriginalFingerprint == null || Fingerprint(e) == correction.OriginalFingerprint).ToList();
+        XElement? original = originals.Count == 1 ? originals[0] : null;
+        if (correction.Operation != "add" && original == null) return false;
+        bool OriginalWasRemoved()
+        {
+            // A rename/removal may deliberately select one declaration from a same-ID collision.
+            // Unchanged baseline peers may survive, but a newly changed declaration is not proof
+            // that upstream incorporated removal of this identity's selected definition.
+            var remaining = previous.Where(e => !ReferenceEquals(e, original)).Select(Fingerprint).ToList();
+            foreach (var incoming in Matches(upstream, correction.TargetId))
+            {
+                int match = remaining.FindIndex(fingerprint => fingerprint == Fingerprint(incoming));
+                if (match < 0) return false;
+                remaining.RemoveAt(match);
+            }
+            return true;
+        }
+        if (correction.Operation == "remove")
+            return OriginalWasRemoved();
+        string localId = correction.Operation == "rename" ? correction.ReplacementId ?? "" : correction.TargetId;
+        var replacements = Matches(local, localId);
+        var incomingReplacements = Matches(upstream, localId);
+        return replacements.Count == 1 && incomingReplacements.Count > 0
+            && incomingReplacements.All(e => Fingerprint(e) == Fingerprint(replacements[0]))
+            && (correction.Operation != "rename" || OriginalWasRemoved());
     }
 
     public static string ResolveSourcePath(string contentRoot, string relative)
@@ -101,47 +360,30 @@ public static class LocalCorrectionDocument
     public static LocalCorrectionEvaluation Evaluate(string localXml, string upstreamXml)
     {
         var local = Parse(localXml);
-        var sections = local.Root!.Elements().Where(e => e.Name.LocalName == "corrections").ToList();
-        if (sections.Count != 1 || sections[0].Name != Ns + "corrections" || (string?)sections[0].Attribute("version") != "1")
-            throw new InvalidDataException("Unknown or ambiguous correction metadata; preserve the file for review.");
-        var section = sections[0];
-        string Required(XElement e, string key) => (string?)e.Attribute(key) is { Length: > 0 } value ? value
-            : throw new InvalidDataException($"Correction metadata is missing {key}.");
-        string source = Required(section, "source-path");
-        if (section.Elements().Any(e => e.Name != Ns + "baseline" && e.Name != Ns + "correction"))
-            throw new InvalidDataException("Unknown correction section content.");
-        var baselines = section.Elements(Ns + "baseline").ToList();
-        if (baselines.Count != 1 || (string?)baselines[0].Attribute("encoding") != "escaped-xml" || baselines[0].HasElements)
-            throw new InvalidDataException("Correction baseline must be one escaped-xml text payload.");
-        string baselineXml = baselines[0].Value;
+        var (section, source, baselineXml) = ReadMetadata(local);
         var baseline = Parse(baselineXml);
         var upstream = Parse(upstreamXml);
-        string? Url(XDocument d) => (string?)d.Root?.Element("info")?.Element("update")?.Element("file")?.Attribute("url");
-        if (!string.Equals(Url(baseline), Url(upstream), StringComparison.Ordinal))
+        if (!string.Equals(UpdateUrl(baseline), UpdateUrl(upstream), StringComparison.Ordinal))
             throw new InvalidDataException("Authoritative update URL changed; review the correction's origin first.");
         string? Revision(XDocument d) => (string?)d.Root?.Element("info")?.Element("update")?.Attribute("version");
         if (Version.TryParse(Revision(baseline), out var originalVersion) &&
             Version.TryParse(Revision(upstream), out var incomingVersion) && incomingVersion < originalVersion)
             throw new InvalidDataException("Authoritative file version is older than the correction baseline; review the origin first.");
-        var corrections = section.Elements(Ns + "correction").Select(e => new LocalCorrection(
-            Required(e, "key"), Required(e, "operation"), Required(e, "target-id"),
-            (string?)e.Attribute("replacement-id"), (string?)e.Attribute("original-fingerprint"),
-            Required(e, "state"), (string?)e.Attribute("group"), (string?)e.Element(Ns + "reason"))).ToList();
-        if (corrections.Select(c => c.Key).Distinct(StringComparer.Ordinal).Count() != corrections.Count ||
-            corrections.Any(c => c.Operation is not ("replace" or "rename" or "remove" or "add") ||
-                                 c.State is not ("review-pending" or "accepted-upstream")))
-            throw new InvalidDataException("Duplicate correction key or unsupported correction operation/state.");
-        if (corrections.Where(c => c.Group != null).GroupBy(c => c.Group).Any(g => g.Select(c => c.State).Distinct().Count() != 1))
-            throw new InvalidDataException("Related corrections must be reviewed together.");
         var effective = new XDocument(upstream);
         var reviews = new List<string>();
-        if (bool.TryParse((string?)local.Root.Attribute("ignore"), out bool ignored) && ignored)
+        var corrections = ValidateApprovals(local, baseline, upstream, section, source,
+            ReadCorrections(section, validateGroups: false), reviews);
+        ValidateGroupStates(corrections);
+        var incorporated = corrections.Where(c => IsIncorporated(c, local, baseline, upstream))
+            .Select(c => c.Key).ToList().AsReadOnly();
+        if (bool.TryParse((string?)local.Root!.Attribute("ignore"), out bool ignored) && ignored)
+        {
+            reviews.Add("Disabled local correction file");
             return new(source, baselineXml, localXml, upstreamXml, upstreamXml, corrections,
-                new[] { "Disabled local correction file" }, false, Array.Empty<string>());
+                reviews, false, Array.Empty<string>()) { IncorporatedKeys = incorporated };
+        }
         var coveredLocal = new HashSet<XElement>();
         var coveredBaseline = new HashSet<XElement>();
-        static string Id(XElement e) => (string?)e.Attribute("id") ?? "";
-        static List<XElement> Matches(XDocument d, string id) => d.Root!.Elements("element").Where(e => Id(e) == id).ToList();
         foreach (var correction in corrections)
         {
             string localId = correction.Operation == "rename"
@@ -185,11 +427,8 @@ public static class LocalCorrectionDocument
                 existing.ForEach(e => e.Remove());
                 effective.Root!.Add(new XElement(replacement));
             }
-            bool incorporated = correction.Operation == "remove"
-                ? original != null && !Matches(upstream, correction.TargetId).Any(e => Fingerprint(e) == Fingerprint(original))
-                : Matches(upstream, localId).Any(e => Fingerprint(e) == Fingerprint(replacement!)) &&
-                  (correction.Operation != "rename" || !Matches(upstream, correction.TargetId).Any(e => Fingerprint(e) == Fingerprint(original!)));
-            reviews.Add(correction.Key + (incorporated ? ": incorporated; review before clearing" : ": pinned"));
+            if (correction.State == "review-pending")
+                reviews.Add(correction.Key + (incorporated.Contains(correction.Key) ? ": incorporated; review before clearing" : ": pinned"));
         }
         // Full local files also contain incidental copies. Follow upstream only when
         // the original baseline proves the local declaration was not edited.
@@ -239,7 +478,7 @@ public static class LocalCorrectionDocument
         string[] suppressed = baseline.Root.Elements("element").Concat(upstream.Root!.Elements("element"))
             .Select(Id).Where(id => !effectiveIds.Contains(id)).Distinct().ToArray();
         return new(source, baselineXml, localXml, upstreamXml, effective.ToString(SaveOptions.DisableFormatting),
-            corrections, reviews, canRetire, suppressed);
+            corrections, reviews, canRetire, suppressed) { IncorporatedKeys = incorporated };
     }
 
     public static LocalCorrectionEvaluation? FromFile(string filePath, string contentRoot)
@@ -312,13 +551,7 @@ public static class LocalCorrectionDocument
         var evaluation = FromFile(filePath, root) ?? throw new InvalidDataException("No correction metadata found.");
         string source = ResolveSourcePath(root, evaluation.SourcePath);
         if (FileFingerprint(source) != reviewedUpstreamHash) throw new IOException("Upstream content changed since review.");
-        if (correctionKeys.Count == 0 || correctionKeys.Any(key => !evaluation.Corrections.Any(c => c.Key == key)))
-            throw new InvalidDataException("Select existing correction keys to review.");
-        var document = Parse(evaluation.LocalXml);
-        foreach (var node in document.Root!.Element(Ns + "corrections")!.Elements(Ns + "correction"))
-            if (correctionKeys.Contains((string)node.Attribute("key")!)) node.SetAttributeValue("state", "accepted-upstream");
-        string updated = document.ToString(SaveOptions.DisableFormatting);
-        Evaluate(updated, evaluation.UpstreamXml); // Includes linked-group and effective-content validation.
+        string updated = AcceptUpstream(evaluation.LocalXml, evaluation.UpstreamXml, correctionKeys).LocalXml;
         string temporary = filePath + ".review-" + Guid.NewGuid().ToString("N");
         try
         {

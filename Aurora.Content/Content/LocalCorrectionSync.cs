@@ -319,10 +319,13 @@ internal static class LocalCorrectionSync
         {
             var e = entry.Evaluation;
             string path = Path.GetFullPath(entry.File.Path);
+            string status = e.CanRetire ? "ready-to-retire"
+                : e.ReviewReasons.Count > 0 || e.Corrections.Any(c => c.State == "review-pending") ? "review-required"
+                : e.Corrections.Any(c => c.State == "approved-local") ? "approved-local" : "active";
             Execute(connection, "INSERT OR REPLACE INTO local_override_files VALUES ($path,$source,$local,$baseline,$upstream,$effective,$status,$reviews,$suppressed)", transaction,
                 ("$path", path), ("$source", e.SourcePath), ("$local", e.LocalXml), ("$baseline", e.BaselineXml),
                 ("$upstream", e.UpstreamXml), ("$effective", e.EffectiveXml),
-                ("$status", e.CanRetire ? "ready-to-retire" : "review-required"), ("$reviews", JsonSerializer.Serialize(e.ReviewReasons)),
+                ("$status", status), ("$reviews", JsonSerializer.Serialize(e.ReviewReasons)),
                 ("$suppressed", JsonSerializer.Serialize(e.SuppressedIds)));
             foreach (var c in e.Corrections)
                 Execute(connection, "INSERT INTO local_corrections VALUES ($path,$key,$operation,$target,$replacement,$fingerprint,$state,$group,$reason)", transaction,
