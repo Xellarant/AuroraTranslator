@@ -105,6 +105,7 @@ JOIN source_files sf ON sf.source_file_id = e.source_file_id;
         }
         if (sourceRoot != null)
         {
+            var inputHashes = ReadOriginalInputHashes(connection);
             var sourceFiles = new List<(string Path, string Hash)>();
             using (var command = connection.CreateCommand())
             {
@@ -123,7 +124,12 @@ JOIN source_files sf ON sf.source_file_id = e.source_file_id;
                 }
                 using (var stream = File.OpenRead(path))
                 {
-                    if (!string.Equals(hash, Convert.ToHexString(MD5.HashData(stream)), StringComparison.OrdinalIgnoreCase))
+                    // Source-file MD5s describe staged effective XML. Prepared imports also
+                    // capture original input bytes separately; compare those with the real file.
+                    bool originalInput = inputHashes.TryGetValue(path, out string inputHash);
+                    string expectedHash = originalInput ? inputHash : hash;
+                    string actualHash = Convert.ToHexString(originalInput ? SHA256.HashData(stream) : MD5.HashData(stream));
+                    if (!string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase))
                         failures.Add("Source file hash mismatch: " + relativePath);
                 }
                 var sourceElements = XDocument.Load(path).Root?.Elements("element")
@@ -164,6 +170,19 @@ WHERE sf.relative_path = $path;
             }
         }
         return failures;
+    }
+
+    private static Dictionary<string, string> ReadOriginalInputHashes(SqliteConnection connection)
+    {
+        var hashes = new Dictionary<string, string>(OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='local_correction_inputs';";
+        if (Convert.ToInt64(command.ExecuteScalar()) == 0) return hashes;
+        command.CommandText = "SELECT path, sha256 FROM local_correction_inputs;";
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) hashes.Add(Path.GetFullPath(reader.GetString(0)), reader.GetString(1));
+        return hashes;
     }
 
     private static string Text(SqliteDataReader reader, int index) => reader.IsDBNull(index) ? null : reader.GetString(index);
