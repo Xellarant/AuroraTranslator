@@ -10,8 +10,13 @@ a normal import refresh repairs an old metadata-count mismatch when present.
 
 Pre-commit review found no further blocker. The Release build and full regression
 suite passed **166 tests, 0 failures, exit 0**, with the existing CS8632 and NU1900
-warnings. Clean-source packages and their separate consumer checks are tracked in
-the [0.11.1 release record](package-release-0.11.1.md). This pass does not change
+warnings. Both immutable packages were built from clean commit
+`2262fec4cac103990883b29460f43c9e9416fbb9`; a separate package-only consumer passed
+**20 checks, 0 failures, exit 0**, including fresh counts and normal refresh of a
+simulated old count mismatch. Hashes and provenance are in the
+[0.11.1 release record](package-release-0.11.1.md) and local
+`artifacts/packages/0.11.1/manifest.json`. The release is committed and packaged
+locally, without a push, tag or feed publication. This pass does not change
 installed content, a production database, or the Lights checkout. Consumer
 adoption is a separate handoff; broader optional features are not closeout blockers.
 

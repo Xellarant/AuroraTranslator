@@ -28,8 +28,17 @@ verification expects the original captured root; relocating it requires refresh.
 The Release build succeeded and the full executable suite passed **166 tests,
 0 failures, exit 0**. The previous focused pass verified 16 cases, including
 regression failures before the fix and non-mutating integrity checks. The
-pre-commit review found no additional blocker. Package-consumer verification and
-immutable package provenance will be recorded after packing the clean source.
+pre-commit review found no additional blocker. A separate consumer restored the
+actual packages into an isolated cache using only `PackageReference`, with no
+project references or friend-assembly access. Its Release build had zero warnings
+and errors; **20 runtime checks passed, 0 failures, exit 0**.
+
+Package checks cover assembly/source versions, Contracts access, embedded schema,
+catalog queries and aliases, provisional conflicts, source classification, append
+provenance, non-mutating reads, correction review/editing, stale-review refusal,
+and import-gated retirement. They also verify final metadata counts on a fresh
+import and normal refresh of a simulated old data-19 count mismatch, preserving
+the catalog entries. This is fixture verification, not a production refresh.
 
 ```powershell
 dotnet build AuroraTranslator.Tests/AuroraTranslator.Tests.csproj -c Release --no-restore -m:1 -p:UseSharedCompilation=false
@@ -43,12 +52,40 @@ Tests used disposable XML/SQLite fixtures and the repository regression snapshot
 Candidate activation required the same sandbox exception established during the
 focused pass; installed content and the production database were not inputs.
 
+## Immutable packages
+
+Both packages were built from clean source commit
+`2262fec4cac103990883b29460f43c9e9416fbb9`. Both assemblies report
+`0.11.1+2262fec4cac103990883b29460f43c9e9416fbb9`, and both NuGet repository
+records identify that commit. Content depends on Contracts 0.11.1 and
+Microsoft.Data.Sqlite 10.0.12. The later documentation-only commit records this
+verification; it is not the packages' source revision.
+
+| Local artifact | SHA-256 |
+| --- | --- |
+| `Aurora.Content.Contracts.0.11.1.nupkg` | `468b36943ffe217c49b4c3104a02a39d8911d4779783c9e9718c0226eb8d282d` |
+| `Aurora.Content.0.11.1.nupkg` | `891c252a4c939dad78add3cbedd9fffa287ed068594fe45111a5c19a7f80ff49` |
+
+Packages and `manifest.json` are under `artifacts/packages/0.11.1/`. No existing
+package was overwritten. Package creation had the existing missing-readme
+warnings. Offline consumer restore used the local artifacts and cached dependencies
+with NuGet audit disabled. Consumer source/evidence is under
+`artifacts/package-smoke/0.11.1/` and `artifacts/release-verification/0.11.1/`.
+
+```powershell
+dotnet pack Aurora.Content.Contracts/Aurora.Content.Contracts.csproj -c Release --no-restore -o artifacts/packages/0.11.1 -p:UseSharedCompilation=false -p:RepositoryCommit=2262fec4cac103990883b29460f43c9e9416fbb9 -p:SourceRevisionId=2262fec4cac103990883b29460f43c9e9416fbb9
+dotnet pack Aurora.Content/Aurora.Content.csproj -c Release --no-restore -o artifacts/packages/0.11.1 -p:UseSharedCompilation=false -p:RepositoryCommit=2262fec4cac103990883b29460f43c9e9416fbb9 -p:SourceRevisionId=2262fec4cac103990883b29460f43c9e9416fbb9
+```
+
+These record provenance; do not repack an existing immutable version. Consumers
+should vendor both packages together with their hashes and clean source revision.
+
 ## Release boundaries
 
-Packages must be built from the clean committed source, using a new immutable
-version. No remote push, tag, NuGet-feed publication, consumer repository change,
-installed XML edit, or production database refresh is part of this closeout.
+This release is committed and packaged locally. No remote push, tag, NuGet-feed
+publication, consumer repository change, installed XML edit, or production
+database refresh was performed.
 Consumer adoption and its own regression checks belong in the Aurora-Lights
-context. The supported core is ready for maintenance after this release's checks;
+context. The supported core is ready for maintenance within its documented scope;
 multi-root orchestration, cross-file review, publisher-download evidence, broader
 evaluator coverage and a Translator desktop UI remain separate future work.

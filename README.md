@@ -31,7 +31,7 @@ Shared-library consumers can use `Aurora.Content.ContentCatalogReader.ReadSummar
 and `ReadDetail` for a prepared database snapshot. See the
 [catalog reader contract](docs/catalog-reader-contract.md) for examples, fixtures,
 and the boundary between imported content and app filtering/runtime overlays.
-The closeout patch is **0.11.1**, with database schema/data **1/19** and preparation
+The verified local release is **0.11.1**, with database schema/data **1/19** and preparation
 contract **2** unchanged. It corrects prepared-content integrity diagnostics and
 the imported count of effective plus superseded declarations. See the
 [0.11.1 release record](docs/package-release-0.11.1.md) for verification and package
