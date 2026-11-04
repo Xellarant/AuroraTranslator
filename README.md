@@ -24,19 +24,23 @@ The project is well past proof-of-concept. It currently provides:
 - read-only SQLite integrity checks and optional comparison against the source XML
 - builder-facing catalog views
 - a typed catalog summary/detail reader with effective IDs, aliases, explicit links, and source provenance
-- a public correction replacement API with preview, stale-review checks, and preserved original provenance (unreleased)
+- public correction replacement, local approval, and grouped review APIs with stale-review checks and preserved original provenance
 - a first-pass character-state evaluator
 
 Shared-library consumers can use `Aurora.Content.ContentCatalogReader.ReadSummaries`
 and `ReadDetail` for a prepared database snapshot. See the
 [catalog reader contract](docs/catalog-reader-contract.md) for examples, fixtures,
 and the boundary between imported content and app filtering/runtime overlays.
-The verified local release is **0.11.0**, database schema/data **1/19** and
-preparation contract **2**. Existing prepared databases need a refresh from XML
-for the new correction-review semantics. See the
-[0.11.0 release record](docs/package-release-0.11.0.md) for verification and package
-status. The [0.10.1 release record](docs/package-release-0.10.1.md) covers the
-previous Legacy append compatibility work. Consumer adoption remains separate.
+The closeout patch is **0.11.1**, with database schema/data **1/19** and preparation
+contract **2** unchanged. It corrects prepared-content integrity diagnostics and
+the imported count of effective plus superseded declarations. See the
+[0.11.1 release record](docs/package-release-0.11.1.md) for verification and package
+status. Existing data-19 databases remain compatible; a normal import refresh
+repairs any old count mismatch. Databases older than data 19 still need the
+correction-review refresh described in the [0.11.0 release record](docs/package-release-0.11.0.md).
+Reflections adopted 0.11.0; adoption of this patch belongs in the Aurora-Lights
+context. The [0.10.1 release record](docs/package-release-0.10.1.md) covers the
+previous Legacy append compatibility work.
 
 The [correction editor API](docs/correction-editor-contract.md) previews and
 replaces existing correction definitions, approves keeping local corrections,
@@ -69,8 +73,8 @@ Notable runtime capabilities already in place:
 - character-state JSON output now includes a `computedCharacter` section with derived scores, traits, pending choices, warnings, and provenance
 - application-facing computed output now breaks traits into clearer `movements`, `senses`, and overall `traits` collections
 - application-facing runtime output now also includes flat `effectRows` and grouped `spellcastingProfiles` so the app does not have to reconstruct core effects from nested sections
-- SQLite now also exposes a higher-level [v_app_effect_rows](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/sqlite-character-loading.sql) summary view so the app can consume deduped effect rows with source counts instead of raw stat/setter duplicates
-- SQLite now also exposes a higher-level [v_app_choice_rows](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/sqlite-character-loading.sql) summary view so the app can consume stable choice rows without reverse-engineering `v_choice_templates`; that view now keeps static option counts separate from runtime-resolved choice families so valid zero-count rows are not mistaken for broken data
+- SQLite now also exposes a higher-level [v_app_effect_rows](/C:/Users/Ralla/source/repos/5eApiTranslator/Aurora.Content/Data/sqlite-character-loading.sql) summary view so the app can consume deduped effect rows with source counts instead of raw stat/setter duplicates
+- SQLite now also exposes a higher-level [v_app_choice_rows](/C:/Users/Ralla/source/repos/5eApiTranslator/Aurora.Content/Data/sqlite-character-loading.sql) summary view so the app can consume stable choice rows without reverse-engineering `v_choice_templates`; that view now keeps static option counts separate from runtime-resolved choice families so valid zero-count rows are not mistaken for broken data
 - committed character-state fixtures now cover baseline, bond/text-choice, partial and completed early fighter flows, PHB 2024 Fighter `Weapon Mastery`, Monk skill/tool/language completion, classic Rogue `Expertise`, Warlock `Eldritch Invocation` plus Pact Magic spell picks, PHB 2024 Sorcerer `Metamagic`, elf darkvision, first-party Cleric `Divine Order` and Druid `Primal Order` flows, PHB 2024 replacement-style feature picks, first-party oversubscribe warning scenarios, first-party fly/climb/swim movement scenarios, and a companion burrow-speed scenario
 
 ## Repository Layout
@@ -78,10 +82,10 @@ Notable runtime capabilities already in place:
 - [AuroraTranslator.sln](/C:/Users/Ralla/source/repos/5eApiTranslator/AuroraTranslator.sln)
 - [AuroraTranslator.csproj](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/AuroraTranslator.csproj)
 - [Program.cs](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Program.cs)
-- [AuroraSqliteImporter.cs](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/AuroraSqliteImporter.cs)
-- [AuroraExpressionEngine.cs](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/AuroraExpressionEngine.cs)
-- [AuroraCharacterStateEngine.cs](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/AuroraCharacterStateEngine.cs)
-- [sqlite-character-loading.sql](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/sqlite-character-loading.sql)
+- [AuroraSqliteImporter.cs](/C:/Users/Ralla/source/repos/5eApiTranslator/Aurora.Content/AuroraSqliteImporter.cs)
+- [AuroraExpressionEngine.cs](/C:/Users/Ralla/source/repos/5eApiTranslator/Aurora.Content/AuroraExpressionEngine.cs)
+- [AuroraCharacterStateEngine.cs](/C:/Users/Ralla/source/repos/5eApiTranslator/Aurora.Content/AuroraCharacterStateEngine.cs)
+- [sqlite-character-loading.sql](/C:/Users/Ralla/source/repos/5eApiTranslator/Aurora.Content/Data/sqlite-character-loading.sql)
 - [character-state-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-example.json)
 - [character-state-early-fighter-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-early-fighter-example.json)
 - [character-state-elf-example.json](/C:/Users/Ralla/source/repos/5eApiTranslator/5eApiTranslator/Data/character-state-elf-example.json)

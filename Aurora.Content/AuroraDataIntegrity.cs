@@ -103,7 +103,11 @@ JOIN source_files sf ON sf.source_file_id = e.source_file_id;
                 failures.Add("Invalid spellcasting XML: " + label + ": " + error.Message);
             }
         }
-        if (sourceRoot != null)
+        if (PreparedSourceIntegrity.AppliesTo(connection))
+        {
+            PreparedSourceIntegrity.Check(connection, sourceRoot, failures);
+        }
+        else if (sourceRoot != null)
         {
             var inputHashes = ReadOriginalInputHashes(connection);
             var sourceFiles = new List<(string Path, string Hash)>();

@@ -1,5 +1,77 @@
 # AuroraTranslator data and importer handoff
 
+## Closeout release — November 4, 2026
+
+The 0.11.1 patch includes the October 28 diagnostic/count fixes below and the
+earlier original-input fingerprint fix from `cea45d8`. Both package versions
+advance together; schema/data **1/19**, preparation contract **2**, public APIs
+and correction policy are unchanged. Existing data-19 databases remain compatible;
+a normal import refresh repairs an old metadata-count mismatch when present.
+
+Pre-commit review found no further blocker. The Release build and full regression
+suite passed **166 tests, 0 failures, exit 0**, with the existing CS8632 and NU1900
+warnings. Clean-source packages and their separate consumer checks are tracked in
+the [0.11.1 release record](package-release-0.11.1.md). This pass does not change
+installed content, a production database, or the Lights checkout. Consumer
+adoption is a separate handoff; broader optional features are not closeout blockers.
+
+## Closeout: preparation-aware integrity diagnostics — October 28, 2026
+
+This source work follows `cea45d8`, which corrected original-input SHA-256 versus
+staged-output MD5 comparisons. The immutable 0.11.0 packages remain built from
+`1796636`. The release source commits were pushed, and Reflections adopted the
+packages; those packages do not contain these later diagnostic changes. No new package, production
+refresh or consumer change is part of this pass.
+
+The new disposable fixtures reproduce false identity/spellcasting alarms for
+valid corrections, appends and duplicate decisions. They also expose a real
+metadata-count bug: import metadata is written before superseded provenance rows
+are added, making the total depend on the previous import. Provenance writing
+now updates the final all-declaration count inside its existing transaction.
+Existing snapshots with that stale count require a normal import refresh; the
+read-only checker reports the discrepancy without repairing database metadata.
+
+Prepared integrity inspection separates two checks:
+
+- Current original inputs are byte-compared with their captured fingerprints.
+  Known malformed/skipped XML is not reparsed. Expected retired-file absence is
+  allowed; reappearing retired files, newly added XML, missing files and changed
+  bytes are reported. An unreadable file remains explicitly unverifiable.
+- Normalized identities, declaration status and spellcasting are compared with
+  stored finalized XML. Identical co-suppliers contribute one effective row;
+  superseded rows retain only their minimal identities, without active mechanics.
+  Incomplete or incompatible preparation metadata requests refresh rather than
+  silently falling back to raw comparison. Direct imports retain their raw XML
+  comparison path and existing spellcasting normalization checks.
+
+This is a read-only consistency check, not an independent reimplementation of
+content preparation. Import conflict/recovery warnings remain separately visible
+through existing health/skip APIs. Checking a source root expects the original
+captured root; relocating it requires a refresh. Schema/data **1/19**, preparation
+contract **2**, and correction acceptance policy are unchanged.
+
+Verification: the Release test-project build succeeded. The four new fixture
+cases failed before the fix with the expected identity/spellcasting discrepancies;
+the three existing source-fingerprint cases passed. All **seven source-comparison
+tests** now pass, including deliberate metadata/header/status/profile corruption,
+missing or incompatible preparation metadata, retired-file reappearance, identical
+co-suppliers, and unchanged retained/skipped malformed inputs. Every check asserts
+that XML and database bytes remain unchanged. Four existing spellcasting fidelity/
+migration cases and five catalog-reader cases also passed: **16 focused tests
+total, 0 failures, exit 0**. The stricter corruption checks remain intact.
+
+The restricted run initially denied temporary SQLite candidate activation,
+including in preexisting tests. Focused runs used the same disposable fixtures
+outside that sandbox after identifying the permission failure; installed content
+and production databases were never inputs. Build warnings were the existing
+CS8632 annotations and NU1900 vulnerability-feed unavailability. No full-suite or
+production-content verification is claimed. Logs are under
+`artifacts/closeout-integrity-2026-10-28/`.
+
+The stable core scope is import, provenance, queries, refresh and supported correction APIs.
+Broader evaluator parity, multi-root composition, cross-file review and a desktop
+UI are optional future work, not prerequisites for that core scope.
+
 ## Correction editing and review — October 6, 2026
 
 The verified local 0.11.0 release adds `ContentCorrectionEditor` for read/preview/save

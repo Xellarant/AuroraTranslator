@@ -128,6 +128,10 @@ The character-state evaluator is supporting tooling for inspection, regression c
 
 ## Core Completion Milestones
 
+- November 4 closeout patch: **0.11.1** packages the prepared-content integrity fixes and consistent all-declaration metadata count. No schema/data/preparation version change is needed. The [release record](docs/package-release-0.11.1.md) tracks verification and clean-source package provenance; consumer adoption remains separate.
+- October 28 closeout: stable supported scope is correction-aware import/refresh, queryable prepared content and provenance, read-only diagnostics, and the published review APIs. Source-integrity inspection now uses captured input hashes and finalized declarations; the [handoff](docs/aurora-translator-data-handoff.md) records actual verification and release boundaries. A desktop task/diagnostics UI is a separate application feature.
+- October 6: **0.11.0** shipped the correction editor, durable local approval, and complete same-file review actions with schema/data **1/19** and preparation contract **2**. Reflections adopted the clean immutable packages. Coordinated cross-file actions and verified publisher-download evidence remain explicit boundaries. See the [API contract](docs/correction-editor-contract.md) and [release record](docs/package-release-0.11.0.md).
+
 - October 5: **0.10.1** append compatibility work targets schema/data **1/18** and preparation contract **2**. Import and runtime projection use Legacy's directory ladder and within-file append order; appended descriptions do not become target descriptions. Original operations and their application order remain inspectable. Existing prepared databases require XML refresh, with old appended effects blocked from unsafe retention. Verification and release status are recorded in the [0.10.1 release record](docs/package-release-0.10.1.md). Filesystem enumeration ties and configured multi-root priority remain explicit limits; this is not a claim of complete Legacy parity.
 - September 29: the first [typed catalog summary/detail API](docs/catalog-reader-contract.md) reads effective definitions, aliases, explicit links and supplier/append provenance. Fixtures cover identity, classification, correction results and fresh/refresh equivalence. Consumer adoption, full item/companion facets, multi-root imports and broader relationship/review APIs remain separate follow-ups.
 - Version 11 adds source hashes, ordered spellcasting entries, extension recipient candidates, and explicit spell-reference resolution to the fidelity baseline. Read-only integrity checks cover SQLite structure, foreign keys, metadata, and spellcasting projections; source comparison verifies imported file hashes and spellcasting XML.
@@ -136,7 +140,7 @@ The character-state evaluator is supporting tooling for inspection, regression c
 - Document which projections are static candidates, which retain conditions for consumers to evaluate, and which constructs require consulting preserved or original XML.
 - Verify that fresh imports, incremental refreshes, and migrations produce equivalent query results for representative content changes.
 
-The September 2026 data baseline and spellcasting review are recorded in [the baseline review](docs/data-integrity-baseline-review.md). Data checks and the focused harness pass; the broader optional evaluator sweep still has 15 legacy fixture mismatches requiring scenario review.
+The September 2026 data baseline and spellcasting review are recorded in [the baseline review](docs/data-integrity-baseline-review.md). Its optional evaluator mismatch counts describe that historical checkpoint, not the current release. Current closeout verification belongs in the [0.11.1 release record](docs/package-release-0.11.1.md) and handoff.
 
 ## Supporting Work
 
@@ -221,20 +225,18 @@ Likely target families:
   - representative feat/background/class progression families
 - keep the parity harness aimed at Aurora Lights WPF behavior first, with Aurora App loader concerns treated as secondary follow-up checks
 
-### 6. Eventually add profile-aware precedence
+### 6. Consumer source preferences and optional future scope
 
-Current precedence is global/package-based. Multiple active content profiles are a deferred extension if consumers need content sets such as:
+The imported catalog remains unrestricted. First-party/homebrew/campaign source
+preferences belong to consuming applications, which can filter using the stored
+classification and provenance. Earlier proposals for profile-specific database
+winner caches are not accepted requirements for core completion.
 
-- core only
-- first-party only
-- campaign-specific content sets
-- custom local/homebrew overlays
-
-That likely means:
-
-- profile tables
-- profile/package membership
-- profile-specific resolved winner caches or views
+Multi-root database orchestration, coordinated correction actions across files,
+additional catalog facets, and complete character-evaluator parity should be
+scheduled only for a concrete consumer need. Local correction approval/editing
+presentation belongs to the consuming app; verified publisher adoption requires
+an evidence-producing download workflow and coordinated contracts.
 
 ## Nice-To-Have Work
 

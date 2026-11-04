@@ -1,27 +1,36 @@
-# Content preparation port
+# Shared content preparation
 
-[`LocalCorrectionDocument.cs`](../../Aurora.Content.Contracts/LocalCorrectionDocument.cs)
-(now in the dependency-free `Aurora.Content.Contracts` project) is an unchanged, byte-for-byte port of
-`Builder.Data/Files/LocalCorrectionDocument.cs` from Aurora-Lights checkpoint
-`624b6b7cec82e8ad6d0efffb36ba414908469a15`. Its SHA-256 is
-`4D754E96F67BDB438733A484306C6A57450C11BF33F5D21EB2F7A1E15FEFB6BF`.
-Keep the namespace, serializer and fingerprint algorithm compatible. Changes to
-the contract/evaluator must be coordinated with Lights until shared packaging is
-introduced; this port deliberately does not introduce another evaluator.
+`Aurora.Content.Contracts/LocalCorrectionDocument.cs` began as a port of the
+Aurora-Lights evaluator at checkpoint `624b6b7cec82e8ad6d0efffb36ba414908469a15`.
+It is now the shared packaged implementation, with correction replacement,
+durable local approval, and grouped acceptance added since that checkpoint.
+It is no longer a byte-for-byte copy. Preserve the XML contract and existing
+structural fingerprint semantics; ship coordinated changes in a new immutable
+package version rather than maintaining a second evaluator in a consumer.
 
-`ContentPreparation` captures XML, evaluates that contract and finalizes
-declarations. `AuroraSqliteImporter.ImportFinalized` validates catalog identity
-before writing. `PreparedContentWriter` validates candidate coverage and persists
-declaration provenance. `LocalCorrectionSync` adapts the Lights lifecycle wrapper
-to coordinate candidate backup/import, mirrors, race detection, activation and
-recoverable retirement. The CLI is the supported production entry point in this
-slice; legacy raw-catalog callers have not been migrated.
+`ContentPreparation` captures original XML, evaluates corrections, resolves
+explicit declaration decisions, and materializes appends. The SQLite writer
+persists finalized declarations. `PreparedContentWriter` validates their coverage,
+records superseded identities and provenance, and updates the completed row count.
+`LocalCorrectionSync` coordinates candidate validation, race detection, activation,
+and recoverable retirement. `ContentImport.ImportAsync` and the CLI's
+`sqlite-import` command use this workflow. Legacy direct catalog import remains a
+separate compatibility path.
 
-Installed-file matches never cause acceptance. No downloader evidence producer
-or automatic acceptance path is implemented. The explicit review API is the
-ported `AcceptUpstream`, including reviewed input hashes and grouped validation.
+Source-integrity inspection compares current input bytes with captured input
+fingerprints and normalized database rows with the stored prepared snapshot.
+Original XML and corrected/composed output are intentionally different artifacts.
+The check does not replay an import, approve corrections, retire files, or clear
+recorded import warnings.
 
-See [the handoff](../../docs/aurora-translator-data-handoff.md) for boundaries,
-storage semantics and focused verification. The copied regression fixtures retain
-their original whitespace and provenance. Test baselines reconstruct selected
-malformed declarations; they are not the full archived upstream originals.
+Installed-file matches never cause automatic acceptance. Local approval keeps
+corrections active and protected; relevant changes reopen review. Explicit
+same-file review APIs are documented in the [editor contract](../../docs/correction-editor-contract.md).
+No verified-download evidence producer or coordinated cross-file transaction is
+implemented here. Reflections presentation and adoption are maintained in the
+Aurora-Lights context.
+
+See the [handoff](../../docs/aurora-translator-data-handoff.md) for supported scope,
+verification and release status. Original regression fixtures retain their
+whitespace and provenance; reconstructed baselines are not complete archives of
+upstream publications.

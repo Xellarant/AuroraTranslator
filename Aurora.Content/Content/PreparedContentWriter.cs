@@ -178,6 +178,11 @@ internal static class PreparedContentWriter
         // Now that the losing declarations are recorded, give each one an element row so the
         // disagreement is inspectable rather than only described in a skip message.
         AuroraSqliteImporter.RecordSupersededDeclarations(connection, transaction);
+        // Import metadata is first written before provenance adds/replaces superseded rows.
+        // Count the completed declaration set so fresh and incremental snapshots agree.
+        command.CommandText = "UPDATE database_metadata SET element_count=(SELECT COUNT(*) FROM elements) WHERE singleton_id=1";
+        command.Parameters.Clear();
+        command.ExecuteNonQuery();
         foreach (var r in prepared.Resolutions)
         {
             command.CommandText = "INSERT INTO content_definition_resolutions VALUES ($id,$kind,$path,$hash,$ordinal,$previous,$xml)";
