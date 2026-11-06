@@ -1,0 +1,41 @@
+<section class="card results">
+    <div class="card-heading"><h2>@Run.Kind results</h2><span class="badge">@Workspace.Label(Run.Status)</span></div>
+    <p class="path">@Run.Parameters.DatabasePath</p>
+    <p class="help">@Run.StartedUtc.ToLocalTime().ToString("f") · @(Run.FinishedUtc is { } end ? (end - Run.StartedUtc).TotalSeconds.ToString("0.0") + " seconds" : "No final duration recorded")</p>
+    @if (Run.Error is { } error) { <div class="notice error">@error</div> }
+    @if (Run.Result is { } result)
+    {
+        @if (result.IntegrityPassed is { } passed) { <div class="notice @(passed ? "success" : "error")"><strong>Integrity: @(passed ? "passed" : "issues found")</strong><br />Content review notices are listed separately below.</div> }
+        @if (result.Metadata is { } metadata)
+        {
+            <div class="metrics"><div><strong>@metadata.ElementCount.ToString("N0")</strong><span>Stored declarations</span></div><div><strong>@metadata.SourceFileCount.ToString("N0")</strong><span>Source files</span></div><div><strong>@metadata.SchemaVersion / @metadata.DataVersion</strong><span>Schema / data version</span></div></div>
+        }
+        @if (result.FilesChanged is { } changed) { <p>@changed files changed · @result.FilesUnchanged unchanged · @result.ElementsWritten elements written</p> }
+        <div class="section-heading"><h3>Findings <span class="muted">(@result.Issues.Count @(result.Issues.Count == 1 ? "row" : "rows"))</span></h3><button @onclick="() => OnExport.InvokeAsync(Run)">Export report</button></div>
+        <p class="help">Groups and examples may describe the same issue. Row count is not a count of unique affected elements.</p>
+        <div class="filter-row"><input aria-label="Search findings" placeholder="Search messages, paths, or IDs…" value="@Search" @oninput="e => SearchChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" /><select aria-label="Finding area" value="@Area" @onchange="e => AreaChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"><option value="">All areas</option>@foreach (var value in result.Issues.Select(i => i.Area).Append(Area).Where(a => a.Length > 0).Distinct()) { <option>@value</option> }</select></div>
+        @if (result.Issues.Count == 0) { <p class="empty-line">No findings in this run.</p> }
+        else
+        {
+            <div class="findings" role="list">@foreach (var issue in Filtered(result).Take(limit))
+            { <article class="finding" role="listitem"><div><span class="tag">@issue.Area</span><strong>@issue.Kind</strong>@if (issue.Count > 1) { <span class="muted">@issue.Count occurrences</span> }</div><p>@issue.Message</p>@if (!string.IsNullOrEmpty(issue.ElementId)) { <code>@issue.ElementId</code> }@if (!string.IsNullOrEmpty(issue.FilePath)) { <p class="path">@issue.FilePath</p> }</article> }</div>
+            @if (!Filtered(result).Any()) { <p>No findings match these filters.</p> }
+            @if (Filtered(result).Skip(limit).Any()) { <button @onclick="() => limit += 100">Show 100 more</button> }
+        }
+        @if (result.Log is { Count: > 0 } log) { <details><summary>Import diagnostic log (@log.Count messages)</summary><pre>@string.Join("\n", log)</pre></details> }
+    }
+    <details><summary>Run parameters</summary><dl><dt>Content folder</dt><dd class="path">@Run.Parameters.ContentRoot</dd><dt>Policy</dt><dd>@(Run.Parameters.SkipUnusable ? "Best effort" : "Strict")</dd><dt>Compare original inputs</dt><dd>@Run.Parameters.CompareSources</dd></dl></details>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public RunRecord Run { get; set; } = null!;
+    [Parameter] public EventCallback<RunRecord> OnExport { get; set; }
+    [Parameter] public string Search { get; set; } = "";
+    [Parameter] public EventCallback<string> SearchChanged { get; set; }
+    [Parameter] public string Area { get; set; } = "";
+    [Parameter] public EventCallback<string> AreaChanged { get; set; }
+    int limit = 100;
+    IEnumerable<DiagnosticRow> Filtered(OperationResult result) => result.Issues.Where(i =>
+        (Area.Length == 0 || i.Area == Area) && (Search.Length == 0 ||
+        string.Join(" ", i.Kind, i.Message, i.FilePath, i.ElementId).Contains(Search, StringComparison.OrdinalIgnoreCase)));
+}

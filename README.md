@@ -1,6 +1,17 @@
 # AuroraTranslator
 
-AuroraTranslator is a .NET 10 console application for translating Aurora Builder XML content into a faithful, searchable SQLite model.
+AuroraTranslator provides a .NET 10 CLI, a Windows desktop UI, and a shared library for translating Aurora Builder XML content into a faithful, searchable SQLite model.
+
+The first [desktop UI](docs/translator-desktop.md) supports saved import presets,
+background import/refresh with progress and cancellation, diagnostics, recent runs,
+and JSON report export. Launch it on Windows with:
+
+```powershell
+dotnet run --project AuroraTranslator.Desktop/AuroraTranslator.Desktop.csproj
+```
+
+The desktop UI and its additive public integrity entry point are unreleased source
+work; the verified 0.11.1 package artifacts remain unchanged.
 
 The project's authority and scope are:
 

@@ -1,0 +1,8 @@
+<Window x:Class="AuroraTranslator.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:blazor="clr-namespace:Microsoft.AspNetCore.Components.WebView.Wpf;assembly=Microsoft.AspNetCore.Components.WebView.Wpf"
+        Title="Aurora Translator" Width="1200" Height="850" MinWidth="850" MinHeight="650"
+        WindowStartupLocation="CenterScreen" ThemeMode="Dark" Background="#1E1E2E" Foreground="#CDD6F4">
+    <blazor:BlazorWebView x:Name="WebView" HostPage="wwwroot/index.html" />
+</Window>

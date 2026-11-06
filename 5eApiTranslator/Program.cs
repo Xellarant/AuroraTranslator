@@ -74,8 +74,8 @@ namespace AuroraTranslator
         {
             if (args.Length > 0 && args[0].Equals("check-data-integrity", StringComparison.OrdinalIgnoreCase))
             {
-                var failures = AuroraDataIntegrity.Check(args.Length > 1 ? args[1] : defaultFirstPartyBaselineSqlitePath,
-                    args.Length > 2 ? args[2] : null);
+                var failures = ContentIntegrity.Check(args.Length > 1 ? args[1] : defaultFirstPartyBaselineSqlitePath,
+                    args.Length > 2 ? args[2] : null).Failures;
                 Console.WriteLine(failures.Count == 0 ? "Data integrity: PASS" : "Data integrity: FAIL");
                 foreach (string failure in failures) Console.WriteLine("  - " + failure);
                 if (failures.Count > 0) Environment.ExitCode = 1;

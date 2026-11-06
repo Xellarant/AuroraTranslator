@@ -4,6 +4,12 @@ using Microsoft.Data.Sqlite;
 
 var tests = new (string Name, Action Body)[]
 {
+    ("desktop workflow settings survive restart and preserve unreadable files", DesktopWorkflowTests.SettingsRoundTrip),
+    ("desktop workflow keeps runs independent of pages and rejects overlaps", DesktopWorkflowTests.RunLifetime),
+    ("desktop workflow cancellation and late success report actual outcomes", DesktopWorkflowTests.Cancellation),
+    ("desktop workflow imports inspects and preserves database on failure", DesktopWorkflowTests.RealImportAndInspection),
+    ("desktop workflow cancellation preserves an existing database", DesktopWorkflowTests.RealCancellation),
+    ("desktop workflow public integrity refuses missing and invalid databases", DesktopWorkflowTests.PublicIntegrity),
     ("correction local approval contract approved corrections stay active without retirement", LocalApprovalContractTests.ApprovedCorrectionsStayActiveWithoutRetirement),
     ("correction local approval contract unrelated changes preserve approval", LocalApprovalContractTests.UnrelatedChangesPreserveApproval),
     ("correction local approval contract relevant changes reopen without rewriting", LocalApprovalContractTests.RelevantChangesReopenWithoutRewriting),

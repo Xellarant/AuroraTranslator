@@ -1,5 +1,26 @@
 # AuroraTranslator data and importer handoff
 
+## Translator desktop first pass — November 5, 2026
+
+The Windows WPF/Blazor Hybrid host now provides import presets, background
+import/refresh with progress and cancellation, database/source inspection,
+searchable findings, persistent recent runs and JSON exports. Application services
+own run lifetime independently of the pages, refuse overlaps, and ignore stale
+callbacks. Import/correction policy remains in the library; there is no UI for
+approving corrections or filtering database imports by source availability.
+
+`ContentIntegrity.Check` is a narrow public read-only wrapper around the existing
+integrity checker; the desktop and CLI use it. This additive API is unreleased,
+and immutable 0.11.1 packages were not repacked. Schema/data **1/19** and preparation
+contract **2** are unchanged. See [desktop usage and boundaries](translator-desktop.md).
+
+The Debug solution build and **13 focused tests** passed (six desktop workflow
+cases and seven existing source-integrity cases). Native UI rehearsal covered
+disposable import/inspection, filter persistence, report export, presets and
+restart persistence. Existing build warnings remain. No production content,
+database, consumer checkout, or package artifact was changed. This desktop source
+pass is separate from the unchanged 0.11.1 packages.
+
 ## Closeout release — November 4, 2026
 
 The 0.11.1 patch includes the October 28 diagnostic/count fixes below and the

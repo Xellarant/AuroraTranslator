@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\5eApiTranslator\AuroraTranslator.csproj" />
     <ProjectReference Include="..\Aurora.Content\Aurora.Content.csproj" />
+    <ProjectReference Include="..\AuroraTranslator.Application\AuroraTranslator.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>

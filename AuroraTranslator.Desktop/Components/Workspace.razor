@@ -1,0 +1,116 @@
+@implements IDisposable
+@inject WorkspaceSession Session
+@inject DesktopDialogs Dialogs
+@inject IJSRuntime JS
+
+<div class="shell">
+    <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">A</span><div>AURORA<span class="brand-sub">TRANSLATOR</span></div></div>
+        <div class="nav-label">WORKSPACE</div>
+        <nav aria-label="Main navigation">
+            @foreach (var item in new[] { "Import", "Diagnostics", "Recent runs" })
+            {
+                <button class="nav-item @(page == item ? "selected" : "")" aria-current="@(page == item ? "page" : null)" @onclick="() => Navigate(item)">
+                    <span class="nav-symbol">@(item == "Import" ? "↓" : item == "Diagnostics" ? "◎" : "↺")</span>@item
+                </button>
+            }
+        </nav>
+        <div class="sidebar-note"><span class="status-dot"></span> Local workspace<p>Prepare content.<br />Understand the results.</p></div>
+    </aside>
+    <main>
+        <header><span class="eyebrow">CONTENT TOOLS</span><span class="badge">@(Session.IsBusy ? "Run in progress" : "Ready")</span></header>
+        @if (Session.SettingsWarning is { } warning) { <div class="notice warning" role="alert">@warning</div> }
+        @if (error != null) { <div class="notice error" role="alert">@error <button class="quiet" @onclick="() => error = null">Dismiss</button></div> }
+        @if (feedback != null) { <div class="notice" role="status">@feedback</div> }
+        @if (Session.ActiveRun is { } active)
+        {
+            <section class="run-banner" aria-label="Active run">
+                <div><strong>@(active.Kind == RunKind.Import ? "Importing content" : "Inspecting database")</strong>
+                    <span>@(active.Status == RunStatus.Cancelling ? "Cancellation requested; waiting for a safe stopping point…" : PhaseLabel(Session.Progress?.Phase))</span></div>
+                <button disabled="@(active.Status == RunStatus.Cancelling)" @onclick="Session.Cancel">Cancel run</button>
+                @if (Session.Progress is { Total: > 0 } progress)
+                { <progress value="@progress.Completed" max="@progress.Total" aria-label="Phase progress"></progress><small>@progress.Completed / @progress.Total @(progress.Phase == ContentImportPhase.Writing ? "elements" : "files")</small> }
+                else { <progress aria-label="Run in progress"></progress> }
+                <small class="path">@(Session.Progress?.CurrentFile ?? active.Parameters.DatabasePath)</small>
+            </section>
+        }
+        @if (page == "Import")
+        {
+            <div class="page-heading"><div><h1>Import content</h1><p>Build a database from Aurora XML, or refresh an existing one.</p></div><span class="step-label">01 / PREPARE</span></div>
+            <section class="card">
+                <div class="card-heading"><h2>Content &amp; destination</h2><span class="muted">One content folder per import</span></div>
+                <div class="preset-row">
+                    <label>Saved preset<select aria-label="Saved preset" value="" @onchange="LoadPreset"><option value="">Choose a preset…</option>@foreach (var preset in Session.Document.Presets) { <option value="@preset.Id">@preset.Name</option> }</select></label>
+                    <label>Preset name<input aria-label="Preset name" @bind="presetName" maxlength="100" placeholder="e.g. Campaign content" /></label>
+                    <button @onclick="SavePreset">Save preset</button>
+                </div>
+                <label for="content-root">Content folder</label><div class="path-input"><input id="content-root" @bind="contentRoot" @bind:after="SaveSelection" placeholder="Choose the folder containing your Aurora XML" /><button @onclick="PickFolder">Browse…</button></div>
+                <p class="help">Includes XML in subfolders. Corrections and appends use the normal preparation rules.</p>
+                <label for="database-path">Database file</label><div class="path-input"><input id="database-path" @bind="databasePath" @bind:after="SaveSelection" placeholder="Choose where to create or refresh a database" /><button @onclick="() => PickDatabase(false)">Browse…</button></div>
+                <p class="help">An existing database is replaced only after the new candidate validates.</p>
+                <label for="import-policy">Import policy</label>
+                <select id="import-policy" @bind="policy" @bind:after="SaveSelection"><option value="strict">Strict</option><option value="best-effort">Best effort</option></select>
+                <p class="help policy-help">@(policy == "strict" ? "Refuse unusable files. Conflicting IDs are unavailable on a first import; new conflicts block a refresh." : "Keep usable content and flag skipped or retained definitions for review. Invalid protected corrections still block the import.")</p>
+                <div class="action-row"><div><strong>Ready when you are</strong><small>@(string.IsNullOrWhiteSpace(databasePath) ? "Choose your content and destination above." : "Destination: " + databasePath)</small></div><button class="primary" disabled="@Session.IsBusy" @onclick="() => Start(RunKind.Import)">Import / refresh <span>→</span></button></div>
+                <p class="help">Previously accepted, redundant correction files may retire after a successful import. This screen does not approve corrections.</p>
+            </section>
+            @if (Session.Document.Runs.FirstOrDefault() is { } latest)
+            {
+                <section class="card compact"><div class="card-heading"><h2>Latest run</h2><span class="badge">@Label(latest.Status)</span></div><p class="path">@latest.Parameters.DatabasePath</p><button class="quiet" @onclick="() => ShowRun(latest)">View results →</button></section>
+            }
+            @if (Session.IsBusy && Session.Messages.Length > 0) { <details class="card"><summary>Live diagnostics (latest 200 messages)</summary><pre>@string.Join("\n", Session.Messages)</pre></details> }
+        }
+        else if (page == "Diagnostics")
+        {
+            <div class="page-heading"><div><h1>Diagnostics</h1><p>Check database integrity and inspect content that needs attention.</p></div><span class="step-label">02 / INSPECT</span></div>
+            <section class="card">
+                <label for="inspect-database">Database file</label><div class="path-input"><input id="inspect-database" @bind="databasePath" @bind:after="SaveSelection" placeholder="Select an existing database" /><button @onclick="() => PickDatabase(true)">Browse…</button></div>
+                <label class="check"><input type="checkbox" @bind="compareSources" @bind:after="SaveSelection" />Also compare the original source files</label>
+                @if (compareSources)
+                { <label for="inspect-root">Original content folder</label><div class="path-input"><input id="inspect-root" @bind="contentRoot" @bind:after="SaveSelection" /><button @onclick="PickFolder">Browse…</button></div><p class="help">Use the folder captured by the import. A relocated source folder requires a refresh.</p> }
+                <div class="action-row"><span class="help">Inspection does not run an import or approve corrections.</span><button class="primary" disabled="@Session.IsBusy" @onclick="() => Start(RunKind.Inspection)">Inspect database →</button></div>
+            </section>
+            @if (SelectedRun is { } inspected) { <RunResults Run="inspected" OnExport="Export" @bind-Search="findingSearch" @bind-Area="findingArea" /> }
+            else { <div class="empty"><h2>A clear view of your content</h2><p>Select a database and run an inspection. Import results will appear here too.</p></div> }
+        }
+        else
+        {
+            <div class="page-heading"><div><h1>Recent runs</h1><p>Parameters and results from your last 30 runs, saved on this computer.</p></div><span class="step-label">03 / REVIEW</span></div>
+            @if (Session.Document.Runs.Count == 0) { <div class="empty"><h2>No runs yet</h2><p>Your imports and inspections will appear here.</p></div> }
+            @foreach (var run in Session.Document.Runs)
+            {
+                <section class="card compact"><div class="card-heading"><h2>@run.Kind <span class="muted">· @run.StartedUtc.ToLocalTime().ToString("g")</span></h2><span class="badge">@Label(run.Status)</span></div><p class="path">@run.Parameters.DatabasePath</p><div class="button-row"><button @onclick="() => ShowRun(run)">View results</button><button @onclick="() => Reuse(run)">Use these settings</button><button @onclick="() => Export(run)">Export report</button></div></section>
+            }
+        }
+        <footer>Aurora Translator <span>XML is the source of truth. SQLite is a rebuildable catalog.</span></footer>
+    </main>
+</div>
+
+@code {
+    string page = "Import", contentRoot = "", databasePath = "", policy = "strict", presetName = "", findingSearch = "", findingArea = "";
+    bool compareSources;
+    string? error, feedback;
+    Guid? selectedRunId;
+    bool disposed;
+    RunRecord? SelectedRun => Session.Document.Runs.FirstOrDefault(r => r.Id == selectedRunId) ?? Session.Document.Runs.FirstOrDefault();
+    protected override void OnInitialized() { ReadSelection(); Session.Changed += Refresh; }
+    void ReadSelection() { var p = Session.Document.Selection; contentRoot = p.ContentRoot; databasePath = p.DatabasePath; policy = p.SkipUnusable ? "best-effort" : "strict"; compareSources = p.CompareSources; }
+    void SaveSelection() => Session.Select(new(contentRoot, databasePath, policy == "best-effort", compareSources));
+    void Refresh() { if (!disposed) _ = InvokeAsync(StateHasChanged); }
+    void SavePreset() { try { SaveSelection(); Session.SavePreset(presetName); feedback = "Preset saved."; error = null; } catch (Exception ex) { error = ex.Message; } }
+    void LoadPreset(ChangeEventArgs e) { if (Guid.TryParse(e.Value?.ToString(), out var id) && Session.Document.Presets.FirstOrDefault(p => p.Id == id) is { } preset) { Session.Select(preset.Parameters); presetName = preset.Name; ReadSelection(); feedback = null; } }
+    void PickFolder() { try { if (Dialogs.ContentFolder() is { } path) { contentRoot = path; SaveSelection(); } } catch (Exception ex) { error = ex.Message; } }
+    void PickDatabase(bool existing) { try { if (Dialogs.Database(existing) is { } path) { databasePath = path; SaveSelection(); } } catch (Exception ex) { error = ex.Message; } }
+    async Task Start(RunKind kind)
+    {
+        try { error = feedback = null; SaveSelection(); var task = Session.StartAsync(kind); selectedRunId = Session.ActiveRun?.Id; await task; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+    async Task Navigate(string target) { page = target; feedback = null; await JS.InvokeVoidAsync("scrollTo", 0, 0); }
+    async Task ShowRun(RunRecord run) { selectedRunId = run.Id; await Navigate("Diagnostics"); }
+    async Task Reuse(RunRecord run) { Session.Select(run.Parameters); ReadSelection(); await Navigate(run.Kind == RunKind.Import ? "Import" : "Diagnostics"); feedback = "Settings loaded. Start a new run when ready."; }
+    void Export(RunRecord run) { try { if (Dialogs.Export(WorkspaceStore.Export(run), $"translator-{run.StartedUtc.ToLocalTime():yyyyMMdd-HHmmss}.json")) feedback = "Report exported."; } catch (Exception ex) { error = ex.Message; } }
+    public void Dispose() { disposed = true; Session.Changed -= Refresh; }
+    public static string Label(RunStatus status) => status == RunStatus.CompletedWithIssues ? "Completed with issues" : status.ToString();
+    static string PhaseLabel(ContentImportPhase? phase) => phase switch { ContentImportPhase.Preparing => "Preparing XML and corrections", ContentImportPhase.Reading => "Reading prepared content", ContentImportPhase.Comparing => "Finding changed files", ContentImportPhase.Writing => "Writing changed elements", ContentImportPhase.Resolving => "Resolving catalog relationships", ContentImportPhase.Activating => "Validating and activating the candidate", ContentImportPhase.Complete => "Finishing content summary", _ => "Working…" };
+}
